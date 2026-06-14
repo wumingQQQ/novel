@@ -5,8 +5,18 @@ spring:
     password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  servlet:
+    multipart:
+      max-file-size: 50MB
+
 mybatis-plus:
   type-aliases-package: com.wuming.novel.domain
   configuration:
     map-underscore-to-camel-case: true
     default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
+
+
+novel:
+  upload:
+    max-file-size: 10MB
+    save-path: data/novel
