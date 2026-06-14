@@ -47,7 +47,11 @@ gradle-wrapper.jar
 !wrapper/maven-wrapper.jar
 rebel.xml
 .history/
+.mvn/
 
 # 外部依赖包文件夹
 lib/
 *.txt
+
+# 测试暂时不提交
+test/
