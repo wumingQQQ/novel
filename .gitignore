@@ -1,0 +1,53 @@
+# 编译生成的类文件和打包产物
+target/
+build/
+*.class
+*.jar
+*.war
+*.ear
+*.par
+
+# IDE 配置和本地缓存文件
+# Intellij IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Eclipse
+.project
+.classpath
+.settings/
+bin/
+
+# NetBeans
+nbproject/
+nbbuild/
+nbdist/
+*.log
+nbactions.xml
+
+# VS Code
+.vscode/
+
+# 操作系统自动生成的文件
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+._*
+
+# 测试和构建日志
+*.log
+logs/
+
+# Maven 或 Gradle 专有文件
+.gradle/
+gradle-wrapper.jar
+!wrapper/maven-wrapper.jar
+rebel.xml
+.history/
+
+# 外部依赖包文件夹
+lib/
+*.txt
