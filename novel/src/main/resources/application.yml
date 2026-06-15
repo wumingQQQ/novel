@@ -9,6 +9,19 @@ spring:
     multipart:
       max-file-size: 50MB
 
+  ai:
+    openai:
+      api-key: ${DS_API_KEY}
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-v4-flash
+      embedding:
+        api-key: ${EMBEDDING_API_KEY}
+        base-url: https://aigc.x-see.cn
+        options:
+          model: bge-m3
+
 mybatis-plus:
   type-aliases-package: com.wuming.novel.domain
   configuration:
