@@ -41,6 +41,11 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
 
     @Override
     public void splitScene(int id) {
+        Long count = lambdaQuery().eq(Scene::getNovelId, id).count();
+        if(count > 0){
+            return;
+        }
+
         List<Chapter> chapters = chapterService.lambdaQuery().eq(Chapter::getNovelId, id).list();
         List<CompletableFuture<List<Scene>>> futures = chapters.stream()
                 .map(this::splitOneChapter)
