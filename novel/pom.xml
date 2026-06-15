@@ -68,6 +68,25 @@
             <version>2.22.0</version>
             <scope>compile</scope>
         </dependency>
+
+        <!-- Source: https://mvnrepository.com/artifact/com.googlecode.juniversalchardet/juniversalchardet -->
+        <!-- 检测文件编码 -->
+        <dependency>
+            <groupId>com.googlecode.juniversalchardet</groupId>
+            <artifactId>juniversalchardet</artifactId>
+            <version>1.0.3</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <!-- Source: https://mvnrepository.com/artifact/com.h2database/h2 -->
+        <!-- 测试用数据库 -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.4.240</version>
+            <scope>runtime</scope>
+        </dependency>
+
     </dependencies>
     <dependencyManagement>
         <dependencies>
