@@ -13,9 +13,9 @@ import java.util.List;
 @TableName(value = "interaction_profiles", autoResultMap = true)
 public class InteractionProfile implements Serializable {
     @TableId(type = IdType.AUTO)
-    private int id;
+    private Integer id;
 
-    private int characterId;    // 关于谁与主角的交流画像
+    private Integer characterId;    // 关于谁与主角的交流画像
     private String protagonistName;     // 主角
     private String tone;
     @TableField(typeHandler = JacksonTypeHandler.class)

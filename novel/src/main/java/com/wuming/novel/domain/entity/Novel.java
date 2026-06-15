@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @TableName("novels")
 public class Novel implements Serializable {
     @TableId(type = IdType.AUTO)
-    private int id;
+    private Integer id;
     private String name;
     private String filePath;
     @TableField(fill = FieldFill.INSERT)

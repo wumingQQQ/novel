@@ -14,9 +14,9 @@ import java.time.LocalDateTime;
 @TableName("scenes")
 public class Scene implements Serializable {
     @TableId
-    private int id;
-    private int novelId;
-    private int chapterId;
+    private Integer id;
+    private Integer novelId;
+    private Integer chapterId;
     private String content;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

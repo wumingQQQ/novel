@@ -12,8 +12,8 @@ import java.io.Serializable;
 @TableName("chapters")
 public class Chapter implements Serializable {
     @TableId(type = IdType.AUTO)
-    private int id;
-    private int novelId;
+    private Integer id;
+    private Integer novelId;
     private String title;
     // 小说中章节id
     private int sequence;

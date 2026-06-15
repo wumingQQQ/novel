@@ -12,8 +12,8 @@ import java.time.LocalDateTime;
 @TableName("jobs")
 public class Job implements Serializable {
     @TableId(type = IdType.AUTO)
-    private int jobId;
-    private int novelId;
+    private Integer jobId;
+    private Integer novelId;
     private String protagonistName;      // 用户将会扮演的角色
     private String targetName;      // llm将会扮演的角色
     private JobStage stage;

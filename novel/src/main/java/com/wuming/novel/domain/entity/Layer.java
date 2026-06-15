@@ -11,13 +11,13 @@ import java.time.LocalDateTime;
 @TableName("layers")
 public class Layer implements Serializable {
     @TableId(type = IdType.AUTO)
-    private int id;
+    private Integer id;
 
     private int layerId;
 
-    private int novelId;
-    private int startChapterId;
-    private int endChapterId;
+    private Integer novelId;
+    private Integer startChapterId;
+    private Integer endChapterId;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

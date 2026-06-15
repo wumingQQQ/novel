@@ -13,7 +13,7 @@ import java.util.List;
 @TableName(value = "profiles", autoResultMap = true)
 public class CharacterProfile implements Serializable {
     @TableId(type = IdType.AUTO)
-    private int id;
+    private Integer id;
 
     @TableField(typeHandler = JacksonTypeHandler.class)
     private BasicSetting basicSetting;
