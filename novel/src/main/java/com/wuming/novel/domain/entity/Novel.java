@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 public class Novel implements Serializable {
     @TableId(type = IdType.AUTO)
     private int id;
-    private String title;
+    private String name;
     private String filePath;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

@@ -45,7 +45,7 @@ public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INo
         file.transferTo(filePath);
 
         Novel novel = new Novel();
-        novel.setTitle(FilenameUtils.getBaseName(fileName));
+        novel.setName(FilenameUtils.getBaseName(fileName));
         novel.setFilePath(filePath.toString());
 
         save(novel);
