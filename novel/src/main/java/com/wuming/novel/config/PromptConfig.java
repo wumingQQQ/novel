@@ -36,7 +36,52 @@ public class PromptConfig {
             ]
             """;
 
+    private static final String LAYER_SPLIT_PROMPT = """
+            你是一个小说结构分析专家。请根据你对小说的理解与章节信息，以自然流畅的方式将整部小说划分为多个叙事阶段，在保持叙事连续性的前提下进行分层。
+            
+            【目标小说】：{novelName}
+      
+            【章节信息】
+            总章节数：{totalChapters}
+      
+            章节列表：
+            {chapterList}
+      
+            【分层约束】
+            1. 每层应包含 {minChaptersPerLayer} 至 {maxChaptersPerLayer} 章，若叙事完整性要求超出此范围，仅在迫不得已时方可触及边界，并需在 boundaryReason 中特别说明。
+            2. 最终生成的总层数必须介于 {minLayers} 到 {maxLayers} 之间。
+            3. 当上述两条约束冲突时，优先满足每层章节数约束。
+      
+            【层边界判定依据】
+            请优先选择叙事节奏自然转换的节点作为层边界，确保层与层之间的过渡顺滑，不割裂故事的连贯性：
+            - 场景/地点大幅切换
+            - 时间跳跃（数天后、数年后等）
+            - 目标角色的出现/消失模式变化
+            - 情节线明显转折
+            - 情绪基调变化
+      
+            【输出格式】严格按以下 JSON 数组格式输出，不要额外内容：
+            [
+              {
+                "layerIndex": 1,
+                "layerName": "初遇",
+                "startChapter": 1,
+                "endChapter": 52,
+              }
+            ]
+      
+            【输出格式校验规则】
+            1. 第一层必须从第1章开始，最后一层必须在第{totalChapters}章结束。
+            2. 前后层的章节必须严格连续：每一层的 startChapter 应等于上一层的 endChapter + 1。
+            3. layerIndex 必须从 1 开始连续递增，不得跳跃或重复。
+            4. 输出前请自行校验：a) 总章数是否为{totalChapters}；b) 层数是否在{minLayers}至{maxLayers}之间；c) 是否存在章节重叠或遗漏。
+            """;
+
     public String getSceneSplitPrompt() {
         return SCENE_SPLIT_PROMPT;
+    }
+
+    public String getLayerSplitPrompt() {
+        return LAYER_SPLIT_PROMPT;
     }
 }
