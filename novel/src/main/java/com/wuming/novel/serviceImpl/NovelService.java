@@ -37,11 +37,11 @@ public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INo
         }
 
         String savePath = fileUploadProperties.getSavePath();
-        Path  path = Paths.get(savePath);
+        Path path = Paths.get(savePath);
         Path filePath = path.resolve(fileName);
 
         // 保存文件
-        Files.createDirectories(filePath);
+        Files.createDirectories(path);
         file.transferTo(filePath);
 
         Novel novel = new Novel();
