@@ -38,7 +38,6 @@ Desktop.ini
 ._*
 
 # 测试和构建日志
-*.log
 logs/
 
 # Maven 或 Gradle 专有文件
@@ -52,6 +51,7 @@ rebel.xml
 # 外部依赖包文件夹
 lib/
 *.txt
+.codegraph
 
 # 测试暂时不提交
 test/
