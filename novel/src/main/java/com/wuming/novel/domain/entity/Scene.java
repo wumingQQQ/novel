@@ -17,6 +17,7 @@ public class Scene implements Serializable {
     private Integer id;
     private Integer novelId;
     private Integer chapterId;
+    private int sequence;
     private String content;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
