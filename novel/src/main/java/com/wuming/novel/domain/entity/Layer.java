@@ -13,7 +13,8 @@ public class Layer implements Serializable {
     @TableId(type = IdType.AUTO)
     private Integer id;
 
-    private int layerId;
+    private int layerIndex;
+    private String layerName;
 
     private Integer novelId;
     private Integer startChapterId;
