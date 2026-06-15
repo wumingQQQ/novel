@@ -4,7 +4,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class PromptConfig {
-    private static final String  SCENE_SPLIT_PROMPT = """
+    public static final String  SCENE_SPLIT_PROMPT = """
             你是一个小说场景分析专家。请将下面的章节精准地切分为语义完整的场景，确保每个场景的划分有明确的语义边界，避免模糊或重叠。
             
             【章节信息】
