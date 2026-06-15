@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/test/h2-test;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:test/schema.sql
+
+novel:
+  upload:
+    save-path: data/test
