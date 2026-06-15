@@ -49,17 +49,26 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
         List<Chapter> chapters = new ArrayList<>();
         for (int i = 0; i < c.size(); i++) {
             String raw = c.get(i).trim();
+            if(raw.isEmpty()) continue;   // 过滤空内容
+
             Chapter chapter = new Chapter();
             chapter.setNovelId(id);
             chapter.setSequence(i + 1);
+
             // 标题还需稍微改动
             String title = raw.lines().findFirst().orElse("").trim();
             chapter.setTitle(title);
-            // 内容可以考虑去掉标题行
-            chapter.setContent(raw);
+
+            // 提取正文
+            String body = raw.substring(title.length()).trim();
+            chapter.setContent(body);
+
             chapters.add(chapter);
         }
-        saveBatch(chapters);
+
+        if(!chapters.isEmpty()) {
+            saveBatch(chapters);
+        }
     }
 
     private List<String> splitChapter(String content) {
@@ -67,9 +76,13 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
         List<String> result = new ArrayList<>();
         int prev = 0;
         while (matcher.find()) {
-            if(prev > 0) result.add(content.substring(prev, matcher.start()));
+            // 保留第一个章节标题之前的内容
+            if(matcher.start() > prev) {
+                result.add(content.substring(prev, matcher.start()));
+            }
             prev = matcher.start();
         }
+        // 处理最后一个章节到文件末尾的内容
         if(prev > 0) result.add(content.substring(prev));
         else{
             // 章节标记匹配失败
