@@ -62,12 +62,12 @@ public class PromptConfig {
       
             【输出格式】严格按以下 JSON 数组格式输出，不要额外内容：
             [
-              {
+              {{
                 "layerIndex": 1,
                 "layerName": "初遇",
                 "startChapter": 1,
                 "endChapter": 52,
-              }
+              }}
             ]
       
             【输出格式校验规则】
