@@ -17,8 +17,8 @@ public class Layer implements Serializable {
     private String layerName;
 
     private Integer novelId;
-    private Integer startChapterId;
-    private Integer endChapterId;
+    private Integer startChapterSequence;
+    private Integer endChapterSequence;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
