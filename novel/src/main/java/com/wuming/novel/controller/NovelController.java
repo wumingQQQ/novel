@@ -3,6 +3,7 @@ package com.wuming.novel.controller;
 import com.wuming.novel.domain.dto.ApiResonse;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.INovelService;
+import com.wuming.novel.service.ISceneService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,10 +20,12 @@ public class NovelController {
 
     private final INovelService novelService;
     private final IChapterService chapterService;
+    private final ISceneService sceneService;
 
-    public NovelController(INovelService novelService, IChapterService chapterService) {
+    public NovelController(INovelService novelService, IChapterService chapterService, ISceneService sceneService) {
         this.novelService = novelService;
         this.chapterService = chapterService;
+        this.sceneService = sceneService;
     }
 
     @PostMapping
@@ -36,6 +39,14 @@ public class NovelController {
         chapterService.splitChapter(id);
         return ApiResonse.success("");
     }
+
+    @RequestMapping("/scene/{id}")
+    public ApiResonse<String> splitScene(@PathVariable int id) throws IOException {
+        sceneService.splitScene(id);
+        return ApiResonse.success("");
+    }
+
+
 
 
 }
