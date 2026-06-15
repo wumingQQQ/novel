@@ -38,6 +38,12 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
     @Override
     @Transactional
     public void splitChapter(int id) throws IOException {
+        // 幂等设计
+        Long count = lambdaQuery().eq(Chapter::getNovelId, id).count();
+        if(count > 0){
+            return;
+        }
+
         Novel novel = novelService.getById(id);
         String filePath = novel.getFilePath();
         Path path = Paths.get(filePath);
