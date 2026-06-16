@@ -1,10 +1,7 @@
 package com.wuming.novel.controller;
 
 import com.wuming.novel.domain.dto.ApiResonse;
-import com.wuming.novel.service.IChapterService;
-import com.wuming.novel.service.ILayerService;
-import com.wuming.novel.service.INovelService;
-import com.wuming.novel.service.ISceneService;
+import com.wuming.novel.service.*;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,12 +20,14 @@ public class NovelController {
     private final IChapterService chapterService;
     private final ISceneService sceneService;
     private final ILayerService layerService;
+    private final IScenePoolService scenePoolService;
 
-    public NovelController(INovelService novelService, IChapterService chapterService, ISceneService sceneService, ILayerService layerService) {
+    public NovelController(INovelService novelService, IChapterService chapterService, ISceneService sceneService, ILayerService layerService, IScenePoolService scenePoolService) {
         this.novelService = novelService;
         this.chapterService = chapterService;
         this.sceneService = sceneService;
         this.layerService = layerService;
+        this.scenePoolService = scenePoolService;
     }
 
     @PostMapping
@@ -52,6 +51,12 @@ public class NovelController {
     @RequestMapping("/layer/{id}")
     public ApiResonse<String> splitLayer(@PathVariable int id) throws IOException {
         layerService.splitLayer(id);
+        return ApiResonse.success("");
+    }
+
+    @RequestMapping("/pool/{id}")
+    public ApiResonse<String> scenePool(@PathVariable int id) throws IOException {
+        scenePoolService.divideSceneIntoPool(id);
         return ApiResonse.success("");
     }
 
