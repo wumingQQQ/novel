@@ -22,4 +22,17 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean("poolClassifyExecutor")
+    public Executor poolClassifyExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(5000);
+        executor.setThreadNamePrefix("pool-classify-executor-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }
