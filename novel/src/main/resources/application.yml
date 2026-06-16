@@ -33,3 +33,8 @@ novel:
   upload:
     max-file-size: 10MB
     save-path: data/novel
+  layer:
+    min-chapter-per-layer: 15
+    max-chapter-per-layer: 35
+    min-layer-size: 8
+    max-layer-size: 30
