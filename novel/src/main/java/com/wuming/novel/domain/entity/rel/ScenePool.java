@@ -1,19 +1,15 @@
 package com.wuming.novel.domain.entity.rel;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.baomidou.mybatisplus.annotation.*;
 import com.wuming.novel.domain.enums.PoolType;
 import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Map;
+import java.time.LocalDateTime;
 
 @Data
-@TableName(value = "scene_pool", autoResultMap = true)
+@TableName(value = "scene_pool")
 public class ScenePool implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
@@ -22,6 +18,9 @@ public class ScenePool implements Serializable {
     private Integer id;
 
     private Integer sceneId;
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private Map<PoolType, Double> pools;
+    private PoolType poolType;
+    private Double confidence;
+
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
 }
