@@ -2,6 +2,7 @@ package com.wuming.novel.domain.enums;
 
 import com.baomidou.mybatisplus.annotation.EnumValue;
 import com.fasterxml.jackson.annotation.JsonValue;
+import com.wuming.novel.exception.PoolTypeNotExistException;
 import lombok.Getter;
 
 @Getter
@@ -28,6 +29,6 @@ public enum PoolType {
                 return poolType;
             }
         }
-        return null;
+        throw new PoolTypeNotExistException(code + " is not exist");
     }
 }
