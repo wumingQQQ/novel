@@ -1,11 +1,109 @@
 package com.wuming.novel.serviceImpl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.wuming.novel.config.PromptConfig;
+import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Layer;
+import com.wuming.novel.domain.entity.Novel;
+import com.wuming.novel.domain.llmresponse.LayerSplitResponse;
 import com.wuming.novel.mapper.LayerMapper;
+import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.ILayerService;
+import com.wuming.novel.service.INovelService;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.ResponseFormat;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @Service
 public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILayerService {
+
+    private final INovelService novelService;
+    private final IChapterService chapterService;
+    private final PromptConfig promptConfig;
+    private final ChatClient chatClient;
+
+    public LayerService(INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, ChatModel chatModel) {
+        this.novelService = novelService;
+        this.chapterService = chapterService;
+        this.promptConfig = promptConfig;
+        this.chatClient = ChatClient.builder(chatModel).build();
+    }
+
+    @Value("${novel.layer.min-chapter-per-layer}")
+    private int minChapterSize;
+    @Value("${novel.layer.max-chapter-per-layer}")
+    private int maxChapterSize;
+    @Value("${novel.layer.min-layer-size}")
+    private int minLayerSize;
+    @Value("${novel.layer.max-layer-size}")
+    private int maxLayerSize;
+
+    @Override
+    @Transactional
+    public void splitLayer(int id) {
+        List<String> chapterTitles = chapterService.lambdaQuery()
+                .eq(Chapter::getNovelId, id)
+                .select(Chapter::getTitle)
+                .orderByAsc(Chapter::getSequence)
+                .list()
+                .stream()
+                .map(Chapter::getTitle)
+                .toList();
+        Novel novel = novelService.getById(id);
+        if(novel == null) {
+            throw new IllegalArgumentException("小说" + id + "不存在，请检查是否已经删除");
+        }
+        String novelName = novel.getName();
+        int chapterCount = chapterTitles.size();
+        if(chapterCount == 0){
+            System.out.println("小说" + id + "章节数据不存在，请检查后重试");
+            return;
+        }
+
+        LayerSplitResponse[] responses = chatClient.prompt()
+                .user(u -> u.text(promptConfig.getLayerSplitPrompt())
+                        .param("novelName", novelName)
+                        .param("totalChapters", chapterCount)
+                        .param("minChaptersPerLayer", minChapterSize)
+                        .param("maxChaptersPerLayer", maxChapterSize)
+                        .param("minLayers", minLayerSize)
+                        .param("maxLayers", maxLayerSize)
+                        .param("chapterList", String.join("\n", chapterTitles))
+                )
+                .options(OpenAiChatOptions.builder()
+                        .responseFormat(ResponseFormat.builder()
+                                .type(ResponseFormat.Type.JSON_OBJECT)
+                                .build())
+                        .build()
+                )
+                .call()
+                .entity(LayerSplitResponse[].class);
+
+        if(responses == null || responses.length == 0) {
+            System.out.println("llm对layer split响应为空");
+            // TODO 考虑增加降级逻辑，固定章节数分层
+            return;
+        }
+
+        List<Layer> layers = new ArrayList<>();
+        for (LayerSplitResponse layerResponse : responses) {
+            Layer layer = new Layer();
+            layer.setLayerIndex(layerResponse.layerIndex());
+            layer.setLayerName(layerResponse.layerName());
+            layer.setNovelId(id);
+            layer.setStartChapterSequence(layerResponse.startChapter());
+            layer.setEndChapterSequence(layerResponse.endChapter());
+
+            layers.add(layer);
+        }
+        saveBatch(layers);
+    }
 }
