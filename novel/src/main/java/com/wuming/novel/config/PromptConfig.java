@@ -36,6 +36,45 @@ public class PromptConfig {
             ]
             """;
 
+    private static final String SCENE_POOL_PROMPT = """
+            你是一个角色画像分析专家。请分析以下场景，判断它揭示了目标角色的哪些维度信息。
+            
+            【主角（叙事视角人物）】：{protagonistName}
+            【目标角色（需要分析的对象）】：{targetName}
+            
+            【场景内容】
+            {sceneContent}
+            
+            【维度定义】
+            
+            | 维度 | 关注什么 | 最终输出到 |
+            |------|---------|-----------|
+            | SETTING | 目标角色的基础设定：年龄/身份/家庭背景/性格设定（如"不会说谎"） | 角色基础信息 |
+            | PERSONALITY | 目标角色的性格、价值观、动机、内心想法 | 性格特征 |
+            | SPEECH | 目标角色的语气/口癖/常用称呼/代表性台词 | 说话风格 |
+            | INTERACTION | 目标角色与主角的互动方式、关系亲密度、信任程度 | 互动画像 |
+            | KEY_EVENT | 目标角色与主角之间发生的转折性事件 | 关键事件 |
+            
+            【分析要求】
+            1. 仔细阅读场景，判断它包含以上哪些维度的信息
+            2. 置信度 0.0-1.0，越高表示该维度信息越明确、越重要
+            
+            【置信度参考】
+            - 0.8以上：该场景主要就在展现这个维度
+            - 0.5-0.8：场景包含该维度的明确信息
+            - 0.2-0.5：暗示了该维度但不够明确
+            - 0.2以下：几乎没有该维度信息
+            
+            【输出格式】严格按以下 JSON 格式：
+            [
+              {{"SETTING": 0.05}},
+              {{"PERSONALITY": 0.72}},
+              {{"SPEECH": 0.68}},
+              {{"INTERACTION": 0.65}},
+              {{"KEY_EVENT": 0.00}}
+            ]
+            """;
+
     private static final String LAYER_SPLIT_PROMPT = """
             你是一个小说结构分析专家。请根据你对小说的理解与章节信息，以自然流畅的方式将整部小说划分为多个叙事阶段，在保持叙事连续性的前提下进行分层。
             
@@ -83,5 +122,9 @@ public class PromptConfig {
 
     public String getLayerSplitPrompt() {
         return LAYER_SPLIT_PROMPT;
+    }
+
+    public String getScenePoolPrompt() {
+        return SCENE_POOL_PROMPT;
     }
 }
