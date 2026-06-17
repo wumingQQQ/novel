@@ -35,4 +35,17 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean("evidenceExtractExecutor")
+    public Executor evidenceExtractExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("evidence-extract-executor-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }
