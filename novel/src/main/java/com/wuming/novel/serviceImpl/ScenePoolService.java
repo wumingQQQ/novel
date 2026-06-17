@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -30,9 +31,6 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     private final PromptConfig promptConfig;
     private final ISceneService sceneService;
     private final ChatClient chatClient;
-    @Autowired
-    @Lazy
-    private IScenePoolService self;
 
     public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, ChatModel chatModel) {
         this.promptConfig = promptConfig;
@@ -71,7 +69,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
 
     @Async("poolClassifyExecutor")
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     protected CompletableFuture<String> doSimpleClassify(Scene scene){
         try {
             var converter = new BeanOutputConverter<>(ScenePoolResponse[].class);
@@ -109,7 +107,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                 scenePools.add(scenePool);
             }
 
-            self.saveBatch(scenePools);
+            saveBatch(scenePools);
 
             return CompletableFuture.completedFuture("success");
         } catch (Exception e) {
