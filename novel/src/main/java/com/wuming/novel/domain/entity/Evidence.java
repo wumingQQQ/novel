@@ -28,7 +28,5 @@ public class Evidence implements Serializable {
     private String conclusion;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<Integer, String> supportQuotes;
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<Integer> sceneIndices;
     private Double confidence;
 }
