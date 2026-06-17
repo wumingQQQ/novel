@@ -27,6 +27,8 @@ public class Evidence implements Serializable {
     private PoolType poolType;
     private String conclusion;
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private Map<Integer, String> supportQuotes;
+    private List<String> supportQuotes;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<Integer> sceneIndices;
     private Double confidence;
 }
