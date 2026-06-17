@@ -2,7 +2,6 @@ package com.wuming.novel.controller;
 
 import com.wuming.novel.domain.dto.ApiResonse;
 import com.wuming.novel.service.*;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,19 +42,19 @@ public class NovelController {
     }
 
     @RequestMapping("/scene/{id}")
-    public ApiResonse<String> splitScene(@PathVariable int id) throws IOException {
+    public ApiResonse<String> splitScene(@PathVariable int id){
         sceneService.splitScene(id);
         return ApiResonse.success("");
     }
 
     @RequestMapping("/layer/{id}")
-    public ApiResonse<String> splitLayer(@PathVariable int id) throws IOException {
+    public ApiResonse<String> splitLayer(@PathVariable int id){
         layerService.splitLayer(id);
         return ApiResonse.success("");
     }
 
     @RequestMapping("/pool/{id}")
-    public ApiResonse<String> scenePool(@PathVariable int id) throws IOException {
+    public ApiResonse<String> scenePool(@PathVariable int id){
         scenePoolService.divideSceneIntoPool(id);
         return ApiResonse.success("");
     }
