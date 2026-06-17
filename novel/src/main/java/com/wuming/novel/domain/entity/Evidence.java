@@ -11,10 +11,9 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.List;
-import java.util.Map;
 
 @Data
-@TableName("evidences")
+@TableName(value = "evidences", autoResultMap = true)
 public class Evidence implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
