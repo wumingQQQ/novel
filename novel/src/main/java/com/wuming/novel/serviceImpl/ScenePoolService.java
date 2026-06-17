@@ -103,6 +103,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
                 ScenePool scenePool = new ScenePool();
                 scenePool.setSceneId(scene.getId());
+                scenePool.setNovelId(scene.getNovelId());
                 scenePool.setPoolType(poolType);
                 scenePool.setConfidence(response.confidence());
                 scenePools.add(scenePool);

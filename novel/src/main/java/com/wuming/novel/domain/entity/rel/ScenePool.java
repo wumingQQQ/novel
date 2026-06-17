@@ -18,6 +18,7 @@ public class ScenePool implements Serializable {
     private Integer id;
 
     private Integer sceneId;
+    private Integer novelId;
     private PoolType poolType;
     private Double confidence;
 
