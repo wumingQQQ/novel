@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuming.novel.mapper.RecallMapper">
+
+    <select id="recallScenesByLayerAndPool" resultType="Scene">
+        SELECT s.*
+        FROM scenes s
+                 INNER JOIN scene_pool sp ON s.id = sp.scene_id
+                 INNER JOIN chapters c ON s.chapter_id = c.id
+        WHERE c.novel_id = #{novelId}
+          AND sp.pool_type = #{poolType}
+          AND sp.confidence >= #{threshold}
+          AND c.sequence BETWEEN #{startSeq} AND #{endSeq}
+        ORDER BY sp.confidence DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
