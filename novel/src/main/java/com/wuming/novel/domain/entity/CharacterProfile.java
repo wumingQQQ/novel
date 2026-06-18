@@ -31,26 +31,28 @@ public class CharacterProfile implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
-}
 
+    @Data
+    static
+    public class BasicSetting implements Serializable {
+        private String characterName;
+        private int age;
+        private String identity;    // 身份(学生等)
+        private String presume;     // 角色设定，比如不会说谎等
 
-@Data
-class BasicSetting implements Serializable {
-    private String characterName;
-    private int age;
-    private String identity;    // 身份(学生等)
-    private String presume;     // 角色设定，比如不会说谎等
+        @Serial
+        private static final long serialVersionUID = 1L;
+    }
 
-    @Serial
-    private static final long serialVersionUID = 1L;
-}
+    @Data
+    static
+    public class SpeechStyle implements Serializable {
+        private String tone;    // 语气
+        private String wordsHabit;      // 口癖
+        private List<String> representativeLines;       // 代表语句
 
-@Data
-class SpeechStyle implements Serializable {
-    private String tone;    // 语气
-    private String wordsHabit;      // 口癖
-    private List<String> representativeLines;       // 代表语句
+        @Serial
+        private static final long serialVersionUID = 1L;
+    }
 
-    @Serial
-    private static final long serialVersionUID = 1L;
 }
