@@ -6,6 +6,7 @@ import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.domain.entity.*;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.AggregationResponse;
+import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.service.ICharacterProfileService;
 import com.wuming.novel.service.IEvidenceService;
 import com.wuming.novel.service.IInteractionProfileService;
@@ -14,6 +15,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +35,14 @@ public class AggregationService {
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
+    @Lazy
+    @Autowired
+    private AggregationService self;
+
+    @Value("${novel.sample.targetName}")
+    private String targetName;
+    @Value("${novel.sample.protagonistName}")
+    private String protagonistName;
 
 
     public AggregationService(IEvidenceService evidenceService, ILayerService layerService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, ChatModel chatModel, ObjectMapper objectMapper) {
@@ -44,10 +56,11 @@ public class AggregationService {
     }
 
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void aggregation(int novelId) {
         List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
         FullPortrait fullPortrait = new FullPortrait();
+        fullPortrait.getCharacterProfile().getBasicSetting().setCharacterName(targetName);
+        fullPortrait.getInteractionProfile().setProtagonistName(protagonistName);
         for(Layer layer : layers) {
             for(PoolType poolType : PoolType.values()) {
                 // TODO 后续考虑使用jobId对证据再进行过滤
@@ -62,13 +75,17 @@ public class AggregationService {
                 }
 
                 AggregationResponse response = aggregationPool(evidences, layer, fullPortrait);
+                if(response == null){
+                    throw new LLMResponseEmptyException("聚合服务时llm返回空");
+                }
+
                 copyAggregationResponse(fullPortrait, response);
             }
         }
-        saveProfile(fullPortrait);
+        self.saveProfile(fullPortrait);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveProfile(FullPortrait fullPortrait) {
         CharacterProfile characterProfile = fullPortrait.getCharacterProfile();
         InteractionProfile interactionProfile = fullPortrait.getInteractionProfile();
@@ -84,7 +101,8 @@ public class AggregationService {
                             try {
                                 u.text(promptConfig.getAggregationPrompt())
                                         .param("layerName", layer.getLayerName())
-                                        .param("evidences", evidences)
+                                        .param("poolType", evidences.get(0).getPoolType().name())
+                                        .param("evidences", formatEvidences(evidences))
                                         // 将之前的画像填入
                                         .param("currentProfile", objectMapper.writeValueAsString(fullPortrait));
                             } catch (JsonProcessingException e) {
@@ -105,6 +123,22 @@ public class AggregationService {
     private void copyAggregationResponse(FullPortrait fullPortrait, AggregationResponse aggregationResponse) {
         fullPortrait.setCharacterProfile(aggregationResponse.characterProfile());
         fullPortrait.setInteractionProfile(aggregationResponse.interactionProfile());
+    }
+
+    private String formatEvidences(List<Evidence> evidences) {
+        StringBuilder sb = new StringBuilder();
+        for(int i = 0; i < evidences.size(); i++) {
+            Evidence e = evidences.get(i);
+            sb.append("【证据").append(i + 1).append("】\n");
+            sb.append("结论：").append(e.getConclusion()).append("\n");
+            sb.append("置信度：").append(String.format("%.2f", e.getConfidence())).append("\n");
+            sb.append("原文支撑：\n");
+            for (String quote : e.getSupportQuotes()) {
+                sb.append("  > \"").append(quote).append("\"\n");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 
 }
