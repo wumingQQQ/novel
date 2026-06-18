@@ -60,6 +60,12 @@
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
             <version>3.5.10</version>
         </dependency>
+
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+
         <!-- Source: https://mvnrepository.com/artifact/com.baomidou/mybatis-plus-jsqlparser -->
         <dependency>
             <groupId>com.baomidou</groupId>
