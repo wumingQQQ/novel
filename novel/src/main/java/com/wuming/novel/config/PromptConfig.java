@@ -242,6 +242,75 @@ public class PromptConfig {
                 返回结果前请确认以上各项均已验证通过
                 """;
 
+    private static final String AGGREGATION_PROMPT = """
+            你是一个角色画像聚合专家。请根据新证据更新和完善目标角色的完整画像。
+          
+            【当前画像】
+            {currentProfile}
+  
+            【当前叙事层】：{layerName}
+  
+            【新证据】
+            {evidences}
+  
+            【聚合规则与字段绑定】
+            以下规则明确适用于所有字段（characterProfile 和 interactionProfile 下的全部字段），除非特别指明：
+            1. 如果当前画像为空（所有字段为 null），直接用证据中的信息构建初始画像，填充所有字段
+            2. 新证据与当前画像一致时，保留已有内容并补充更具体的细节，适用于所有字段
+            3. 新证据与当前画像冲突时，以新证据为准修正对应字段——该原则适用于所有字段，包括但不限于：
+               - basicSetting.characterName、basicSetting.age、basicSetting.identity、basicSetting.presume
+               - personality、speechStyle.tone、speechStyle.wordsHabit、speechStyle.representativeLines
+               - protagonistName、tone、keyEvents、conservationSamples
+            4. 新证据涉及当前画像未覆盖的维度时，直接添加对应字段内容，适用于所有字段
+            5. 当前画像中已有但新证据未涉及的维度，保持原样不变，适用于所有字段
+            6. 所有结论必须有证据中的 supportingQuotes 支撑，禁止推测或脑补——此原则适用于所有字段的更新与填充
+  
+            【字段说明】
+            characterProfile:
+              - basicSetting.characterName: 角色名称
+              - basicSetting.age: 年龄
+              - basicSetting.identity: 身份（学生、会长等）
+              - basicSetting.presume: 角色特殊设定（如"不会说谎"、"路痴"等）
+              - personality: 性格描述（核心性格、价值观）
+              - speechStyle.tone: 语气基调（冷淡/傲娇/温柔/暴躁/俏皮等）
+              - speechStyle.wordsHabit: 口癖或习惯用语
+              - speechStyle.representativeLines: 代表台词列表（2-5 句）
+  
+            interactionProfile:
+              - protagonistName: 主角名称
+              - tone: 与主角的互动基调
+              - keyEvents: 关键事件列表（关系转折、重大选择，按时间顺序）
+              - conservationSamples: 对话示例列表（2-5 条能体现互动模式的对话）
+  
+            【输出格式】严格按以下 JSON 返回完整画像，不得省略任何字段：
+            {{
+              "characterProfile": {{
+                "basicSetting": {{
+                  "characterName": "角色名",
+                  "age": 0,
+                  "identity": "身份描述",
+                  "presume": "特殊设定"
+                }},
+                "personality": "性格描述",
+                "speechStyle": {
+                  "tone": "语气基调",
+                  "wordsHabit": "口癖",
+                  "representativeLines": ["台词1", "台词2"]
+                }}
+              }},
+              "interactionProfile": {{
+                "protagonistName": "主角名",
+                "tone": "互动基调",
+                "keyEvents": ["事件1", "事件2"],
+                "conservationSamples": ["对话1", "对话2"]
+              }}
+            }}
+            """;
+
+    public String getAggregationPrompt() {
+        return AGGREGATION_PROMPT;
+    }
+
 
     public String getEvidenceExtractPrompt(PoolType poolType) {
         String poolDescription = POOL_TYPE_DESCRIPTIONS.get(poolType);
