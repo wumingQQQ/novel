@@ -249,6 +249,8 @@ public class PromptConfig {
             {currentProfile}
   
             【当前叙事层】：{layerName}
+            
+            【证据池类型】： {poolType}
   
             【新证据】
             {evidences}
