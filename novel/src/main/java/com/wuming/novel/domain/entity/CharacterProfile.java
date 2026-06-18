@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-@TableName(value = "profiles", autoResultMap = true)
+@TableName(value = "character_profiles", autoResultMap = true)
 public class CharacterProfile implements Serializable {
     @TableId(type = IdType.AUTO)
     @JsonIgnore
