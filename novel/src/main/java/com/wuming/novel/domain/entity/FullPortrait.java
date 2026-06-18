@@ -4,6 +4,6 @@ import lombok.Data;
 
 @Data
 public class FullPortrait {
-    CharacterProfile characterProfile;
-    InteractionProfile interactionProfile;
+    CharacterProfile characterProfile = new CharacterProfile();
+    InteractionProfile interactionProfile = new InteractionProfile();
 }

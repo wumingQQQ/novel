@@ -8,6 +8,7 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -18,11 +19,11 @@ public class CharacterProfile implements Serializable {
     private Integer id;
 
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private BasicSetting basicSetting;
+    private BasicSetting basicSetting = new BasicSetting();
     // 后期考虑定义多个字段
     private String personality;
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private SpeechStyle speechStyle;
+    private SpeechStyle speechStyle = new SpeechStyle();
 
     // 后期考虑增加成长弧线
 
@@ -53,7 +54,7 @@ public class CharacterProfile implements Serializable {
     public class SpeechStyle implements Serializable {
         private String tone;    // 语气
         private String wordsHabit;      // 口癖
-        private List<String> representativeLines;       // 代表语句
+        private List<String> representativeLines = new ArrayList<>();       // 代表语句
 
         @Serial
         private static final long serialVersionUID = 1L;

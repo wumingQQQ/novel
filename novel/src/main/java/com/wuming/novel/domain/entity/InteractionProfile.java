@@ -8,6 +8,7 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -22,9 +23,9 @@ public class InteractionProfile implements Serializable {
     private String protagonistName;     // 主角
     private String tone;
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<String> keyEvents;     // 二者经历的关键事件
+    private List<String> keyEvents = new ArrayList<>();     // 二者经历的关键事件
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<String> conservationSamples;       // 对话示例
+    private List<String> conservationSamples = new ArrayList<>();       // 对话示例
 
     @TableField(fill = FieldFill.INSERT)
     @JsonIgnore
