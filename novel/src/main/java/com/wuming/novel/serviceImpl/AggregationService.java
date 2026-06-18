@@ -2,6 +2,7 @@ package com.wuming.novel.serviceImpl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.domain.entity.*;
 import com.wuming.novel.domain.enums.PoolType;
@@ -74,12 +75,15 @@ public class AggregationService {
                     continue;
                 }
 
-                AggregationResponse response = aggregationPool(evidences, layer, fullPortrait);
-                if(response == null){
-                    throw new LLMResponseEmptyException("聚合服务时llm返回空");
-                }
+                List<List<Evidence>> partition = Lists.partition(evidences, 20);
+                for(List<Evidence> evidenceList : partition) {
+                    AggregationResponse response = aggregationPool(evidenceList, layer, fullPortrait);
+                    if(response == null){
+                        throw new LLMResponseEmptyException("聚合服务时llm返回空");
+                    }
 
-                copyAggregationResponse(fullPortrait, response);
+                    copyAggregationResponse(fullPortrait, response);
+                }
             }
         }
         self.saveProfile(fullPortrait);
