@@ -38,11 +38,6 @@ public class AggregationService {
     @Autowired
     private AggregationService self;
 
-    @Value("${novel.sample.targetName}")
-    private String targetName;
-    @Value("${novel.sample.protagonistName}")
-    private String protagonistName;
-
 
     public AggregationService(IEvidenceService evidenceService, ILayerService layerService, IJobService jobService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, ChatModel chatModel, ObjectMapper objectMapper) {
         this.evidenceService = evidenceService;
@@ -57,7 +52,11 @@ public class AggregationService {
 
 
     public void aggregation(int jobId) {
-        int novelId = jobService.getById(jobId).getNovelId();
+        Job job = jobService.getById(jobId);
+        int novelId = job.getNovelId();
+
+        String protagonistName = job.getProtagonistName();
+        String targetName = job.getTargetName();
 
         List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
         FullPortrait fullPortrait = new FullPortrait();
