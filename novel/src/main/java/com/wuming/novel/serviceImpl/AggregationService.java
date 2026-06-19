@@ -5,10 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.domain.entity.*;
+import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.AggregationResponse;
 import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.service.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -22,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+@Slf4j
 @Service
 public class AggregationService {
 
@@ -53,10 +57,17 @@ public class AggregationService {
 
     public void aggregation(int jobId) {
         Job job = jobService.getById(jobId);
-        int novelId = job.getNovelId();
+        if(job.getStage().getCode() >= JobStage.PROFILE_AGGREGATION.getCode()){
+            log.info("任务{}已经完成了阶段{}", jobId, JobStage.PROFILE_AGGREGATION);
+            return;
+        }
 
+        int novelId = job.getNovelId();
         String protagonistName = job.getProtagonistName();
         String targetName = job.getTargetName();
+
+        // 清除旧画像
+        deleteExistingPortrait(jobId);
 
         List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
         FullPortrait fullPortrait = new FullPortrait();
@@ -64,11 +75,11 @@ public class AggregationService {
         fullPortrait.getInteractionProfile().setProtagonistName(protagonistName);
         for(Layer layer : layers) {
             for(PoolType poolType : PoolType.values()) {
-                // TODO 后续考虑使用jobId对证据再进行过滤
                 List<Evidence> evidences = evidenceService.lambdaQuery()
                         .eq(Evidence::getNovelId, novelId)
                         .eq(Evidence::getLayerId, layer.getId())
                         .eq(Evidence::getPoolType, poolType)
+                        .eq(Evidence::getJobId, job.getId())
                         .list();
 
                 if(evidences.isEmpty()) {
@@ -87,6 +98,11 @@ public class AggregationService {
             }
         }
         self.saveProfile(fullPortrait);
+    }
+
+    private void deleteExistingPortrait(int jobId) {
+        characterProfileService.removeByMap(Map.of("jobId",  jobId));
+        interactionProfileService.removeByMap(Map.of("jobId",  jobId));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
