@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.common.collect.Lists;
 import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.domain.entity.Evidence;
+import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Layer;
 import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.enums.PoolType;
@@ -53,6 +54,9 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
             return;
         }
 
+        Job job = jobService.getById(jobId);
+        targetName = job.getTargetName();
+
         List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
 
         for (Layer layer : layers) {
@@ -72,7 +76,6 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     @Value("${novel.analysis.batch-size}")
     private int batchSize;
 
-    @Value("${novel.sample.targetName}")
     private String targetName;
 
     public void extractEvidence(List<Scene> scenes, PoolType poolType, Layer layer) {
