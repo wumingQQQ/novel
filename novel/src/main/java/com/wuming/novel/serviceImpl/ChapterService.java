@@ -3,7 +3,9 @@ package com.wuming.novel.serviceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuming.novel.domain.entity.Chapter;
+import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Novel;
+import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.mapper.ChapterMapper;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
@@ -46,6 +48,11 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
     @Override
     @Transactional
     public void splitChapter(int jobId) throws IOException {
+        Job job = jobService.getById(jobId);
+        if(job.getStage().getCode() >= JobStage.CHAPTER_SPLIT.getCode()){
+            log.info("任务{}已经完成了阶段{}", jobId, JobStage.CHAPTER_SPLIT);
+            return;
+        }
         int novelId  = jobService.getById(jobId).getNovelId();
         // 幂等设计：清理旧数据重跑
         cleanOldChapter(novelId);
