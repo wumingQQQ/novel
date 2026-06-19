@@ -14,18 +14,10 @@ import java.io.IOException;
 public class NovelController {
 
     private final INovelService novelService;
-    private final IChapterService chapterService;
-    private final ISceneService sceneService;
-    private final ILayerService layerService;
-    private final IScenePoolService scenePoolService;
     private final IJobService jobService;
 
-    public NovelController(INovelService novelService, IChapterService chapterService, ISceneService sceneService, ILayerService layerService, IScenePoolService scenePoolService, IJobService jobService) {
+    public NovelController(INovelService novelService, IJobService jobService) {
         this.novelService = novelService;
-        this.chapterService = chapterService;
-        this.sceneService = sceneService;
-        this.layerService = layerService;
-        this.scenePoolService = scenePoolService;
         this.jobService = jobService;
     }
 
@@ -35,35 +27,12 @@ public class NovelController {
         return ApiResonse.success(novelId);
     }
 
-    @RequestMapping("/{jobId}")
-    public ApiResonse<String> splitChapter(@PathVariable int jobId) throws IOException {
-        chapterService.splitChapter(jobId);
-        return ApiResonse.success("");
-    }
-
     @RequestMapping("/createJob")
     public ApiResonse<Integer> createJob(@RequestBody CreateJobRequest request) throws IOException {
         int jobId = jobService.createJob(request);
         return ApiResonse.success(jobId);
     }
 
-    @RequestMapping("/scene/{jobId}")
-    public ApiResonse<String> splitScene(@PathVariable int jobId){
-        sceneService.splitScene(jobId);
-        return ApiResonse.success("");
-    }
-
-    @RequestMapping("/layer/{jobId}")
-    public ApiResonse<String> splitLayer(@PathVariable int jobId){
-        layerService.splitLayer(jobId);
-        return ApiResonse.success("");
-    }
-
-    @RequestMapping("/pool/{jobId}")
-    public ApiResonse<String> scenePool(@PathVariable int jobId){
-        scenePoolService.divideSceneIntoPool(jobId);
-        return ApiResonse.success("");
-    }
 
 
 
