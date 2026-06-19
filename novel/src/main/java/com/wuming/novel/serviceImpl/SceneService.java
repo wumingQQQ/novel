@@ -7,6 +7,7 @@ import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponse;
 import com.wuming.novel.mapper.SceneMapper;
 import com.wuming.novel.service.IChapterService;
+import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ISceneService;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
@@ -29,22 +30,25 @@ import java.util.concurrent.CompletableFuture;
 public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISceneService {
     private final IChapterService chapterService;
     private final PromptConfig promptConfig;
+    private final IJobService jobService;
     private final ChatClient chatClient;
 
-    public SceneService(IChapterService chapterService, PromptConfig promptConfig, ChatModel chatModel) {
+    public SceneService(IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, ChatModel chatModel) {
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
+        this.jobService = jobService;
         this.chatClient = ChatClient.builder(chatModel).build();
     }
 
     @Override
-    public void splitScene(int id) {
-        Long count = lambdaQuery().eq(Scene::getNovelId, id).count();
+    public void splitScene(int jobId) {
+        int novelId = jobService.getById(jobId).getNovelId();
+        Long count = lambdaQuery().eq(Scene::getNovelId, novelId).count();
         if(count > 0){
             return;
         }
 
-        List<Chapter> chapters = chapterService.lambdaQuery().eq(Chapter::getNovelId, id).list();
+        List<Chapter> chapters = chapterService.lambdaQuery().eq(Chapter::getNovelId, novelId).list();
         List<CompletableFuture<List<Scene>>> futures = chapters.stream()
                 .map(this::splitOneChapter)
                 .toList();
