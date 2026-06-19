@@ -8,10 +8,7 @@ import com.wuming.novel.domain.entity.*;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.AggregationResponse;
 import com.wuming.novel.exception.LLMResponseEmptyException;
-import com.wuming.novel.service.ICharacterProfileService;
-import com.wuming.novel.service.IEvidenceService;
-import com.wuming.novel.service.IInteractionProfileService;
-import com.wuming.novel.service.ILayerService;
+import com.wuming.novel.service.*;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -31,6 +28,7 @@ public class AggregationService {
 
     private final IEvidenceService evidenceService;
     private final ILayerService layerService;
+    private final IJobService jobService;
     private final ICharacterProfileService characterProfileService;
     private final IInteractionProfileService interactionProfileService;
     private final PromptConfig promptConfig;
@@ -46,9 +44,10 @@ public class AggregationService {
     private String protagonistName;
 
 
-    public AggregationService(IEvidenceService evidenceService, ILayerService layerService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, ChatModel chatModel, ObjectMapper objectMapper) {
+    public AggregationService(IEvidenceService evidenceService, ILayerService layerService, IJobService jobService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, ChatModel chatModel, ObjectMapper objectMapper) {
         this.evidenceService = evidenceService;
         this.layerService = layerService;
+        this.jobService = jobService;
         this.characterProfileService = characterProfileService;
         this.interactionProfileService = interactionProfileService;
         this.promptConfig = promptConfig;
@@ -57,7 +56,9 @@ public class AggregationService {
     }
 
 
-    public void aggregation(int novelId) {
+    public void aggregation(int jobId) {
+        int novelId = jobService.getById(jobId).getNovelId();
+
         List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
         FullPortrait fullPortrait = new FullPortrait();
         fullPortrait.getCharacterProfile().getBasicSetting().setCharacterName(targetName);
