@@ -42,6 +42,6 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
             log.info("job: {}完成", jobId);
             return;
         }
-        log.info("job: {}进入{}阶段", jobId, stage.name());
+        log.info("job: {}完成{}阶段", jobId, stage.name());
     }
 }
