@@ -59,9 +59,9 @@ public class NovelController {
         return ApiResonse.success("");
     }
 
-    @RequestMapping("/pool/{id}")
-    public ApiResonse<String> scenePool(@PathVariable int id){
-        scenePoolService.divideSceneIntoPool(id);
+    @RequestMapping("/pool/{jobId}")
+    public ApiResonse<String> scenePool(@PathVariable int jobId){
+        scenePoolService.divideSceneIntoPool(jobId);
         return ApiResonse.success("");
     }
 

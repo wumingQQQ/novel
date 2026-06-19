@@ -7,6 +7,7 @@ import com.wuming.novel.domain.entity.rel.ScenePool;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponse;
 import com.wuming.novel.mapper.ScenePoolMapper;
+import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.IScenePoolService;
 import com.wuming.novel.service.ISceneService;
 import org.springframework.ai.chat.client.ChatClient;
@@ -30,11 +31,13 @@ import java.util.concurrent.CompletableFuture;
 public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> implements IScenePoolService {
     private final PromptConfig promptConfig;
     private final ISceneService sceneService;
+    private final IJobService jobService;
     private final ChatClient chatClient;
 
-    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, ChatModel chatModel) {
+    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, ChatModel chatModel) {
         this.promptConfig = promptConfig;
         this.sceneService = sceneService;
+        this.jobService = jobService;
         this.chatClient = ChatClient.builder(chatModel).build();
     }
 
@@ -44,15 +47,16 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     private String targetName;
 
     @Override
-    public void divideSceneIntoPool(int id) {
+    public void divideSceneIntoPool(int jobId) {
+        int novelId = jobService.getById(jobId).getNovelId();
         // 幂等校验
-        Long count = sceneService.lambdaQuery().eq(Scene::getNovelId, id).count();
+        Long count = sceneService.lambdaQuery().eq(Scene::getNovelId, novelId).count();
         if(count == 0){
             System.out.println("不存在该小说的章节，请先进行分章处理");
             return;
         }
 
-        List<Scene> scenes = sceneService.lambdaQuery().eq(Scene::getNovelId, id).list();
+        List<Scene> scenes = sceneService.lambdaQuery().eq(Scene::getNovelId, jobId).list();
         Scene sample = scenes.get(0);
         int sceneId = sample.getId();
         count = lambdaQuery().eq(ScenePool::getSceneId, sceneId).count();
