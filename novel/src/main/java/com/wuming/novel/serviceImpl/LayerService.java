@@ -1,5 +1,6 @@
 package com.wuming.novel.serviceImpl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.domain.entity.Chapter;
@@ -11,6 +12,7 @@ import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
 import com.wuming.novel.service.INovelService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -23,16 +25,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 @Service
 public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILayerService {
 
+    private final LayerMapper layerMapper;
     private final INovelService novelService;
     private final IChapterService chapterService;
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
     private final IJobService jobService;
 
-    public LayerService(INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, ChatModel chatModel, IJobService jobService) {
+    public LayerService(LayerMapper layerMapper, INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, ChatModel chatModel, IJobService jobService) {
+        this.layerMapper = layerMapper;
         this.novelService = novelService;
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
@@ -53,6 +58,10 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
     @Transactional
     public void splitLayer(int jobId) {
         int novelId = jobService.getById(jobId).getNovelId();
+        // 幂等设计
+        cleanOldLayer(novelId);
+
+
         List<String> chapterTitles = chapterService.lambdaQuery()
                 .eq(Chapter::getNovelId, novelId)
                 .select(Chapter::getTitle)
@@ -109,5 +118,15 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
             layers.add(layer);
         }
         saveBatch(layers);
+    }
+
+    private void cleanOldLayer(int novelId) {
+        QueryWrapper<Layer> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("novel_id", novelId);
+        int delete = layerMapper.delete(queryWrapper);
+        if(delete > 0) {
+            log.info("清理小说{}的旧分层，数量为{}", novelId, delete);
+        }
+
     }
 }
