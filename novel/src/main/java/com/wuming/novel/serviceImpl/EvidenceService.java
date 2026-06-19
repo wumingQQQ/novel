@@ -7,12 +7,14 @@ import com.wuming.novel.domain.entity.Evidence;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Layer;
 import com.wuming.novel.domain.entity.Scene;
+import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponse;
 import com.wuming.novel.mapper.EvidenceMapper;
 import com.wuming.novel.service.IEvidenceService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -28,6 +30,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> implements IEvidenceService {
     private final RecallService recallService;
@@ -46,27 +49,44 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
 
     @Override
     public void extractEvidence(int jobId) {
-        int novelId = jobService.getById(jobId).getNovelId();
-        // TODO 后续考虑同小说不同人物
-        Long count = lambdaQuery().eq(Evidence::getNovelId, novelId).count();
-        if (count > 0) {
-            System.out.println("该小说已经处理过");
+        Job job = jobService.getById(jobId);
+        if(job.getStage().getCode() >= JobStage.EVIDENCE_EXTRACT.getCode()){
+            log.info("任务{}已经完成了阶段{}", jobId, JobStage.EVIDENCE_EXTRACT);
             return;
         }
 
-        Job job = jobService.getById(jobId);
-        targetName = job.getTargetName();
+        int novelId = job.getNovelId();
+        String targetName = job.getTargetName();
+        // TODO 后续考虑同小说不同人物
+
 
         List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
 
         for (Layer layer : layers) {
             for(PoolType poolType : PoolType.values()){
+                // 判断该层该池是否处理完毕
+                if(lambdaQuery()
+                        .eq(Evidence::getLayerId, layer.getId())
+                        .eq(Evidence::getPoolType, poolType)
+                        .count() >0
+                ){
+                    continue;
+                }
+
                 List<Scene> scenes = recallService.recallScenes(
                         novelId, poolType,
                         layer.getStartChapterSequence(),
                         layer.getEndChapterSequence()
                 );
-                extractEvidence(scenes, poolType, layer);
+                if(scenes.isEmpty()){
+                    continue;
+                }
+                List<List<Scene>> partitions = Lists.partition(scenes, batchSize);
+                List<CompletableFuture<String>> futures = partitions.stream()
+                        .map(list -> doMultiExtractEvidence(list, poolType, layer, targetName))
+                        .toList();
+
+                futures.forEach(CompletableFuture::join);
             }
         }
 
@@ -76,20 +96,9 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     @Value("${novel.analysis.batch-size}")
     private int batchSize;
 
-    private String targetName;
-
-    public void extractEvidence(List<Scene> scenes, PoolType poolType, Layer layer) {
-        List<List<Scene>> partitions = Lists.partition(scenes, batchSize);
-        // 后续考虑将最后一段拆分合并到其他列表中，避免长度太短
-        List<CompletableFuture<String>> futures = partitions.stream().map(sceneList -> doMultiExtractEvidence(sceneList, poolType, layer)).toList();
-
-        futures.forEach(CompletableFuture::join);
-
-    }
-
     @Async("evidenceExtractExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    protected CompletableFuture<String> doMultiExtractEvidence(List<Scene> scenes, PoolType poolType, Layer layer) {
+    protected CompletableFuture<String> doMultiExtractEvidence(List<Scene> scenes, PoolType poolType, Layer layer, String targetName) {
         try{
 
             EvidenceExtractResponse[] responses = chatClient.prompt()
