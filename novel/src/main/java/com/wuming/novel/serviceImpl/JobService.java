@@ -7,8 +7,10 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.mapper.JobMapper;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 public class JobService extends ServiceImpl<JobMapper, Job> implements IJobService {
     private final INovelService novelService;
@@ -30,5 +32,16 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
         job.setStage(JobStage.PENDING);
         save(job);
         return job.getId();
+    }
+
+    public void advanceStage(int jobId, JobStage stage){
+        Job job = getById(jobId);
+        job.setStage(stage);
+        updateById(job);
+        if(stage == JobStage.COMPLETE){
+            log.info("job: {}完成", jobId);
+            return;
+        }
+        log.info("job: {}进入{}阶段", jobId, stage.name());
     }
 }
