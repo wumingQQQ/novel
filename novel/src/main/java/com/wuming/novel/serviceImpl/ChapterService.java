@@ -5,6 +5,7 @@ import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.mapper.ChapterMapper;
 import com.wuming.novel.service.IChapterService;
+import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
 import org.mozilla.universalchardet.UniversalDetector;
 import org.springframework.stereotype.Service;
@@ -25,26 +26,29 @@ import java.util.regex.Pattern;
 public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implements IChapterService {
 
     private final INovelService novelService;
+    private final IJobService jobService;
 
     private static final Pattern CHAPTER_PATTERN = Pattern.compile(
             "^第[一二三四五六七八九十百千\\d]+章[^。！？\n]*[。！？]?\\s*$",
             Pattern.MULTILINE
     );
 
-    public ChapterService(INovelService novelService) {
+    public ChapterService(INovelService novelService, IJobService jobService) {
         this.novelService = novelService;
+        this.jobService = jobService;
     }
 
     @Override
     @Transactional
-    public void splitChapter(int id) throws IOException {
+    public void splitChapter(int jobId) throws IOException {
+        int novelId  = jobService.getById(jobId).getNovelId();
         // 幂等设计
-        Long count = lambdaQuery().eq(Chapter::getNovelId, id).count();
+        Long count = lambdaQuery().eq(Chapter::getNovelId, novelId).count();
         if(count > 0){
             return;
         }
 
-        Novel novel = novelService.getById(id);
+        Novel novel = novelService.getById(novelId);
         String filePath = novel.getFilePath();
         Path path = Paths.get(filePath);
 
@@ -58,7 +62,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             if(raw.isEmpty()) continue;   // 过滤空内容
 
             Chapter chapter = new Chapter();
-            chapter.setNovelId(id);
+            chapter.setNovelId(novelId);
             chapter.setSequence(i + 1);
 
             // 标题还需稍微改动

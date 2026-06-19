@@ -36,8 +36,8 @@ public class NovelController {
     }
 
     @RequestMapping("/{id}")
-    public ApiResonse<String> splitChapter(@PathVariable int id) throws IOException {
-        chapterService.splitChapter(id);
+    public ApiResonse<String> splitChapter(@PathVariable int jobId) throws IOException {
+        chapterService.splitChapter(jobId);
         return ApiResonse.success("");
     }
 
