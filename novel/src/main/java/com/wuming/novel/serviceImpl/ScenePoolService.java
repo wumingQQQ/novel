@@ -2,6 +2,7 @@ package com.wuming.novel.serviceImpl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuming.novel.config.PromptConfig;
+import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.entity.rel.ScenePool;
 import com.wuming.novel.domain.enums.PoolType;
@@ -41,20 +42,23 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         this.chatClient = ChatClient.builder(chatModel).build();
     }
 
-    @Value("${novel.sample.protagonistName}")
     private String protagonistName;
-    @Value("${novel.sample.targetName}")
     private String targetName;
 
     @Override
     public void divideSceneIntoPool(int jobId) {
-        int novelId = jobService.getById(jobId).getNovelId();
+        Job job = jobService.getById(jobId);
+        int novelId = job.getNovelId();
         // 幂等校验
         Long count = sceneService.lambdaQuery().eq(Scene::getNovelId, novelId).count();
         if(count == 0){
             System.out.println("不存在该小说的章节，请先进行分章处理");
             return;
         }
+
+        protagonistName = job.getProtagonistName();
+        targetName = job.getTargetName();
+
 
         List<Scene> scenes = sceneService.lambdaQuery().eq(Scene::getNovelId, novelId).list();
         Scene sample = scenes.get(0);
@@ -65,7 +69,9 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
             return;
         }
 
-        List<CompletableFuture<String>> futures = scenes.stream().map(this::doSimpleClassify).toList();
+        List<CompletableFuture<String>> futures = scenes.stream()
+                .map(scene -> doSimpleClassify(scene, jobId))
+                .toList();
 
         // 便于测试，等待任务完成
         futures.forEach(CompletableFuture::join);
@@ -74,9 +80,8 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
     @Async("poolClassifyExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    protected CompletableFuture<String> doSimpleClassify(Scene scene){
+    protected CompletableFuture<String> doSimpleClassify(Scene scene, int jobId){
         try {
-            var converter = new BeanOutputConverter<>(ScenePoolResponse[].class);
 
             ScenePoolResponse[] responses = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getScenePoolPrompt())
@@ -91,7 +96,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                             .build()
                     )
                     .call()
-                    .entity(converter);
+                    .entity(ScenePoolResponse[].class);
 
             if(responses == null || responses.length == 0){
                 System.out.printf("scene%d分池时llm响应为空", scene.getId());
