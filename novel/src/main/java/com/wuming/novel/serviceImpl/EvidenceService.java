@@ -10,6 +10,7 @@ import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponse;
 import com.wuming.novel.mapper.EvidenceMapper;
 import com.wuming.novel.service.IEvidenceService;
+import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
@@ -30,18 +31,21 @@ import java.util.stream.Collectors;
 public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> implements IEvidenceService {
     private final RecallService recallService;
     private final ILayerService layerService;
+    private final IJobService jobService;
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
 
-    public EvidenceService(RecallService recallService, ILayerService layerService, PromptConfig promptConfig, ChatModel chatModel) {
+    public EvidenceService(RecallService recallService, ILayerService layerService, IJobService jobService, PromptConfig promptConfig, ChatModel chatModel) {
         this.recallService = recallService;
         this.layerService = layerService;
+        this.jobService = jobService;
         this.promptConfig = promptConfig;
         this.chatClient = ChatClient.builder(chatModel).build();
     }
 
     @Override
-    public void extractEvidence(int novelId) {
+    public void extractEvidence(int jobId) {
+        int novelId = jobService.getById(jobId).getNovelId();
         // TODO 后续考虑同小说不同人物
         Long count = lambdaQuery().eq(Evidence::getNovelId, novelId).count();
         if (count > 0) {
