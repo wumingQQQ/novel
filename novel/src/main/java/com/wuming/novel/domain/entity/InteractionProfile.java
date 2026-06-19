@@ -19,6 +19,9 @@ public class InteractionProfile implements Serializable {
     private Integer id;
 
     @JsonIgnore
+    private Integer jobId;
+
+    @JsonIgnore
     private Integer characterId;    // 关于谁与主角的交流画像
     private String protagonistName;     // 主角
     private String tone;

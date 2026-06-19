@@ -22,6 +22,7 @@ public class Evidence implements Serializable {
     private Integer id;
 
     private Integer novelId;
+    private Integer jobId;
     private Integer layerId;
     private PoolType poolType;
     private String conclusion;

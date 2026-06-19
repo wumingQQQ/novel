@@ -18,6 +18,9 @@ public class CharacterProfile implements Serializable {
     @JsonIgnore
     private Integer id;
 
+    @JsonIgnore
+    private Integer jobId;
+
     @TableField(typeHandler = JacksonTypeHandler.class)
     private BasicSetting basicSetting = new BasicSetting();
     // 后期考虑定义多个字段
