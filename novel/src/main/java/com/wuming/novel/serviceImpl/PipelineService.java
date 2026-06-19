@@ -30,47 +30,34 @@ public class PipelineService {
             throw new IllegalArgumentException("该job不存在，请创建后重试");
         }
 
-        int novelId = job.getNovelId();
-
-        advanceStage(jobId, JobStage.CHAPTER_SPLIT);
-        log.info("job: {}进入{}阶段", jobId, JobStage.CHAPTER_SPLIT.name());
-        chapterService.splitChapter(novelId);
+        jobService.advanceStage(jobId, JobStage.CHAPTER_SPLIT);
+        chapterService.splitChapter(jobId);
         log.info("job: {}完成阶段{}", jobId, JobStage.CHAPTER_SPLIT.name());
 
-        advanceStage(jobId, JobStage.LAYER_SPLIT);
-        log.info("job: {}进入{}阶段", jobId, JobStage.LAYER_SPLIT.name());
-        layerService.splitLayer(novelId);
+        jobService.advanceStage(jobId, JobStage.LAYER_SPLIT);
+        layerService.splitLayer(jobId);
         log.info("job: {}完成阶段{}", jobId, JobStage.LAYER_SPLIT.name());
 
-        advanceStage(jobId, JobStage.SCENE_SPLIT);
-        log.info("job: {}进入{}阶段", jobId, JobStage.SCENE_SPLIT.name());
-        sceneService.splitScene(novelId);
+        jobService.advanceStage(jobId, JobStage.SCENE_SPLIT);
+        sceneService.splitScene(jobId);
         log.info("job: {}完成阶段{}", jobId, JobStage.SCENE_SPLIT.name());
 
-        advanceStage(jobId, JobStage.POOL_CLASSIFY);
-        log.info("job: {}进入{}阶段", jobId, JobStage.POOL_CLASSIFY.name());
-        scenePoolService.divideSceneIntoPool(novelId);
+        jobService.advanceStage(jobId, JobStage.POOL_CLASSIFY);
+        scenePoolService.divideSceneIntoPool(jobId);
         log.info("job: {}完成阶段{}", jobId, JobStage.POOL_CLASSIFY.name());
 
-        advanceStage(jobId, JobStage.EVIDENCE_EXTRACT);
-        log.info("job: {}进入{}阶段", jobId, JobStage.EVIDENCE_EXTRACT.name());
-        evidenceService.extractEvidence(novelId);
+        jobService.advanceStage(jobId, JobStage.EVIDENCE_EXTRACT);
+        evidenceService.extractEvidence(jobId);
         log.info("job: {}完成阶段{}", jobId, JobStage.EVIDENCE_EXTRACT.name());
 
-        advanceStage(jobId, JobStage.PROFILE_AGGREGATION);
-        log.info("job: {}进入{}阶段", jobId, JobStage.PROFILE_AGGREGATION.name());
-        aggregationService.aggregation(novelId);
+        jobService.advanceStage(jobId, JobStage.PROFILE_AGGREGATION);
+        aggregationService.aggregation(jobId);
         log.info("job: {}完成阶段{}", jobId, JobStage.PROFILE_AGGREGATION.name());
 
-        advanceStage(jobId, JobStage.COMPLETE);
-        log.info("job: {}完成", jobId);
+        jobService.advanceStage(jobId, JobStage.COMPLETE);
         // TODO 发邮件提醒用户任务完成
     }
 
-    public void advanceStage(int jobId, JobStage stage) throws IOException {
-        Job job = jobService.getById(jobId);
-        job.setStage(stage);
-        jobService.updateById(job);
-    }
+
 
 }
