@@ -53,7 +53,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.CHAPTER_SPLIT);
             return;
         }
-        int novelId  = jobService.getById(jobId).getNovelId();
+        int novelId  = job.getNovelId();
         // 幂等设计：清理旧数据重跑
         cleanOldChapter(novelId);
 
