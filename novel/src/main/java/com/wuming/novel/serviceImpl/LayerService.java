@@ -8,6 +8,7 @@ import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.llmresponse.LayerSplitResponse;
 import com.wuming.novel.mapper.LayerMapper;
 import com.wuming.novel.service.IChapterService;
+import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
 import com.wuming.novel.service.INovelService;
 import org.springframework.ai.chat.client.ChatClient;
@@ -29,12 +30,14 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
     private final IChapterService chapterService;
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
+    private final IJobService jobService;
 
-    public LayerService(INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, ChatModel chatModel) {
+    public LayerService(INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, ChatModel chatModel, IJobService jobService) {
         this.novelService = novelService;
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
         this.chatClient = ChatClient.builder(chatModel).build();
+        this.jobService = jobService;
     }
 
     @Value("${novel.layer.min-chapter-per-layer}")
@@ -48,23 +51,24 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
 
     @Override
     @Transactional
-    public void splitLayer(int id) {
+    public void splitLayer(int jobId) {
+        int novelId = jobService.getById(jobId).getNovelId();
         List<String> chapterTitles = chapterService.lambdaQuery()
-                .eq(Chapter::getNovelId, id)
+                .eq(Chapter::getNovelId, novelId)
                 .select(Chapter::getTitle)
                 .orderByAsc(Chapter::getSequence)
                 .list()
                 .stream()
                 .map(Chapter::getTitle)
                 .toList();
-        Novel novel = novelService.getById(id);
+        Novel novel = novelService.getById(novelId);
         if(novel == null) {
-            throw new IllegalArgumentException("小说" + id + "不存在，请检查是否已经删除");
+            throw new IllegalArgumentException("小说" + novelId + "不存在，请检查是否已经删除");
         }
         String novelName = novel.getName();
         int chapterCount = chapterTitles.size();
         if(chapterCount == 0){
-            System.out.println("小说" + id + "章节数据不存在，请检查后重试");
+            System.out.println("小说" + novelId + "章节数据不存在，请检查后重试");
             return;
         }
 

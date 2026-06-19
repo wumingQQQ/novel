@@ -53,9 +53,9 @@ public class NovelController {
         return ApiResonse.success("");
     }
 
-    @RequestMapping("/layer/{id}")
-    public ApiResonse<String> splitLayer(@PathVariable int id){
-        layerService.splitLayer(id);
+    @RequestMapping("/layer/{jobId}")
+    public ApiResonse<String> splitLayer(@PathVariable int jobId){
+        layerService.splitLayer(jobId);
         return ApiResonse.success("");
     }
 
