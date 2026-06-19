@@ -1,5 +1,6 @@
 package com.wuming.novel.serviceImpl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Novel;
@@ -7,6 +8,7 @@ import com.wuming.novel.mapper.ChapterMapper;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
+import lombok.extern.slf4j.Slf4j;
 import org.mozilla.universalchardet.UniversalDetector;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,9 +24,11 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implements IChapterService {
 
+    private final ChapterMapper chapterMapper;
     private final INovelService novelService;
     private final IJobService jobService;
 
@@ -33,7 +37,8 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             Pattern.MULTILINE
     );
 
-    public ChapterService(INovelService novelService, IJobService jobService) {
+    public ChapterService(ChapterMapper chapterMapper, INovelService novelService, IJobService jobService) {
+        this.chapterMapper = chapterMapper;
         this.novelService = novelService;
         this.jobService = jobService;
     }
@@ -42,11 +47,8 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
     @Transactional
     public void splitChapter(int jobId) throws IOException {
         int novelId  = jobService.getById(jobId).getNovelId();
-        // 幂等设计
-        Long count = lambdaQuery().eq(Chapter::getNovelId, novelId).count();
-        if(count > 0){
-            return;
-        }
+        // 幂等设计：清理旧数据重跑
+        cleanOldChapter(novelId);
 
         Novel novel = novelService.getById(novelId);
         String filePath = novel.getFilePath();
@@ -78,6 +80,15 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
 
         if(!chapters.isEmpty()) {
             saveBatch(chapters);
+        }
+    }
+
+    private void cleanOldChapter(int novelId){
+        QueryWrapper<Chapter> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("novel_id", novelId);
+        int delete = chapterMapper.delete(queryWrapper);
+        if(delete > 0) {
+            log.info("清理小说{}的旧章节，数量为{}", novelId, delete);
         }
     }
 
