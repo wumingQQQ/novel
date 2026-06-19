@@ -30,31 +30,29 @@ public class PipelineService {
             throw new IllegalArgumentException("该job不存在，请创建后重试");
         }
 
-        jobService.advanceStage(jobId, JobStage.CHAPTER_SPLIT);
-        chapterService.splitChapter(jobId);
-        log.info("job: {}完成阶段{}", jobId, JobStage.CHAPTER_SPLIT.name());
-
-        jobService.advanceStage(jobId, JobStage.LAYER_SPLIT);
-        layerService.splitLayer(jobId);
-        log.info("job: {}完成阶段{}", jobId, JobStage.LAYER_SPLIT.name());
-
-        jobService.advanceStage(jobId, JobStage.SCENE_SPLIT);
-        sceneService.splitScene(jobId);
-        log.info("job: {}完成阶段{}", jobId, JobStage.SCENE_SPLIT.name());
-
-        jobService.advanceStage(jobId, JobStage.POOL_CLASSIFY);
-        scenePoolService.divideSceneIntoPool(jobId);
-        log.info("job: {}完成阶段{}", jobId, JobStage.POOL_CLASSIFY.name());
-
-        jobService.advanceStage(jobId, JobStage.EVIDENCE_EXTRACT);
-        evidenceService.extractEvidence(jobId);
-        log.info("job: {}完成阶段{}", jobId, JobStage.EVIDENCE_EXTRACT.name());
-
-        jobService.advanceStage(jobId, JobStage.PROFILE_AGGREGATION);
-        aggregationService.aggregation(jobId);
-        log.info("job: {}完成阶段{}", jobId, JobStage.PROFILE_AGGREGATION.name());
-
-        jobService.advanceStage(jobId, JobStage.COMPLETE);
+        switch (job.getStage()) {
+            case PENDING:
+                chapterService.splitChapter(jobId);
+                jobService.advanceStage(jobId, JobStage.CHAPTER_SPLIT);
+                // fall through 继续下一步
+            case CHAPTER_SPLIT:
+                layerService.splitLayer(jobId);
+                jobService.advanceStage(jobId, JobStage.LAYER_SPLIT);
+            case LAYER_SPLIT:
+                sceneService.splitScene(jobId);
+                jobService.advanceStage(jobId, JobStage.SCENE_SPLIT);
+            case SCENE_SPLIT:
+                scenePoolService.divideSceneIntoPool(jobId);
+                jobService.advanceStage(jobId, JobStage.POOL_CLASSIFY);
+            case POOL_CLASSIFY:
+                evidenceService.extractEvidence(jobId);
+                jobService.advanceStage(jobId, JobStage.EVIDENCE_EXTRACT);
+            case EVIDENCE_EXTRACT:
+                aggregationService.aggregation(jobId);
+                jobService.advanceStage(jobId, JobStage.PROFILE_AGGREGATION);
+            case PROFILE_AGGREGATION:
+                jobService.advanceStage(jobId, JobStage.COMPLETE);
+        }
         // TODO 发邮件提醒用户任务完成
     }
 
