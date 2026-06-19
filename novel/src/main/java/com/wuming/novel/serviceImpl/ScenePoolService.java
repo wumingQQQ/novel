@@ -1,16 +1,21 @@
 package com.wuming.novel.serviceImpl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.google.common.collect.Sets;
 import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.entity.rel.ScenePool;
+import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponse;
 import com.wuming.novel.mapper.ScenePoolMapper;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.IScenePoolService;
 import com.wuming.novel.service.ISceneService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -25,49 +30,43 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
+@Slf4j
 @Service
 public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> implements IScenePoolService {
     private final PromptConfig promptConfig;
     private final ISceneService sceneService;
     private final IJobService jobService;
+    private final ScenePoolMapper scenePoolMapper;
     private final ChatClient chatClient;
 
-    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, ChatModel chatModel) {
+    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, ScenePoolMapper scenePoolMapper, ChatModel chatModel) {
         this.promptConfig = promptConfig;
         this.sceneService = sceneService;
         this.jobService = jobService;
+        this.scenePoolMapper = scenePoolMapper;
         this.chatClient = ChatClient.builder(chatModel).build();
     }
-
-    private String protagonistName;
-    private String targetName;
 
     @Override
     public void divideSceneIntoPool(int jobId) {
         Job job = jobService.getById(jobId);
-        int novelId = job.getNovelId();
         // 幂等校验
-        Long count = sceneService.lambdaQuery().eq(Scene::getNovelId, novelId).count();
-        if(count == 0){
-            System.out.println("不存在该小说的章节，请先进行分章处理");
+        if(job.getStage().getCode() >= JobStage.POOL_CLASSIFY.getCode()){
+            log.info("任务{}已经完成了阶段{}", jobId, JobStage.POOL_CLASSIFY);
             return;
         }
 
-        protagonistName = job.getProtagonistName();
-        targetName = job.getTargetName();
+        int novelId = job.getNovelId();
+        List<Integer> finishedSceneIds = queryFinishedSceneIds(novelId);
+        Set<Integer> unfinishedSceneIds = computeUnfinishedSceneIds(novelId, finishedSceneIds);
 
 
-        List<Scene> scenes = sceneService.lambdaQuery().eq(Scene::getNovelId, novelId).list();
-        Scene sample = scenes.get(0);
-        int sceneId = sample.getId();
-        count = lambdaQuery().eq(ScenePool::getSceneId, sceneId).count();
-        if(count > 0){
-            System.out.println("场景已经做过分池处理");
-            return;
-        }
+        List<Scene> scenes = sceneService.listByIds(unfinishedSceneIds);
 
         List<CompletableFuture<String>> futures = scenes.stream()
                 .map(scene -> doSimpleClassify(scene, jobId))
@@ -77,11 +76,41 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         futures.forEach(CompletableFuture::join);
     }
 
+    private List<Integer> queryFinishedSceneIds(int novelId){
+        QueryWrapper<ScenePool> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("novel_id", novelId)
+                .select("scene_id")
+                .groupBy("scene_id");
+        return scenePoolMapper.selectList(queryWrapper)
+                .stream()
+                .map(ScenePool::getSceneId)
+                .toList();
+    }
+
+    private Set<Integer> computeUnfinishedSceneIds(int novelId, List<Integer> finishedSceneIds){
+        List<Integer> allSceneIds = sceneService.lambdaQuery()
+                .eq(Scene::getNovelId, novelId)
+                .select(Scene::getId)
+                .list()
+                .stream()
+                .map(Scene::getId)
+                .toList();
+
+        return Sets.difference(
+                new HashSet<>(allSceneIds),
+                new HashSet<>(finishedSceneIds)
+        );
+    }
+
 
     @Async("poolClassifyExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     protected CompletableFuture<String> doSimpleClassify(Scene scene, int jobId){
         try {
+            Job job = jobService.getById(jobId);
+
+            String protagonistName = job.getProtagonistName();
+            String targetName = job.getTargetName();
 
             ScenePoolResponse[] responses = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getScenePoolPrompt())
