@@ -1,14 +1,19 @@
 package com.wuming.novel.serviceImpl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.google.common.collect.Sets;
 import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.domain.entity.Chapter;
+import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
+import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponse;
 import com.wuming.novel.mapper.SceneMapper;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ISceneService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -21,19 +26,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+@Slf4j
 @Service
 public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISceneService {
+    private final SceneMapper sceneMapper;
     private final IChapterService chapterService;
     private final PromptConfig promptConfig;
     private final IJobService jobService;
     private final ChatClient chatClient;
 
-    public SceneService(IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, ChatModel chatModel) {
+    public SceneService(SceneMapper sceneMapper, IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, ChatModel chatModel) {
+        this.sceneMapper = sceneMapper;
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
         this.jobService = jobService;
@@ -42,13 +48,17 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
 
     @Override
     public void splitScene(int jobId) {
-        int novelId = jobService.getById(jobId).getNovelId();
-        Long count = lambdaQuery().eq(Scene::getNovelId, novelId).count();
-        if(count > 0){
+        Job job = jobService.getById(jobId);
+        if(job.getStage().getCode() >= JobStage.SCENE_SPLIT.getCode()){
+            log.info("任务{}已经完成了阶段{}", jobId, JobStage.SCENE_SPLIT);
             return;
         }
+        int novelId = jobService.getById(jobId).getNovelId();
+        List<Integer> finishedChapterIds = queryFinishedChapter(novelId);
 
-        List<Chapter> chapters = chapterService.lambdaQuery().eq(Chapter::getNovelId, novelId).list();
+        Set<Integer> unfinishedChapterIds = computeUnfinishedChapterIds(finishedChapterIds, novelId);
+
+        List<Chapter> chapters = chapterService.listByIds(unfinishedChapterIds);
         List<CompletableFuture<List<Scene>>> futures = chapters.stream()
                 .map(this::splitOneChapter)
                 .toList();
@@ -56,6 +66,30 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
         // TODO 可以考虑使用thenAccept实现进度显示
         // 为测试考虑，暂时先join全部任务完成
         futures.forEach(CompletableFuture::join);
+    }
+
+    // 查询已经处理完成的章节id
+    private List<Integer> queryFinishedChapter(int novelId){
+        QueryWrapper<Scene> queryWrapper = new QueryWrapper<>();
+        queryWrapper.select("chapter_id")
+                .eq("novel_id", novelId)
+                .groupBy("chapter_id");
+        return sceneMapper.selectList(queryWrapper).stream().map(Scene::getChapterId).toList();
+    }
+
+    private Set<Integer> computeUnfinishedChapterIds(List<Integer> finishedChapterIds, int novelId){
+        List<Integer> allChapterIds = chapterService.lambdaQuery()
+                .eq(Chapter::getNovelId, novelId)
+                .select(Chapter::getId)
+                .list()
+                .stream()
+                .map(Chapter::getId)
+                .toList();
+
+        return Sets.difference(
+                new HashSet<>(allChapterIds),
+                new HashSet<>(finishedChapterIds)
+        );
     }
 
 
