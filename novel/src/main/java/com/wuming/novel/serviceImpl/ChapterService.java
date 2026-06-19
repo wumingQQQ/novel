@@ -46,47 +46,55 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
     }
 
     @Override
-    @Transactional
-    public void splitChapter(int jobId) throws IOException {
+    @Transactional(rollbackFor = Exception.class)
+    public boolean splitChapter(int jobId) throws IOException {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.CHAPTER_SPLIT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.CHAPTER_SPLIT);
-            return;
+            return true;
         }
         int novelId  = job.getNovelId();
-        // 幂等设计：清理旧数据重跑
-        cleanOldChapter(novelId);
 
-        Novel novel = novelService.getById(novelId);
-        String filePath = novel.getFilePath();
-        Path path = Paths.get(filePath);
+        try {
+            // 幂等设计：清理旧数据重跑
+            cleanOldChapter(novelId);
 
-        String encoding = getEncoding(filePath);
+            Novel novel = novelService.getById(novelId);
+            String filePath = novel.getFilePath();
+            Path path = Paths.get(filePath);
 
-        String content = Files.readString(path, Charset.forName(encoding));
-        List<String> c = splitChapter(content);
-        List<Chapter> chapters = new ArrayList<>();
-        for (int i = 0; i < c.size(); i++) {
-            String raw = c.get(i).trim();
-            if(raw.isEmpty()) continue;   // 过滤空内容
+            String encoding = getEncoding(filePath);
 
-            Chapter chapter = new Chapter();
-            chapter.setNovelId(novelId);
-            chapter.setSequence(i + 1);
+            String content = Files.readString(path, Charset.forName(encoding));
+            List<String> c = splitChapter(content);
+            List<Chapter> chapters = new ArrayList<>();
+            for (int i = 0; i < c.size(); i++) {
+                String raw = c.get(i).trim();
+                if(raw.isEmpty()) continue;   // 过滤空内容
 
-            // 标题还需稍微改动
-            String title = raw.lines().findFirst().orElse("").trim();
-            chapter.setTitle(title);
+                Chapter chapter = new Chapter();
+                chapter.setNovelId(novelId);
+                chapter.setSequence(i + 1);
 
-            // 提取正文
-            String body = raw.substring(title.length()).trim();
-            chapter.setContent(body);
+                // 标题还需稍微改动
+                String title = raw.lines().findFirst().orElse("").trim();
+                chapter.setTitle(title);
 
-            chapters.add(chapter);
-        }
+                // 提取正文
+                String body = raw.substring(title.length()).trim();
+                chapter.setContent(body);
 
-        if(!chapters.isEmpty()) {
-            saveBatch(chapters);
+                chapters.add(chapter);
+            }
+
+            if(!chapters.isEmpty()) {
+                saveBatch(chapters);
+            }
+
+            return true;
+        } catch (IOException e) {
+            log.error("job: {}章节切分失败", jobId, e);
+            return false;
         }
     }
 
