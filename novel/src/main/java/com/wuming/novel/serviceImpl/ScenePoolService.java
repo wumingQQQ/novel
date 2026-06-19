@@ -56,7 +56,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
             return;
         }
 
-        List<Scene> scenes = sceneService.lambdaQuery().eq(Scene::getNovelId, jobId).list();
+        List<Scene> scenes = sceneService.lambdaQuery().eq(Scene::getNovelId, novelId).list();
         Scene sample = scenes.get(0);
         int sceneId = sample.getId();
         count = lambdaQuery().eq(ScenePool::getSceneId, sceneId).count();
