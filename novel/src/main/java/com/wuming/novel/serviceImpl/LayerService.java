@@ -102,7 +102,7 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
             Layer layer = new Layer();
             layer.setLayerIndex(layerResponse.layerIndex());
             layer.setLayerName(layerResponse.layerName());
-            layer.setNovelId(id);
+            layer.setNovelId(jobId);
             layer.setStartChapterSequence(layerResponse.startChapter());
             layer.setEndChapterSequence(layerResponse.endChapter());
 
