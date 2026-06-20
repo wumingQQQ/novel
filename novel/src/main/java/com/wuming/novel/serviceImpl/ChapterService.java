@@ -92,7 +92,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             }
 
             return true;
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("job: {}章节切分失败", jobId, e);
             return false;
         }
