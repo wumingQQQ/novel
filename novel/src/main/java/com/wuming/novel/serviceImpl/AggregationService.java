@@ -55,49 +55,55 @@ public class AggregationService {
     }
 
 
-    public void aggregation(int jobId) {
+    public boolean aggregation(int jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.PROFILE_AGGREGATION.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.PROFILE_AGGREGATION);
-            return;
+            return true;
         }
 
         int novelId = job.getNovelId();
         String protagonistName = job.getProtagonistName();
         String targetName = job.getTargetName();
 
-        // 清除旧画像
-        deleteExistingPortrait(jobId);
+        try {
+            // 清除旧画像
+            deleteExistingPortrait(jobId);
 
-        List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
-        FullPortrait fullPortrait = new FullPortrait();
-        fullPortrait.getCharacterProfile().getBasicSetting().setCharacterName(targetName);
-        fullPortrait.getInteractionProfile().setProtagonistName(protagonistName);
-        for(Layer layer : layers) {
-            for(PoolType poolType : PoolType.values()) {
-                List<Evidence> evidences = evidenceService.lambdaQuery()
-                        .eq(Evidence::getNovelId, novelId)
-                        .eq(Evidence::getLayerId, layer.getId())
-                        .eq(Evidence::getPoolType, poolType)
-                        .eq(Evidence::getJobId, job.getId())
-                        .list();
+            List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
+            FullPortrait fullPortrait = new FullPortrait();
+            fullPortrait.getCharacterProfile().getBasicSetting().setCharacterName(targetName);
+            fullPortrait.getInteractionProfile().setProtagonistName(protagonistName);
+            for(Layer layer : layers) {
+                for(PoolType poolType : PoolType.values()) {
+                    List<Evidence> evidences = evidenceService.lambdaQuery()
+                            .eq(Evidence::getNovelId, novelId)
+                            .eq(Evidence::getLayerId, layer.getId())
+                            .eq(Evidence::getPoolType, poolType)
+                            .eq(Evidence::getJobId, job.getId())
+                            .list();
 
-                if(evidences.isEmpty()) {
-                    continue;
-                }
-
-                List<List<Evidence>> partition = Lists.partition(evidences, 20);
-                for(List<Evidence> evidenceList : partition) {
-                    AggregationResponse response = aggregationPool(evidenceList, layer, fullPortrait);
-                    if(response == null){
-                        throw new LLMResponseEmptyException("聚合服务时llm返回空");
+                    if(evidences.isEmpty()) {
+                        continue;
                     }
 
-                    copyAggregationResponse(fullPortrait, response);
+                    List<List<Evidence>> partition = Lists.partition(evidences, 20);
+                    for(List<Evidence> evidenceList : partition) {
+                        AggregationResponse response = aggregationPool(evidenceList, layer, fullPortrait);
+                        if(response == null){
+                            throw new LLMResponseEmptyException("聚合服务时llm返回空");
+                        }
+
+                        copyAggregationResponse(fullPortrait, response);
+                    }
                 }
             }
+            self.saveProfile(fullPortrait, jobId);
+            return true;
+        } catch (Exception e) {
+            log.error("job:{}：画像聚合失败",  jobId, e);
+            return false;
         }
-        self.saveProfile(fullPortrait);
     }
 
     private void deleteExistingPortrait(int jobId) {
@@ -105,10 +111,12 @@ public class AggregationService {
         interactionProfileService.removeByMap(Map.of("jobId",  jobId));
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void saveProfile(FullPortrait fullPortrait) {
+    @Transactional
+    public void saveProfile(FullPortrait fullPortrait, int jobId) {
         CharacterProfile characterProfile = fullPortrait.getCharacterProfile();
+        characterProfile.setJobId(jobId);
         InteractionProfile interactionProfile = fullPortrait.getInteractionProfile();
+        interactionProfile.setJobId(jobId);
         characterProfileService.save(characterProfile);
         interactionProfile.setCharacterId(characterProfile.getId());
         interactionProfileService.save(interactionProfile);
