@@ -9,6 +9,7 @@ import com.wuming.novel.domain.entity.Layer;
 import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.LayerSplitResponse;
+import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.mapper.LayerMapper;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
@@ -19,8 +20,11 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -37,6 +41,9 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
     private final IJobService jobService;
+    @Lazy
+    @Autowired
+    private LayerService self;
 
     public LayerService(LayerMapper layerMapper, INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, ChatModel chatModel, IJobService jobService) {
         this.layerMapper = layerMapper;
@@ -57,63 +64,68 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
     private int maxLayerSize;
 
     @Override
-    @Transactional
-    public void splitLayer(int jobId) {
+    public boolean splitLayer(int jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.LAYER_SPLIT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.LAYER_SPLIT);
-            return;
+            return true;
         }
 
         int novelId = job.getNovelId();
-        // 幂等设计
-        cleanOldLayer(novelId);
+        try {
+            List<String> chapterTitles = chapterService.lambdaQuery()
+                    .eq(Chapter::getNovelId, novelId)
+                    .select(Chapter::getTitle)
+                    .orderByAsc(Chapter::getSequence)
+                    .list()
+                    .stream()
+                    .map(Chapter::getTitle)
+                    .toList();
+            Novel novel = novelService.getById(novelId);
+            String novelName = novel.getName();
 
+            int chapterCount = chapterTitles.size();
+            if(chapterCount == 0){
+                log.warn("小说{}的章节数据为空，请检查后重试", novelId);
+                return false;
+            }
 
-        List<String> chapterTitles = chapterService.lambdaQuery()
-                .eq(Chapter::getNovelId, novelId)
-                .select(Chapter::getTitle)
-                .orderByAsc(Chapter::getSequence)
-                .list()
-                .stream()
-                .map(Chapter::getTitle)
-                .toList();
-        Novel novel = novelService.getById(novelId);
-        if(novel == null) {
-            throw new IllegalArgumentException("小说" + novelId + "不存在，请检查是否已经删除");
+            LayerSplitResponse[] responses = chatClient.prompt()
+                    .user(u -> u.text(promptConfig.getLayerSplitPrompt())
+                            .param("novelName", novelName)
+                            .param("totalChapters", chapterCount)
+                            .param("minChaptersPerLayer", minChapterSize)
+                            .param("maxChaptersPerLayer", maxChapterSize)
+                            .param("minLayers", minLayerSize)
+                            .param("maxLayers", maxLayerSize)
+                            .param("chapterList", String.join("\n", chapterTitles))
+                    )
+                    .options(OpenAiChatOptions.builder()
+                            .responseFormat(ResponseFormat.builder()
+                                    .type(ResponseFormat.Type.JSON_OBJECT)
+                                    .build())
+                            .build()
+                    )
+                    .call()
+                    .entity(LayerSplitResponse[].class);
+
+            if(responses == null || responses.length == 0) {
+                throw new LLMResponseEmptyException("小说" + novelId + "分层时llm响应为空，请稍后重试");
+                // TODO 考虑增加降级逻辑，固定章节数分层
+            }
+
+            // 从llm响应中解析layer
+            List<Layer> layers = extractLayers(responses, novelId);
+
+            self.saveLayers(novelId, layers);
+            return true;
+        } catch (Exception e) {
+            log.error("job: {}剧情分层失败", jobId, e);
+            return false;
         }
-        String novelName = novel.getName();
-        int chapterCount = chapterTitles.size();
-        if(chapterCount == 0){
-            System.out.println("小说" + novelId + "章节数据不存在，请检查后重试");
-            return;
-        }
+    }
 
-        LayerSplitResponse[] responses = chatClient.prompt()
-                .user(u -> u.text(promptConfig.getLayerSplitPrompt())
-                        .param("novelName", novelName)
-                        .param("totalChapters", chapterCount)
-                        .param("minChaptersPerLayer", minChapterSize)
-                        .param("maxChaptersPerLayer", maxChapterSize)
-                        .param("minLayers", minLayerSize)
-                        .param("maxLayers", maxLayerSize)
-                        .param("chapterList", String.join("\n", chapterTitles))
-                )
-                .options(OpenAiChatOptions.builder()
-                        .responseFormat(ResponseFormat.builder()
-                                .type(ResponseFormat.Type.JSON_OBJECT)
-                                .build())
-                        .build()
-                )
-                .call()
-                .entity(LayerSplitResponse[].class);
-
-        if(responses == null || responses.length == 0) {
-            System.out.println("llm对layer split响应为空");
-            // TODO 考虑增加降级逻辑，固定章节数分层
-            return;
-        }
-
+    private static List<Layer> extractLayers(LayerSplitResponse[] responses, int novelId) {
         List<Layer> layers = new ArrayList<>();
         for (LayerSplitResponse layerResponse : responses) {
             Layer layer = new Layer();
@@ -125,6 +137,12 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
 
             layers.add(layer);
         }
+        return layers;
+    }
+
+    @Transactional
+    public void saveLayers(int novelId, List<Layer> layers) {
+        cleanOldLayer(novelId);
         saveBatch(layers);
     }
 
