@@ -47,7 +47,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean splitChapter(int jobId) throws IOException {
+    public boolean splitChapter(int jobId){
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.CHAPTER_SPLIT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.CHAPTER_SPLIT);
