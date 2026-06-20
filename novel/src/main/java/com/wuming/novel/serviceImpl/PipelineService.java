@@ -69,7 +69,6 @@ public class PipelineService {
                 jobService.advanceStage(jobId, JobStage.PROFILE_AGGREGATION);
             case PROFILE_AGGREGATION:
                 jobService.advanceStage(jobId, JobStage.COMPLETE);
-                log.info("job: {} 全部完成", jobId);
         }
         return  true;
         // TODO 发邮件提醒用户任务完成
