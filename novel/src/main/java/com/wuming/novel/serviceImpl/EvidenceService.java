@@ -92,7 +92,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
 
                 List<List<Scene>> partitions = Lists.partition(scenes, batchSize);
                 List<CompletableFuture<Void>> futures = partitions.stream()
-                        .map(list -> self.doMultiExtractEvidence(list, poolType, layer, targetName))
+                        .map(list -> self.doMultiExtractEvidence(list, jobId, poolType, layer, targetName))
                         .toList();
 
                 futures.forEach(future -> {
@@ -114,7 +114,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     private int batchSize;
 
     @Async("evidenceExtractExecutor")
-    protected CompletableFuture<Void> doMultiExtractEvidence(List<Scene> scenes, PoolType poolType, Layer layer, String targetName) {
+    protected CompletableFuture<Void> doMultiExtractEvidence(List<Scene> scenes, int jobId, PoolType poolType, Layer layer, String targetName) {
         try{
 
             EvidenceExtractResponse[] responses = chatClient.prompt()
@@ -145,6 +145,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                 Evidence evidence = new Evidence();
                 evidence.setNovelId(layer.getNovelId());
                 evidence.setLayerId(layer.getId());
+                evidence.setJobId(jobId);
                 evidence.setPoolType(poolType);
                 evidence.setConclusion(response.conclusion());
                 evidence.setConfidence(response.confidence());
