@@ -128,7 +128,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             List<Scene> scenes = extractSceneFromChapter(chapter, splitResponses);
 
             self.saveBatch(scenes);
-            System.out.printf("小说%d的章节%d处理成功\n", chapter.getNovelId(), chapter.getSequence());
+            log.debug("小说{}的章节{}处理成功", chapter.getNovelId(), chapter.getSequence());
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             // TODO 后面考虑增加记录重试逻辑
