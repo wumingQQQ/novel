@@ -3,6 +3,7 @@ package com.wuming.novel.controller;
 import com.wuming.novel.domain.dto.ApiResonse;
 import com.wuming.novel.domain.dto.CreateJobRequest;
 import com.wuming.novel.service.*;
+import com.wuming.novel.serviceImpl.PipelineService;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -15,10 +16,12 @@ public class NovelController {
 
     private final INovelService novelService;
     private final IJobService jobService;
+    private final PipelineService pipelineService;
 
-    public NovelController(INovelService novelService, IJobService jobService) {
+    public NovelController(INovelService novelService, IJobService jobService, PipelineService pipelineService) {
         this.novelService = novelService;
         this.jobService = jobService;
+        this.pipelineService = pipelineService;
     }
 
     @PostMapping
@@ -28,9 +31,23 @@ public class NovelController {
     }
 
     @RequestMapping("/createJob")
-    public ApiResonse<Integer> createJob(@RequestBody CreateJobRequest request) throws IOException {
+    public ApiResonse<Integer> createJob(@RequestBody CreateJobRequest request) {
         int jobId = jobService.createJob(request);
         return ApiResonse.success(jobId);
+    }
+
+    @RequestMapping("/process/{jobId}")
+    public ApiResonse<String> processJob(@PathVariable("jobId") int jobId) throws IOException {
+        boolean success = pipelineService.handleNovel(jobId);
+        String message = success ? "success" : "fail";
+        return ApiResonse.success(message);
+    }
+
+    @RequestMapping("/redo/{jobId}")
+    public ApiResonse<String> redoJob(@PathVariable("jobId") int jobId) throws IOException {
+        boolean success = pipelineService.handleNovel(jobId);
+        String message = success ? "success" : "fail";
+        return ApiResonse.success(message);
     }
 
 }
