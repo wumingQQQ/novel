@@ -110,12 +110,11 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     protected CompletableFuture<Void> splitOneChapter(Chapter chapter) {
 
         try {
-            // TODO 使用提示词模版解析时可能与中文字符串符号发生冲突
-            String promptText = promptConfig.getSceneSplitPrompt()
-                    .replace("{chapterTitle}", chapter.getTitle())
-                    .replace("{chapterContent}", chapter.getContent());
             SceneSplitResponse[] splitResponses = chatClient.prompt()
-                    .user(promptText)
+                    .user(u -> u.text(promptConfig.getSceneSplitPrompt())
+                            .param("chapterTitle", chapter.getTitle())
+                            .param("chapterContent", chapter.getContent())
+                    )
                     .options(OpenAiChatOptions.builder()
                             .responseFormat(ResponseFormat.builder()
                                     .type(ResponseFormat.Type.JSON_OBJECT)

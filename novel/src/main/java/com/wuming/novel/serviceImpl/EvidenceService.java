@@ -119,12 +119,13 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
         try{
 
             EvidenceExtractResponse[] responses = chatClient.prompt()
-                    .user(u -> u.text(promptConfig.getEvidenceExtractPrompt(poolType))
+                    .user(u -> u.text(promptConfig.getEvidenceExtractPrompt())
                             .param("targetName", targetName)
                             .param("poolTypeName", poolType.name())
                             .param("layerName", layer.getLayerName())
                             .param("sceneCount", scenes.size())
                             .param("scenes", concatScenes(scenes))
+                            .param("poolDescription", promptConfig.getPoolDescription(poolType))
                     )
                     .options(OpenAiChatOptions.builder()
                             .responseFormat(ResponseFormat.builder()

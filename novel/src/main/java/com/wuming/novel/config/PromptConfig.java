@@ -33,10 +33,10 @@ public class PromptConfig {
             
             【输出格式】JSON数组
             [
-            {
+            {{
             “sequence”: 1,
             “anchor”: “【锚点】原文首句，精确匹配（只输出原文句子，不含‘【锚点】’等标记，示例：“张明推开门，走进了昏暗的房间。”）”,
-            }
+            }}
             ]
             """;
 
@@ -314,13 +314,17 @@ public class PromptConfig {
     }
 
 
-    public String getEvidenceExtractPrompt(PoolType poolType) {
+    public String getPoolDescription(PoolType poolType) {
         String poolDescription = POOL_TYPE_DESCRIPTIONS.get(poolType);
         if (poolDescription == null) {
             throw new IllegalArgumentException("Unsupported PoolType: " + poolType);
         }
 
-        return EVIDENCE_EXTRACT_PROMPT.replace("{poolDescription}", poolDescription);
+        return poolDescription;
+    }
+
+    public String getEvidenceExtractPrompt() {
+        return EVIDENCE_EXTRACT_PROMPT;
     }
 
     public String getSceneSplitPrompt() {
