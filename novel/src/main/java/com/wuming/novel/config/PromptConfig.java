@@ -294,7 +294,7 @@ public class PromptConfig {
                   "presume": "特殊设定"
                 }},
                 "personality": "性格描述",
-                "speechStyle": {
+                "speechStyle": {{
                   "tone": "语气基调",
                   "wordsHabit": "口癖",
                   "representativeLines": ["台词1", "台词2"]
