@@ -11,6 +11,7 @@ import com.wuming.novel.domain.entity.rel.ScenePool;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponse;
+import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.mapper.ScenePoolMapper;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.IScenePoolService;
@@ -34,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -44,6 +46,10 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     private final ScenePoolMapper scenePoolMapper;
     private final ChatClient chatClient;
 
+    @Lazy
+    @Autowired
+    private ScenePoolService self;
+
     public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, ScenePoolMapper scenePoolMapper, ChatModel chatModel) {
         this.promptConfig = promptConfig;
         this.sceneService = sceneService;
@@ -53,12 +59,12 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     }
 
     @Override
-    public void divideSceneIntoPool(int jobId) {
+    public boolean divideSceneIntoPool(int jobId) {
         Job job = jobService.getById(jobId);
         // 幂等校验
         if(job.getStage().getCode() >= JobStage.POOL_CLASSIFY.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.POOL_CLASSIFY);
-            return;
+            return true;
         }
 
         int novelId = job.getNovelId();
@@ -68,12 +74,21 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
         List<Scene> scenes = sceneService.listByIds(unfinishedSceneIds);
 
-        List<CompletableFuture<String>> futures = scenes.stream()
-                .map(scene -> doSimpleClassify(scene, jobId))
+        List<CompletableFuture<Void>> futures = scenes.stream()
+                .map(scene -> self.doSimpleClassify(scene, jobId))
                 .toList();
 
         // 便于测试，等待任务完成
-        futures.forEach(CompletableFuture::join);
+        AtomicBoolean allSuccess = new AtomicBoolean(true);
+        futures.forEach(future -> {
+            try {
+                future.join();
+            }
+            catch (Exception e) {
+                allSuccess.set(false);
+            }
+        });
+        return allSuccess.get();
     }
 
     private List<Integer> queryFinishedSceneIds(int novelId){
@@ -104,8 +119,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
 
     @Async("poolClassifyExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    protected CompletableFuture<String> doSimpleClassify(Scene scene, int jobId){
+    protected CompletableFuture<Void> doSimpleClassify(Scene scene, int jobId){
         try {
             Job job = jobService.getById(jobId);
 
@@ -128,8 +142,8 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                     .entity(ScenePoolResponse[].class);
 
             if(responses == null || responses.length == 0){
-                System.out.printf("scene%d分池时llm响应为空", scene.getId());
-                return CompletableFuture.completedFuture("error");
+                log.warn("job:{}, scene{}分池时llm响应为空", jobId, scene.getId());
+                throw new LLMResponseEmptyException("任务" + jobId + "场景" + scene.getId() +"分池时llm响应为空");
             }
 
             List<ScenePool> scenePools = new ArrayList<>();
@@ -145,16 +159,13 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                 scenePools.add(scenePool);
             }
 
-            saveBatch(scenePools);
+            self.saveBatch(scenePools);
 
-            return CompletableFuture.completedFuture("success");
+            return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
-            System.out.printf("处理scene%d出现异常：%s", scene.getId(), e.getMessage());
-            return CompletableFuture.completedFuture("error");
+            log.error("处理scene{}出现异常", scene.getId(), e);
+            return CompletableFuture.failedFuture(e);
         }
     }
-
-    // TODO 后续考虑做同章场景批量切分，配置场景切分服务使用
-
 
 }
