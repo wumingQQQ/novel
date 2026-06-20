@@ -75,6 +75,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                 // 判断该层该池是否处理完毕
                 if(lambdaQuery()
                         .eq(Evidence::getLayerId, layer.getId())
+                        .eq(Evidence::getJobId, jobId)
                         .eq(Evidence::getPoolType, poolType)
                         .count() >0
                 ){
