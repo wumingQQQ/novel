@@ -66,7 +66,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             String encoding = getEncoding(filePath);
 
             String content = Files.readString(path, Charset.forName(encoding));
-            List<String> c = splitChapter(content);
+            List<String> c = splitChapter(content, novelId);
             List<Chapter> chapters = new ArrayList<>();
             for (int i = 0; i < c.size(); i++) {
                 String raw = c.get(i).trim();
@@ -107,7 +107,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
         }
     }
 
-    private List<String> splitChapter(String content) {
+    private List<String> splitChapter(String content, Long novelId) {
         Matcher matcher = CHAPTER_PATTERN.matcher(content);
         List<String> result = new ArrayList<>();
         int chapterStart = -1;
@@ -122,7 +122,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
         if(chapterStart > 0) result.add(content.substring(chapterStart));
         else{
             // 章节标记匹配失败
-            System.out.println("小说找不到章节标记");
+            log.warn("小说{}找不到章节标记", novelId);
             return Collections.emptyList();
         }
         return result;
