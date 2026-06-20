@@ -9,6 +9,7 @@
                  INNER JOIN scene_pool sp ON s.id = sp.scene_id
                  INNER JOIN chapters c ON s.chapter_id = c.id
         WHERE c.novel_id = #{novelId}
+          AND sp.job_id = #{jobId}
           AND sp.pool_type = #{poolType}
           AND sp.confidence >= #{threshold}
           AND c.sequence BETWEEN #{startSeq} AND #{endSeq}

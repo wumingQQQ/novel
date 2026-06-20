@@ -52,9 +52,10 @@ public class RecallService {
     }
 
     // 按层召回
-    public List<Scene> recallScenes(int novelId, PoolType poolType, int startChapterSeq, int endChapterSeq) {
+    public List<Scene> recallScenes(int novelId, int jobId, PoolType poolType, int startChapterSeq, int endChapterSeq) {
         return recallMapper.recallScenesByLayerAndPool(
                 novelId,
+                jobId,
                 poolType.getCode(),
                 threshold,
                 startChapterSeq,

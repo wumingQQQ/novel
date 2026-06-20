@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface RecallMapper {
     List<Scene> recallScenesByLayerAndPool(@Param("novelId") int novelId,
+                                           @Param("jobId") int jobId,
                                            @Param("poolType") String poolType,
                                            @Param("threshold") double threshold,
                                            @Param("startSeq") int startSeq,

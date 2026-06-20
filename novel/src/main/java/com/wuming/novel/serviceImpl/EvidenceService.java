@@ -83,7 +83,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                 }
 
                 List<Scene> scenes = recallService.recallScenes(
-                        novelId, poolType,
+                        novelId, jobId, poolType,
                         layer.getStartChapterSequence(),
                         layer.getEndChapterSequence()
                 );
