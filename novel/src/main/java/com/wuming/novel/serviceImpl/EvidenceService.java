@@ -137,7 +137,6 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                     .entity(EvidenceExtractResponse[].class);
 
             if(responses == null || responses.length == 0){
-                log.warn("layer:{}, pool: {}证据解析时llm响应为空", layer.getLayerName(), poolType);
                 throw new LLMResponseEmptyException("证据提取：layer-" + layer.getId() +", pool-" + poolType);
             }
 
