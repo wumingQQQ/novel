@@ -1,10 +1,12 @@
 package com.wuming.novel.serviceImpl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.wuming.novel.config.PromptConfig;
+import com.wuming.novel.domain.dto.CharacterProfileDto;
+import com.wuming.novel.domain.dto.FullPortraitDto;
+import com.wuming.novel.domain.dto.InteractionProfileDto;
 import com.wuming.novel.domain.entity.*;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
@@ -17,15 +19,11 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
@@ -72,7 +70,7 @@ public class AggregationService {
             deleteExistingPortrait(jobId);
 
             List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
-            FullPortrait fullPortrait = new FullPortrait();
+            FullPortraitDto fullPortrait = new FullPortraitDto();
             fullPortrait.getCharacterProfile().getBasicSetting().setCharacterName(targetName);
             fullPortrait.getInteractionProfile().setProtagonistName(protagonistName);
             for(Layer layer : layers) {
@@ -117,17 +115,18 @@ public class AggregationService {
     }
 
     @Transactional
-    public void saveProfile(FullPortrait fullPortrait, Long jobId) {
-        CharacterProfile characterProfile = fullPortrait.getCharacterProfile();
+    public void saveProfile(FullPortraitDto fullPortrait, Long jobId) {
+        CharacterProfile characterProfile = toCharacterProfileEntity(fullPortrait.getCharacterProfile());
         characterProfile.setJobId(jobId);
-        InteractionProfile interactionProfile = fullPortrait.getInteractionProfile();
+        InteractionProfile interactionProfile = toInteractionProfileEntity(fullPortrait.getInteractionProfile());
         interactionProfile.setJobId(jobId);
         characterProfileService.save(characterProfile);
         interactionProfile.setCharacterId(characterProfile.getId());
         interactionProfileService.save(interactionProfile);
     }
 
-    private AggregationResponse aggregationPool(List<Evidence> evidences, Layer layer, FullPortrait  fullPortrait) {
+
+    private AggregationResponse aggregationPool(List<Evidence> evidences, Layer layer, FullPortraitDto fullPortrait) {
 
         return chatClient.prompt()
                 .user(u -> {
@@ -153,7 +152,7 @@ public class AggregationService {
                 .entity(AggregationResponse.class);
     }
 
-    private void copyAggregationResponse(FullPortrait fullPortrait, AggregationResponse aggregationResponse) {
+    private void copyAggregationResponse(FullPortraitDto fullPortrait, AggregationResponse aggregationResponse) {
         fullPortrait.setCharacterProfile(aggregationResponse.characterProfile());
         fullPortrait.setInteractionProfile(aggregationResponse.interactionProfile());
     }
@@ -172,6 +171,46 @@ public class AggregationService {
             sb.append("\n");
         }
         return sb.toString();
+    }
+
+    private CharacterProfile toCharacterProfileEntity(CharacterProfileDto dto) {
+        CharacterProfile entity = new CharacterProfile();
+        if (dto == null) {
+            return entity;
+        }
+
+        CharacterProfile.BasicSetting basicSetting = new CharacterProfile.BasicSetting();
+        if (dto.getBasicSetting() != null) {
+            basicSetting.setCharacterName(dto.getBasicSetting().getCharacterName());
+            basicSetting.setAge(dto.getBasicSetting().getAge());
+            basicSetting.setIdentity(dto.getBasicSetting().getIdentity());
+            basicSetting.setPresume(dto.getBasicSetting().getPresume());
+        }
+        entity.setBasicSetting(basicSetting);
+        entity.setPersonality(dto.getPersonality());
+
+        CharacterProfile.SpeechStyle speechStyle = new CharacterProfile.SpeechStyle();
+        if (dto.getSpeechStyle() != null) {
+            speechStyle.setTone(dto.getSpeechStyle().getTone());
+            speechStyle.setWordsHabit(dto.getSpeechStyle().getWordsHabit());
+            speechStyle.setRepresentativeLines(dto.getSpeechStyle().getRepresentativeLines());
+        }
+        entity.setSpeechStyle(speechStyle);
+
+        return entity;
+    }
+
+    private InteractionProfile toInteractionProfileEntity(InteractionProfileDto dto) {
+        InteractionProfile entity = new InteractionProfile();
+        if (dto == null) {
+            return entity;
+        }
+
+        entity.setProtagonistName(dto.getProtagonistName());
+        entity.setTone(dto.getTone());
+        entity.setKeyEvents(dto.getKeyEvents());
+        entity.setConversationSamples(dto.getConversationSamples());
+        return entity;
     }
 
 }

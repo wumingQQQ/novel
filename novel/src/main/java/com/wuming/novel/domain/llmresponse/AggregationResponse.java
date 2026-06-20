@@ -1,10 +1,10 @@
 package com.wuming.novel.domain.llmresponse;
 
-import com.wuming.novel.domain.entity.CharacterProfile;
-import com.wuming.novel.domain.entity.InteractionProfile;
+import com.wuming.novel.domain.dto.CharacterProfileDto;
+import com.wuming.novel.domain.dto.InteractionProfileDto;
 
 public record AggregationResponse(
-        CharacterProfile characterProfile,
-        InteractionProfile interactionProfile
+        CharacterProfileDto characterProfile,
+        InteractionProfileDto interactionProfile
 ) {
 }
