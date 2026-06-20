@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.UUID;
 
 @Service
 public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INovelService {
@@ -27,25 +28,37 @@ public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INo
 
     @Override
     public int saveNovel(MultipartFile file) throws IOException {
+        if(file.isEmpty()) {
+            throw new FileNotSupportException("文件不能为空");
+        }
         if(file.getSize() > fileUploadProperties.getMaxFileSize().toBytes()){
             throw new FileTooLargeException("文件过大，请确保小于10MB");
         }
-        String fileName = file.getOriginalFilename();
-        String ext = FilenameUtils.getExtension(fileName);
+        String originalFilename = file.getOriginalFilename();
+        String safeOriginalName = FilenameUtils.getName(originalFilename);
+        String ext = FilenameUtils.getExtension(safeOriginalName);
         if(!"txt".equals(ext)){
             throw new FileNotSupportException("文件格式不支持，请上传txt格式的文件");
         }
 
-        String savePath = fileUploadProperties.getSavePath();
-        Path path = Paths.get(savePath);
-        Path filePath = path.resolve(fileName);
+        String baseName = FilenameUtils.getBaseName(safeOriginalName);
+        String storedFileName = UUID.randomUUID() + ".txt";
+
+        Path uploadDir = Paths.get(fileUploadProperties.getSavePath())
+                .toAbsolutePath()
+                .normalize();
+        Path filePath = uploadDir.resolve(storedFileName).normalize();
+
+        if(!filePath.startsWith(uploadDir)){
+            throw new FileNotSupportException("文件名非法");
+        }
 
         // 保存文件
-        Files.createDirectories(path);
+        Files.createDirectories(uploadDir);
         file.transferTo(filePath);
 
         Novel novel = new Novel();
-        novel.setName(FilenameUtils.getBaseName(fileName));
+        novel.setName(baseName);
         novel.setFilePath(filePath.toString());
 
         save(novel);
