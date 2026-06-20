@@ -110,16 +110,16 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
     private List<String> splitChapter(String content) {
         Matcher matcher = CHAPTER_PATTERN.matcher(content);
         List<String> result = new ArrayList<>();
-        int prev = 0;
+        int chapterStart = -1;
         while (matcher.find()) {
-            // 保留第一个章节标题之前的内容
-            if(matcher.start() > prev) {
-                result.add(content.substring(prev, matcher.start()));
+            // 不保留第一个章节标题之前的内容
+            if(chapterStart >= 0) {
+                result.add(content.substring(chapterStart, matcher.start()));
             }
-            prev = matcher.start();
+            chapterStart = matcher.start();
         }
         // 处理最后一个章节到文件末尾的内容
-        if(prev > 0) result.add(content.substring(prev));
+        if(chapterStart > 0) result.add(content.substring(chapterStart));
         else{
             // 章节标记匹配失败
             System.out.println("小说找不到章节标记");
