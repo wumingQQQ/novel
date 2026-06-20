@@ -9,6 +9,7 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponse;
+import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.mapper.SceneMapper;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
@@ -16,18 +17,16 @@ import com.wuming.novel.service.ISceneService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -38,6 +37,10 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     private final IJobService jobService;
     private final ChatClient chatClient;
 
+    @Lazy
+    @Autowired
+    private SceneService self;
+
     public SceneService(SceneMapper sceneMapper, IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, ChatModel chatModel) {
         this.sceneMapper = sceneMapper;
         this.chapterService = chapterService;
@@ -47,25 +50,35 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     }
 
     @Override
-    public void splitScene(int jobId) {
+    public boolean splitScene(int jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.SCENE_SPLIT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.SCENE_SPLIT);
-            return;
+            return true;
         }
-        int novelId = jobService.getById(jobId).getNovelId();
+        int novelId = job.getNovelId();
         List<Integer> finishedChapterIds = queryFinishedChapter(novelId);
 
         Set<Integer> unfinishedChapterIds = computeUnfinishedChapterIds(finishedChapterIds, novelId);
 
         List<Chapter> chapters = chapterService.listByIds(unfinishedChapterIds);
-        List<CompletableFuture<List<Scene>>> futures = chapters.stream()
-                .map(this::splitOneChapter)
+        List<CompletableFuture<Void>> futures = chapters.stream()
+                .map(self::splitOneChapter)     // 使用代理，否则异步注解失效
                 .toList();
 
         // TODO 可以考虑使用thenAccept实现进度显示
         // 为测试考虑，暂时先join全部任务完成
-        futures.forEach(CompletableFuture::join);
+        AtomicBoolean allSuccess = new AtomicBoolean(true);
+
+        futures.forEach(future -> {
+            try{
+                future.join();
+            }
+            catch (Exception e){
+                allSuccess.set(false);
+            }
+        });
+        return allSuccess.get();
     }
 
     // 查询已经处理完成的章节id
@@ -94,15 +107,13 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
 
 
     @Async("sceneSplitExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    protected CompletableFuture<List<Scene>> splitOneChapter(Chapter chapter) {
+    protected CompletableFuture<Void> splitOneChapter(Chapter chapter) {
 
         try {
             // TODO 使用提示词模版解析时可能与中文字符串符号发生冲突
             String promptText = promptConfig.getSceneSplitPrompt()
                     .replace("{chapterTitle}", chapter.getTitle())
                     .replace("{chapterContent}", chapter.getContent());
-            BeanOutputConverter<SceneSplitResponse[]> converter = new BeanOutputConverter<>(SceneSplitResponse[].class);
             SceneSplitResponse[] splitResponses = chatClient.prompt()
                     .user(promptText)
                     .options(OpenAiChatOptions.builder()
@@ -113,38 +124,30 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
                     .call()
                     .entity(SceneSplitResponse[].class);
 
+
             List<Scene> scenes = extractSceneFromChapter(chapter, splitResponses);
-            saveBatch(scenes);
+
+            self.saveBatch(scenes);
             System.out.printf("小说%d的章节%d处理成功\n", chapter.getNovelId(), chapter.getSequence());
-            return CompletableFuture.completedFuture(scenes);
+            return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             // TODO 后面考虑增加记录重试逻辑
-            System.out.printf("小说%d的章节%d处理失败\n", chapter.getNovelId(), chapter.getSequence());
-            System.out.printf("异常信息：%s\n", e.getMessage());
+            log.error("小说{}的章节{}处理失败", chapter.getNovelId(), chapter.getSequence(), e);
             return CompletableFuture.failedFuture(e);
         }
 
 
     }
 
-    private List<Scene> extractSceneFromChapter(Chapter chapter, SceneSplitResponse[] response) {
-        List<Scene> scenes= new ArrayList<>();
-        // TODO 如果llm返回结果为空，则按块切分
+    private List<Scene> extractSceneFromChapter(Chapter chapter, SceneSplitResponse[] response){
+        int novelId = chapter.getNovelId();
         if(response == null || response.length == 0){
-            System.out.printf("小说%d的章节%d处理失败, llm返回结果为空\n", chapter.getNovelId(), chapter.getSequence());
-            Scene scene = new Scene();
-            scene.setNovelId(chapter.getNovelId());
-            scene.setChapterId(chapter.getId());
-            scene.setSequence(1);
-            scene.setContent(chapter.getContent());
-            return Collections.singletonList(scene);
+            throw new LLMResponseEmptyException("小说" + novelId +"章节" +chapter.getId() +"分场景时llm响应为空");
         }
 
+        List<Scene> scenes= new ArrayList<>();
+
         String content = chapter.getContent();
-        System.out.println("llm返回结果");
-        for(SceneSplitResponse sceneSplitResponse : response){
-            System.out.println(sceneSplitResponse);
-        }
 
         for(int i = 0; i < response.length; i++){
             SceneSplitResponse current = response[i];
@@ -174,10 +177,8 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             }
             else{
                 // 可能发生幻觉，原文位置找不到，或者顺序错乱
-                System.out.printf("小说%d的章节%d匹配失败，无法切分\n", chapter.getNovelId(), chapter.getSequence());
-                scene.setSequence(1);
-                scene.setContent(chapter.getContent());
-                return Collections.singletonList(scene);
+                log.warn("小说{}的章节{}的锚点匹配失败，无法切分", chapter.getNovelId(), chapter.getSequence());
+                throw new RuntimeException("llm返回锚点解析失败");
             }
         }
         return scenes;
