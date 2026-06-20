@@ -24,7 +24,7 @@ public class PipelineService {
 
     // TODO 将来各个阶段抛出异常则从原处恢复
     // TODO 针对前面几个与job无关的阶段可以检测是否已经完成，完成则跳过
-    public void handleNovel(int jobId) throws IOException {
+    public boolean handleNovel(int jobId) throws IOException {
         Job job = jobService.getById(jobId);
         if(job == null){
             throw new IllegalArgumentException("该job不存在，请创建后重试");
@@ -34,25 +34,25 @@ public class PipelineService {
             case PENDING:
                 if (!chapterService.splitChapter(jobId)) {
                     log.warn("job: {} 章节切分未完成，等待重试", jobId);
-                    return;
+                    return false;
                 }
                 jobService.advanceStage(jobId, JobStage.CHAPTER_SPLIT);
             case CHAPTER_SPLIT:
                 if (!layerService.splitLayer(jobId)) {
                     log.warn("job: {} 剧情分层未完成，等待重试", jobId);
-                    return;
+                    return false;
                 }
                 jobService.advanceStage(jobId, JobStage.LAYER_SPLIT);
             case LAYER_SPLIT:
                 if (!sceneService.splitScene(jobId)) {
                     log.warn("job: {} 场景切分未完成，等待重试", jobId);
-                    return;
+                    return false;
                 }
                 jobService.advanceStage(jobId, JobStage.SCENE_SPLIT);
             case SCENE_SPLIT:
                 if (!scenePoolService.divideSceneIntoPool(jobId)) {
                     log.warn("job: {} 场景分池未完成，等待重试", jobId);
-                    return;
+                    return false;
                 }
                 jobService.advanceStage(jobId, JobStage.POOL_CLASSIFY);
             case POOL_CLASSIFY:
@@ -63,13 +63,14 @@ public class PipelineService {
             case EVIDENCE_EXTRACT:
                 if (!aggregationService.aggregation(jobId)) {
                     log.warn("job: {} 画像聚合未完成，等待重试", jobId);
-                    return;
+                    return false;
                 }
                 jobService.advanceStage(jobId, JobStage.PROFILE_AGGREGATION);
             case PROFILE_AGGREGATION:
                 jobService.advanceStage(jobId, JobStage.COMPLETE);
                 log.info("job: {} 全部完成", jobId);
         }
+        return  true;
         // TODO 发邮件提醒用户任务完成
     }
 
