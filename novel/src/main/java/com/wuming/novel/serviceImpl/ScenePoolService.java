@@ -143,7 +143,6 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                     .entity(ScenePoolResponse[].class);
 
             if(responses == null || responses.length == 0){
-                log.warn("job:{}, scene{}分池时llm响应为空", jobId, scene.getId());
                 throw new LLMResponseEmptyException("任务" + jobId + "场景" + scene.getId() +"分池时llm响应为空");
             }
 
@@ -165,7 +164,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
-            log.error("处理scene{}出现异常", scene.getId(), e);
+            log.error("处理任务：{}, scene{}分池出现异常", jobId, scene.getId(), e);
             return CompletableFuture.failedFuture(e);
         }
     }
