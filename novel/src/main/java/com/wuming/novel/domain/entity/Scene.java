@@ -11,9 +11,9 @@ import java.time.LocalDateTime;
 @TableName("scenes")
 public class Scene implements Serializable {
     @TableId(type = IdType.AUTO)
-    private Integer id;
-    private Integer novelId;
-    private Integer chapterId;
+    private Long id;
+    private Long novelId;
+    private Long chapterId;
     private int sequence;
     private String content;
     @TableField(fill = FieldFill.INSERT)

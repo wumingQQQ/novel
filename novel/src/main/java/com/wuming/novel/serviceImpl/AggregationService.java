@@ -56,14 +56,14 @@ public class AggregationService {
     }
 
 
-    public boolean aggregation(int jobId) {
+    public boolean aggregation(Long jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.PROFILE_AGGREGATION.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.PROFILE_AGGREGATION);
             return true;
         }
 
-        int novelId = job.getNovelId();
+        Long novelId = job.getNovelId();
         String protagonistName = job.getProtagonistName();
         String targetName = job.getTargetName();
 
@@ -107,7 +107,7 @@ public class AggregationService {
         }
     }
 
-    private void deleteExistingPortrait(int jobId) {
+    private void deleteExistingPortrait(Long jobId) {
         characterProfileService.lambdaUpdate().
                 eq(CharacterProfile::getJobId, jobId)
                 .remove();
@@ -117,7 +117,7 @@ public class AggregationService {
     }
 
     @Transactional
-    public void saveProfile(FullPortrait fullPortrait, int jobId) {
+    public void saveProfile(FullPortrait fullPortrait, Long jobId) {
         CharacterProfile characterProfile = fullPortrait.getCharacterProfile();
         characterProfile.setJobId(jobId);
         InteractionProfile interactionProfile = fullPortrait.getInteractionProfile();
@@ -166,7 +166,7 @@ public class AggregationService {
             sb.append("结论：").append(e.getConclusion()).append("\n");
             sb.append("置信度：").append(String.format("%.2f", e.getConfidence())).append("\n");
             sb.append("原文支撑：\n");
-            for (String quote : e.getSupportQuotes()) {
+            for (String quote : e.getSupportingQuotes()) {
                 sb.append("  > \"").append(quote).append("\"\n");
             }
             sb.append("\n");

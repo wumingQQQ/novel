@@ -59,7 +59,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     }
 
     @Override
-    public boolean divideSceneIntoPool(int jobId) {
+    public boolean divideSceneIntoPool(Long jobId) {
         Job job = jobService.getById(jobId);
         // 幂等校验
         if(job.getStage().getCode() >= JobStage.POOL_CLASSIFY.getCode()){
@@ -67,9 +67,9 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
             return true;
         }
 
-        int novelId = job.getNovelId();
-        List<Integer> finishedSceneIds = queryFinishedSceneIds(novelId, jobId);
-        Set<Integer> unfinishedSceneIds = computeUnfinishedSceneIds(novelId, finishedSceneIds);
+        Long novelId = job.getNovelId();
+        List<Long> finishedSceneIds = queryFinishedSceneIds(novelId, jobId);
+        Set<Long> unfinishedSceneIds = computeUnfinishedSceneIds(novelId, finishedSceneIds);
 
 
         List<Scene> scenes = sceneService.listByIds(unfinishedSceneIds);
@@ -91,7 +91,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         return allSuccess.get();
     }
 
-    private List<Integer> queryFinishedSceneIds(int novelId, int jobId) {
+    private List<Long> queryFinishedSceneIds(Long novelId, Long jobId) {
         QueryWrapper<ScenePool> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("novel_id", novelId)
                 .eq("job_id", jobId)
@@ -103,8 +103,8 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                 .toList();
     }
 
-    private Set<Integer> computeUnfinishedSceneIds(int novelId, List<Integer> finishedSceneIds){
-        List<Integer> allSceneIds = sceneService.lambdaQuery()
+    private Set<Long> computeUnfinishedSceneIds(Long novelId, List<Long> finishedSceneIds){
+        List<Long> allSceneIds = sceneService.lambdaQuery()
                 .eq(Scene::getNovelId, novelId)
                 .select(Scene::getId)
                 .list()
@@ -120,7 +120,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
 
     @Async("poolClassifyExecutor")
-    protected CompletableFuture<Void> doSimpleClassify(Scene scene, int jobId){
+    protected CompletableFuture<Void> doSimpleClassify(Scene scene, Long jobId){
         try {
             Job job = jobService.getById(jobId);
 

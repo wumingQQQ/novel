@@ -11,12 +11,12 @@ import java.time.LocalDateTime;
 @TableName("layers")
 public class Layer implements Serializable {
     @TableId(type = IdType.AUTO)
-    private Integer id;
+    private Long id;
 
     private int layerIndex;
     private String layerName;
 
-    private Integer novelId;
+    private Long novelId;
     private Integer startChapterSequence;
     private Integer endChapterSequence;
 

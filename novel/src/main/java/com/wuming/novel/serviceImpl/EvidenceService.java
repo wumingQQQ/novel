@@ -56,14 +56,14 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     }
 
     @Override
-    public boolean extractEvidence(int jobId) {
+    public boolean extractEvidence(Long jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.EVIDENCE_EXTRACT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.EVIDENCE_EXTRACT);
             return true;
         }
 
-        int novelId = job.getNovelId();
+        Long novelId = job.getNovelId();
         String targetName = job.getTargetName();
         // TODO 后续考虑同小说不同人物
         List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
@@ -115,7 +115,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     private int batchSize;
 
     @Async("evidenceExtractExecutor")
-    protected CompletableFuture<Void> doMultiExtractEvidence(List<Scene> scenes, int jobId, PoolType poolType, Layer layer, String targetName) {
+    protected CompletableFuture<Void> doMultiExtractEvidence(List<Scene> scenes, Long jobId, PoolType poolType, Layer layer, String targetName) {
         try{
 
             EvidenceExtractResponse[] responses = chatClient.prompt()
@@ -150,8 +150,8 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                 evidence.setPoolType(poolType);
                 evidence.setConclusion(response.conclusion());
                 evidence.setConfidence(response.confidence());
-                evidence.setSupportQuotes(response.supportingQuotes());
-                evidence.setSceneIndices(response.sceneIndices());
+                evidence.setSupportingQuotes(response.supportingQuotes());
+                evidence.setSceneIds(response.sceneIds());
 
                 evidences.add(evidence);
             }

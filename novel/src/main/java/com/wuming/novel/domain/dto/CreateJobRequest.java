@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Data
 public class CreateJobRequest {
-    private int novelId;
+    private Long novelId;
     private String protagonistName;
     private String targetName;
 }

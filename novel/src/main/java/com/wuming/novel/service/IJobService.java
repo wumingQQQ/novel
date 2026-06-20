@@ -6,6 +6,6 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
 
 public interface IJobService extends IService<Job> {
-    int createJob(CreateJobRequest request);
-    void advanceStage(int jobId, JobStage stage);
+    Long createJob(CreateJobRequest request);
+    void advanceStage(Long jobId, JobStage stage);
 }

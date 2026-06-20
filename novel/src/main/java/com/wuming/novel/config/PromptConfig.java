@@ -220,14 +220,14 @@ public class PromptConfig {
                 【输出格式】JSON数组，每个元素包含：
                 - conclusion: 画像结论（50字内）
                 - supportingQuotes: 支撑结论的原文引用列表（2~3条，来自多个场景）
-                - sceneIndices: 引用对应的场景索引列表，需使用原文中给定的sceneId
+                - sceneIds: 引用对应的场景id列表，需使用原文中给定的sceneId
                 - confidence: 置信度（0.0-1.0）
                
                 [
                   {{
                     "conclusion": "画像结论",
                     "supportingQuotes": ["引用1", "引用2"],
-                    "sceneIndices": [0, 3],
+                    "sceneIds": [0, 3],
                     "confidence": 0.85
                   }}
                 ]
@@ -235,7 +235,7 @@ public class PromptConfig {
                 【结果确认要求】
                 在输出最终结果前，请逐条进行以下确认：
                 1. 每条supportingQuotes中的引用必须是来自上述【相关场景】中的原文原句，不得改写或概括
-                2. sceneIndices是与supportingQuotes等长的整数数组，其中 sceneIndices[i] 表示 supportingQuotes[i] 真实来源的场景编号，且该引用必须能在对应场景的原文中找到
+                2. sceneIds是与supportingQuotes等长的整数数组，其中 sceneIds[i] 表示 supportingQuotes[i] 真实来源的场景编号，且该引用必须能在对应场景的原文中找到
                 3. 所有conclusion必须能直接由supportingQuotes中的原文引用支撑，不得包含无原文依据的推断
                 4. confidence评分需基于引用场景的数量和一致性进行合理评估，引用场景数量越多且证据方向越一致，confidence 应越高。但请注意，supportingQuotes存在数量限制，不得为了提升 confidence 而突破此数量限制
                
@@ -262,7 +262,7 @@ public class PromptConfig {
             3. 新证据与当前画像冲突时，以新证据为准修正对应字段——该原则适用于所有字段，包括但不限于：
                - basicSetting.characterName、basicSetting.age、basicSetting.identity、basicSetting.presume
                - personality、speechStyle.tone、speechStyle.wordsHabit、speechStyle.representativeLines
-               - protagonistName、tone、keyEvents、conservationSamples
+               - protagonistName、tone、keyEvents、conversationSamples
             4. 新证据涉及当前画像未覆盖的维度时，直接添加对应字段内容，适用于所有字段
             5. 当前画像中已有但新证据未涉及的维度，保持原样不变，适用于所有字段
             6. 所有结论必须有证据中的 supportingQuotes 支撑，禁止推测或脑补——此原则适用于所有字段的更新与填充
@@ -282,7 +282,7 @@ public class PromptConfig {
               - protagonistName: 主角名称
               - tone: 与主角的互动基调
               - keyEvents: 关键事件列表（关系转折、重大选择，按时间顺序）
-              - conservationSamples: 对话示例列表（2-5 条能体现互动模式的对话）
+              - conversationSamples: 对话示例列表（2-5 条能体现互动模式的对话）
   
             【输出格式】严格按以下 JSON 返回完整画像，不得省略任何字段：
             {{
@@ -304,7 +304,7 @@ public class PromptConfig {
                 "protagonistName": "主角名",
                 "tone": "互动基调",
                 "keyEvents": ["事件1", "事件2"],
-                "conservationSamples": ["对话1", "对话2"]
+                "conversationSamples": ["对话1", "对话2"]
               }}
             }}
             """;

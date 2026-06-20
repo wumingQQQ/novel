@@ -50,16 +50,16 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     }
 
     @Override
-    public boolean splitScene(int jobId) {
+    public boolean splitScene(Long jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.SCENE_SPLIT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.SCENE_SPLIT);
             return true;
         }
-        int novelId = job.getNovelId();
-        List<Integer> finishedChapterIds = queryFinishedChapter(novelId);
+        Long novelId = job.getNovelId();
+        List<Long> finishedChapterIds = queryFinishedChapter(novelId);
 
-        Set<Integer> unfinishedChapterIds = computeUnfinishedChapterIds(finishedChapterIds, novelId);
+        Set<Long> unfinishedChapterIds = computeUnfinishedChapterIds(finishedChapterIds, novelId);
 
         List<Chapter> chapters = chapterService.listByIds(unfinishedChapterIds);
         List<CompletableFuture<Void>> futures = chapters.stream()
@@ -82,7 +82,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     }
 
     // 查询已经处理完成的章节id
-    private List<Integer> queryFinishedChapter(int novelId){
+    private List<Long> queryFinishedChapter(Long novelId){
         QueryWrapper<Scene> queryWrapper = new QueryWrapper<>();
         queryWrapper.select("chapter_id")
                 .eq("novel_id", novelId)
@@ -90,8 +90,8 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
         return sceneMapper.selectList(queryWrapper).stream().map(Scene::getChapterId).toList();
     }
 
-    private Set<Integer> computeUnfinishedChapterIds(List<Integer> finishedChapterIds, int novelId){
-        List<Integer> allChapterIds = chapterService.lambdaQuery()
+    private Set<Long> computeUnfinishedChapterIds(List<Long> finishedChapterIds, Long novelId){
+        List<Long> allChapterIds = chapterService.lambdaQuery()
                 .eq(Chapter::getNovelId, novelId)
                 .select(Chapter::getId)
                 .list()
@@ -140,7 +140,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     }
 
     private List<Scene> extractSceneFromChapter(Chapter chapter, SceneSplitResponse[] response){
-        int novelId = chapter.getNovelId();
+        Long novelId = chapter.getNovelId();
         if(response == null || response.length == 0){
             throw new LLMResponseEmptyException("小说" + novelId +"章节" +chapter.getId() +"分场景时llm响应为空");
         }

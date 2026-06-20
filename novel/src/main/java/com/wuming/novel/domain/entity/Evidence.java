@@ -19,16 +19,16 @@ public class Evidence implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)
-    private Integer id;
+    private Long id;
 
-    private Integer novelId;
-    private Integer jobId;
-    private Integer layerId;
+    private Long novelId;
+    private Long jobId;
+    private Long layerId;
     private PoolType poolType;
     private String conclusion;
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<String> supportQuotes;
+    private List<String> supportingQuotes;
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<Integer> sceneIndices;
+    private List<Long> sceneIds;
     private Double confidence;
 }

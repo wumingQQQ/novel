@@ -16,10 +16,10 @@ import java.util.List;
 public class CharacterProfile implements Serializable {
     @TableId(type = IdType.AUTO)
     @JsonIgnore
-    private Integer id;
+    private Long id;
 
     @JsonIgnore
-    private Integer jobId;
+    private Long jobId;
 
     @TableField(typeHandler = JacksonTypeHandler.class)
     private BasicSetting basicSetting = new BasicSetting();

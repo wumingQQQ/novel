@@ -36,8 +36,8 @@ public class RecallService {
     private int topK;
 
     // 全局召回
-    public List<Scene> recallScenes(int novelId, PoolType poolType) {
-        List<Integer> sceneIds = scenePoolService.lambdaQuery()
+    public List<Scene> recallScenes(Long novelId, PoolType poolType) {
+        List<Long> sceneIds = scenePoolService.lambdaQuery()
                 .eq(ScenePool::getNovelId, novelId)
                 .eq(ScenePool::getPoolType, poolType)
                 .ge(ScenePool::getConfidence, threshold)
@@ -52,7 +52,7 @@ public class RecallService {
     }
 
     // 按层召回
-    public List<Scene> recallScenes(int novelId, int jobId, PoolType poolType, int startChapterSeq, int endChapterSeq) {
+    public List<Scene> recallScenes(Long novelId, Long jobId, PoolType poolType, int startChapterSeq, int endChapterSeq) {
         return recallMapper.recallScenesByLayerAndPool(
                 novelId,
                 jobId,

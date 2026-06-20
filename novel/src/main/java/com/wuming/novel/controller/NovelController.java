@@ -25,26 +25,26 @@ public class NovelController {
     }
 
     @PostMapping
-    public ApiResonse<Integer> uploadNovel(@NotNull MultipartFile file) throws IOException {
-        int novelId = novelService.saveNovel(file);
+    public ApiResonse<Long> uploadNovel(@NotNull MultipartFile file) throws IOException {
+        Long novelId = novelService.saveNovel(file);
         return ApiResonse.success(novelId);
     }
 
     @RequestMapping("/createJob")
-    public ApiResonse<Integer> createJob(@RequestBody CreateJobRequest request) {
-        int jobId = jobService.createJob(request);
+    public ApiResonse<Long> createJob(@RequestBody CreateJobRequest request) {
+        Long jobId = jobService.createJob(request);
         return ApiResonse.success(jobId);
     }
 
     @RequestMapping("/process/{jobId}")
-    public ApiResonse<String> processJob(@PathVariable("jobId") int jobId) throws IOException {
+    public ApiResonse<String> processJob(@PathVariable("jobId") Long jobId) throws IOException {
         boolean success = pipelineService.handleNovel(jobId);
         String message = success ? "success" : "fail";
         return ApiResonse.success(message);
     }
 
     @RequestMapping("/redo/{jobId}")
-    public ApiResonse<String> redoJob(@PathVariable("jobId") int jobId) throws IOException {
+    public ApiResonse<String> redoJob(@PathVariable("jobId") Long jobId) throws IOException {
         boolean success = pipelineService.handleNovel(jobId);
         String message = success ? "success" : "fail";
         return ApiResonse.success(message);

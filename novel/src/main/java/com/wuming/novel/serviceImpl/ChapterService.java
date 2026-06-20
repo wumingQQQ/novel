@@ -47,13 +47,13 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean splitChapter(int jobId){
+    public boolean splitChapter(Long jobId){
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.CHAPTER_SPLIT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.CHAPTER_SPLIT);
             return true;
         }
-        int novelId  = job.getNovelId();
+        Long novelId  = job.getNovelId();
 
         try {
             // 幂等设计：清理旧数据重跑
@@ -98,7 +98,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
         }
     }
 
-    private void cleanOldChapter(int novelId){
+    private void cleanOldChapter(Long novelId){
         QueryWrapper<Chapter> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("novel_id", novelId);
         int delete = chapterMapper.delete(queryWrapper);

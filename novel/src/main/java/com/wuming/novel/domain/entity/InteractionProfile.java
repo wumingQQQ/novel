@@ -16,19 +16,19 @@ import java.util.List;
 public class InteractionProfile implements Serializable {
     @TableId(type = IdType.AUTO)
     @JsonIgnore
-    private Integer id;
+    private Long id;
 
     @JsonIgnore
-    private Integer jobId;
+    private Long jobId;
 
     @JsonIgnore
-    private Integer characterId;    // 关于谁与主角的交流画像
+    private Long characterId;    // 关于谁与主角的交流画像
     private String protagonistName;     // 主角
     private String tone;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> keyEvents = new ArrayList<>();     // 二者经历的关键事件
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<String> conservationSamples = new ArrayList<>();       // 对话示例
+    private List<String> conversationSamples = new ArrayList<>();       // 对话示例
 
     @TableField(fill = FieldFill.INSERT)
     @JsonIgnore

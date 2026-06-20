@@ -15,11 +15,11 @@ public class ScenePool implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)
-    private Integer id;
+    private Long id;
 
-    private Integer sceneId;
-    private Integer novelId;
-    private Integer jobId;
+    private Long sceneId;
+    private Long novelId;
+    private Long jobId;
     private PoolType poolType;
     private Double confidence;
 

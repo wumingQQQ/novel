@@ -6,8 +6,8 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 public interface RecallMapper {
-    List<Scene> recallScenesByLayerAndPool(@Param("novelId") int novelId,
-                                           @Param("jobId") int jobId,
+    List<Scene> recallScenesByLayerAndPool(@Param("novelId") Long novelId,
+                                           @Param("jobId") Long jobId,
                                            @Param("poolType") String poolType,
                                            @Param("threshold") double threshold,
                                            @Param("startSeq") int startSeq,

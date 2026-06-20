@@ -27,7 +27,7 @@ public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INo
     }
 
     @Override
-    public int saveNovel(MultipartFile file) throws IOException {
+    public Long saveNovel(MultipartFile file) throws IOException {
         if(file.isEmpty()) {
             throw new FileNotSupportException("文件不能为空");
         }

@@ -20,8 +20,8 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
     }
 
     @Override
-    public int createJob(CreateJobRequest request) {
-        int novelId = request.getNovelId();
+    public Long createJob(CreateJobRequest request) {
+        Long novelId = request.getNovelId();
         if(novelService.getById(novelId) == null){
             throw new IllegalArgumentException("您指定的小说不存在");
         }
@@ -34,7 +34,7 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
         return job.getId();
     }
 
-    public void advanceStage(int jobId, JobStage stage){
+    public void advanceStage(Long jobId, JobStage stage){
         Job job = getById(jobId);
         job.setStage(stage);
         updateById(job);

@@ -6,5 +6,5 @@ import com.wuming.novel.domain.entity.Chapter;
 import java.io.IOException;
 
 public interface IChapterService extends IService<Chapter> {
-    boolean splitChapter(int jobId) throws IOException;
+    boolean splitChapter(Long jobId) throws IOException;
 }

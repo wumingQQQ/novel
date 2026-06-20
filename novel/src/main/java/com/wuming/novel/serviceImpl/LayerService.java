@@ -64,14 +64,14 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
     private int maxLayerSize;
 
     @Override
-    public boolean splitLayer(int jobId) {
+    public boolean splitLayer(Long jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.LAYER_SPLIT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.LAYER_SPLIT);
             return true;
         }
 
-        int novelId = job.getNovelId();
+        Long novelId = job.getNovelId();
         try {
             List<String> chapterTitles = chapterService.lambdaQuery()
                     .eq(Chapter::getNovelId, novelId)
@@ -125,7 +125,7 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
         }
     }
 
-    private static List<Layer> extractLayers(LayerSplitResponse[] responses, int novelId) {
+    private static List<Layer> extractLayers(LayerSplitResponse[] responses, Long novelId) {
         List<Layer> layers = new ArrayList<>();
         for (LayerSplitResponse layerResponse : responses) {
             Layer layer = new Layer();
@@ -141,12 +141,12 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
     }
 
     @Transactional
-    public void saveLayers(int novelId, List<Layer> layers) {
+    public void saveLayers(Long novelId, List<Layer> layers) {
         cleanOldLayer(novelId);
         saveBatch(layers);
     }
 
-    private void cleanOldLayer(int novelId) {
+    private void cleanOldLayer(Long novelId) {
         QueryWrapper<Layer> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("novel_id", novelId);
         int delete = layerMapper.delete(queryWrapper);
