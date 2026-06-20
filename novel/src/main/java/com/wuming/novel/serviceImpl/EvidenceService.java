@@ -10,6 +10,7 @@ import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponse;
+import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.mapper.EvidenceMapper;
 import com.wuming.novel.service.IEvidenceService;
 import com.wuming.novel.service.IJobService;
@@ -19,7 +20,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -28,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -39,6 +43,10 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
 
+    @Lazy
+    @Autowired
+    private EvidenceService self;
+
     public EvidenceService(RecallService recallService, ILayerService layerService, IJobService jobService, PromptConfig promptConfig, ChatModel chatModel) {
         this.recallService = recallService;
         this.layerService = layerService;
@@ -48,19 +56,19 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     }
 
     @Override
-    public void extractEvidence(int jobId) {
+    public boolean extractEvidence(int jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.EVIDENCE_EXTRACT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.EVIDENCE_EXTRACT);
-            return;
+            return true;
         }
 
         int novelId = job.getNovelId();
         String targetName = job.getTargetName();
         // TODO 后续考虑同小说不同人物
-
-
         List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
+
+        AtomicBoolean allSuccess = new AtomicBoolean(true);
 
         for (Layer layer : layers) {
             for(PoolType poolType : PoolType.values()){
@@ -81,14 +89,23 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                 if(scenes.isEmpty()){
                     continue;
                 }
+
                 List<List<Scene>> partitions = Lists.partition(scenes, batchSize);
-                List<CompletableFuture<String>> futures = partitions.stream()
-                        .map(list -> doMultiExtractEvidence(list, poolType, layer, targetName))
+                List<CompletableFuture<Void>> futures = partitions.stream()
+                        .map(list -> self.doMultiExtractEvidence(list, poolType, layer, targetName))
                         .toList();
 
-                futures.forEach(CompletableFuture::join);
+                futures.forEach(future -> {
+                    try {
+                        future.join();
+                    }
+                    catch (Exception e) {
+                        allSuccess.set(false);
+                    }
+                });
             }
         }
+        return allSuccess.get();
 
     }
 
@@ -97,8 +114,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     private int batchSize;
 
     @Async("evidenceExtractExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    protected CompletableFuture<String> doMultiExtractEvidence(List<Scene> scenes, PoolType poolType, Layer layer, String targetName) {
+    protected CompletableFuture<Void> doMultiExtractEvidence(List<Scene> scenes, PoolType poolType, Layer layer, String targetName) {
         try{
 
             EvidenceExtractResponse[] responses = chatClient.prompt()
@@ -120,8 +136,8 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                     .entity(EvidenceExtractResponse[].class);
 
             if(responses == null || responses.length == 0){
-                System.out.println("证据解析时llm响应为空");
-                return CompletableFuture.completedFuture("fail");
+                log.warn("layer:{}, pool: {}证据解析时llm响应为空", layer.getLayerName(), poolType);
+                throw new LLMResponseEmptyException("证据提取：layer-" + layer.getId() +", pool-" + poolType);
             }
 
             List<Evidence> evidences = new ArrayList<>();
@@ -138,13 +154,13 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                 evidences.add(evidence);
             }
 
-            saveBatch(evidences);
+            self.saveBatch(evidences);
 
-            return CompletableFuture.completedFuture("success");
+            return CompletableFuture.completedFuture(null);
         }
         catch (Exception e){
-            System.out.println("抛出异常" + e.getMessage());
-            return CompletableFuture.completedFuture("error");
+            log.error("layer:{}, pool: {}证据解析时出现异常", layer.getId(), poolType, e);
+            return CompletableFuture.failedFuture(e);
         }
     }
 
