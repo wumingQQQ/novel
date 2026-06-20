@@ -58,6 +58,7 @@ public class PipelineService {
             case POOL_CLASSIFY:
                 if (!evidenceService.extractEvidence(jobId)) {
                     log.warn("job: {} 证据提取未完成，等待重试", jobId);
+                    return false;
                 }
                 jobService.advanceStage(jobId, JobStage.EVIDENCE_EXTRACT);
             case EVIDENCE_EXTRACT:
