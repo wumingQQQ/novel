@@ -68,7 +68,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         }
 
         int novelId = job.getNovelId();
-        List<Integer> finishedSceneIds = queryFinishedSceneIds(novelId);
+        List<Integer> finishedSceneIds = queryFinishedSceneIds(novelId, jobId);
         Set<Integer> unfinishedSceneIds = computeUnfinishedSceneIds(novelId, finishedSceneIds);
 
 
@@ -91,9 +91,10 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         return allSuccess.get();
     }
 
-    private List<Integer> queryFinishedSceneIds(int novelId){
+    private List<Integer> queryFinishedSceneIds(int novelId, int jobId) {
         QueryWrapper<ScenePool> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("novel_id", novelId)
+                .eq("job_id", jobId)
                 .select("scene_id")
                 .groupBy("scene_id");
         return scenePoolMapper.selectList(queryWrapper)
@@ -154,6 +155,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                 ScenePool scenePool = new ScenePool();
                 scenePool.setSceneId(scene.getId());
                 scenePool.setNovelId(scene.getNovelId());
+                scenePool.setJobId(jobId);
                 scenePool.setPoolType(poolType);
                 scenePool.setConfidence(response.confidence());
                 scenePools.add(scenePool);
