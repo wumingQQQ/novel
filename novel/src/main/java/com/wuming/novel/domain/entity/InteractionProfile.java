@@ -2,7 +2,6 @@ package com.wuming.novel.domain.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.io.Serial;
@@ -15,13 +14,10 @@ import java.util.List;
 @TableName(value = "interaction_profiles", autoResultMap = true)
 public class InteractionProfile implements Serializable {
     @TableId(type = IdType.AUTO)
-    @JsonIgnore
     private Long id;
 
-    @JsonIgnore
     private Long jobId;
 
-    @JsonIgnore
     private Long characterId;    // 关于谁与主角的交流画像
     private String protagonistName;     // 主角
     private String tone;
@@ -31,10 +27,8 @@ public class InteractionProfile implements Serializable {
     private List<String> conversationSamples = new ArrayList<>();       // 对话示例
 
     @TableField(fill = FieldFill.INSERT)
-    @JsonIgnore
     private LocalDateTime createTime;
     @TableField(fill = FieldFill.INSERT_UPDATE)
-    @JsonIgnore
     private LocalDateTime updateTime;
 
     @Serial

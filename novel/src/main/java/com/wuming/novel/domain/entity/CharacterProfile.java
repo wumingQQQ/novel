@@ -2,7 +2,6 @@ package com.wuming.novel.domain.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.io.Serial;
@@ -15,10 +14,8 @@ import java.util.List;
 @TableName(value = "character_profiles", autoResultMap = true)
 public class CharacterProfile implements Serializable {
     @TableId(type = IdType.AUTO)
-    @JsonIgnore
     private Long id;
 
-    @JsonIgnore
     private Long jobId;
 
     @TableField(typeHandler = JacksonTypeHandler.class)
@@ -31,10 +28,8 @@ public class CharacterProfile implements Serializable {
     // 后期考虑增加成长弧线
 
     @TableField(fill = FieldFill.INSERT)
-    @JsonIgnore
     private LocalDateTime createTime;
     @TableField(fill = FieldFill.INSERT_UPDATE)
-    @JsonIgnore
     private LocalDateTime updateTime;
 
     @Serial
