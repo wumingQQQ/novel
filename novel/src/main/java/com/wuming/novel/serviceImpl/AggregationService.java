@@ -1,5 +1,6 @@
 package com.wuming.novel.serviceImpl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
@@ -107,8 +108,12 @@ public class AggregationService {
     }
 
     private void deleteExistingPortrait(int jobId) {
-        characterProfileService.removeByMap(Map.of("jobId",  jobId));
-        interactionProfileService.removeByMap(Map.of("jobId",  jobId));
+        characterProfileService.lambdaUpdate().
+                eq(CharacterProfile::getJobId, jobId)
+                .remove();
+        interactionProfileService.lambdaUpdate()
+                .eq(InteractionProfile::getJobId, jobId)
+                .remove();
     }
 
     @Transactional
