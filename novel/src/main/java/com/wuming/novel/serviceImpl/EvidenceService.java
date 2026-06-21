@@ -67,6 +67,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
         List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
 
         AtomicBoolean allSuccess = new AtomicBoolean(true);
+        AtomicBoolean hasEvidence = new AtomicBoolean(false);
 
         for (Layer layer : layers) {
             for(PoolType poolType : PoolType.values()){
@@ -99,12 +100,17 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                 futures.forEach(future -> {
                     try {
                         future.join();
+                        hasEvidence.set(true);
                     }
                     catch (Exception e) {
                         allSuccess.set(false);
                     }
                 });
             }
+        }
+        if(!hasEvidence.get()){
+            log.warn("job: {} 证据提取未生成任何证据，请检查场景召回结果或场景分池置信度", jobId);
+            return false;
         }
         return allSuccess.get();
 
