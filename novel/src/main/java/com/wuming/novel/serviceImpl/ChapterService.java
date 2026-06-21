@@ -120,7 +120,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             chapterStart = matcher.start();
         }
         // 处理最后一个章节到文件末尾的内容
-        if(chapterStart > 0) result.add(content.substring(chapterStart));
+        if(chapterStart >= 0) result.add(content.substring(chapterStart));
         else{
             // 章节标记匹配失败
             log.warn("小说{}找不到章节标记", novelId);
