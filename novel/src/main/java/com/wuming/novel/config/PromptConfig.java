@@ -32,13 +32,15 @@ public class PromptConfig {
             8.锚点必须是原文的逐字复制，不得修改任何标点或文字，包括全角半角标点。
             9.锚点必须是全文唯一，如果可以，尽量把锚点句子缩短到不带标点符号
             
-            【输出格式】JSON数组
-            [
+            【输出格式】严格按以下 JSON 对象格式输出，不要额外内容，不要直接返回数组：
             {{
-            “sequence”: 1,
-            “anchor”: “原文中定位该场景的首句话，必须严格逐字复制。示例：张明推开门，走进了昏暗的房间。”,
+              "scenes": [
+                {{
+                  "sequence": 1,
+                  "anchor": "原文中定位该场景的首句话，必须严格逐字复制。示例：张明推开门，走进了昏暗的房间。"
+                }}
+              ]
             }}
-            ]
             
             
             【输出格式校验】
@@ -75,17 +77,19 @@ public class PromptConfig {
             - 0.2-0.5：暗示了该维度但不够明确
             - 0.2以下：几乎没有该维度信息
             
-            【输出格式】严格按以下 JSON 数组格式：
+            【输出格式】严格按以下 JSON 对象格式输出，不要额外内容，不要直接返回数组：
             - code 只能取 SETTING、PERSONALITY、SPEECH、INTERACTION、KEY_EVENT
             - confidence 为 0.0-1.0 的数字
-            - 只输出数组，不要输出额外文字
-            [
-              {{"code": "SETTING", "confidence": 0.05}},
-              {{"code": "PERSONALITY", "confidence": 0.72}},
-              {{"code": "SPEECH", "confidence": 0.68}},
-              {{"code": "INTERACTION", "confidence": 0.65}},
-              {{"code": "KEY_EVENT", "confidence": 0.00}}
-            ]
+            - 只输出对象，不要输出额外文字
+            {{
+              "pools": [
+                {{"code": "SETTING", "confidence": 0.05}},
+                {{"code": "PERSONALITY", "confidence": 0.72}},
+                {{"code": "SPEECH", "confidence": 0.68}},
+                {{"code": "INTERACTION", "confidence": 0.65}},
+                {{"code": "KEY_EVENT", "confidence": 0.00}}
+              ]
+            }}
             """;
 
     private static final String LAYER_SPLIT_PROMPT = """
@@ -230,20 +234,22 @@ public class PromptConfig {
                 【引用限制】
                 每条画像结论的 supportingQuotes 数量必须控制在 2~3 条。请优先选取信息最丰富、指向最明确的原文引用，避免使用重复或冗余的引用凑数。
                
-                【输出格式】JSON数组，每个元素包含：
+                【输出格式】严格按以下 JSON 对象格式输出，不要额外内容，不要直接返回数组。evidences 数组中的每个元素包含：
                 - conclusion: 画像结论（50字内）
                 - supportingQuotes: 支撑结论的原文引用列表（2~3条，来自多个场景）
                 - sceneIds: 引用对应的场景id列表，需使用原文中给定的sceneId
                 - confidence: 置信度（0.0-1.0）
                
-                [
-                  {{
-                    "conclusion": "画像结论",
-                    "supportingQuotes": ["引用1", "引用2"],
-                    "sceneIds": [0, 3],
-                    "confidence": 0.85
-                  }}
-                ]
+                {{
+                  "evidences": [
+                    {{
+                      "conclusion": "画像结论",
+                      "supportingQuotes": ["引用1", "引用2"],
+                      "sceneIds": [0, 3],
+                      "confidence": 0.85
+                    }}
+                  ]
+                }}
                
                 【结果确认要求】
                 在输出最终结果前，请逐条进行以下确认：

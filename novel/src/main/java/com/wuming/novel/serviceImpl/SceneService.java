@@ -9,6 +9,7 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponse;
+import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
 import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.mapper.SceneMapper;
 import com.wuming.novel.service.IChapterService;
@@ -134,7 +135,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     protected CompletableFuture<Void> splitOneChapter(Chapter chapter) {
 
         try {
-            SceneSplitResponse[] splitResponses = chatClient.prompt()
+            SceneSplitResponseWrapper responseWrapper = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getSceneSplitPrompt())
                             .param("chapterTitle", chapter.getTitle())
                             .param("chapterContent", normalize(chapter.getContent()))
@@ -145,10 +146,10 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
                                     .build())
                             .build())
                     .call()
-                    .entity(SceneSplitResponse[].class);
+                    .entity(SceneSplitResponseWrapper.class);
 
 
-            List<Scene> scenes = extractSceneFromChapter(chapter, splitResponses);
+            List<Scene> scenes = extractSceneFromChapter(chapter, responseWrapper);
 
             self.saveBatch(scenes);
             log.debug("小说{}章节{}切分成功，chapterId: {}, 场景数: {}", chapter.getNovelId(), chapter.getSequence(), chapter.getId(), scenes.size());
@@ -162,18 +163,19 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
 
     }
 
-    private List<Scene> extractSceneFromChapter(Chapter chapter, SceneSplitResponse[] response){
+    private List<Scene> extractSceneFromChapter(Chapter chapter, SceneSplitResponseWrapper responseWrapper){
         Long novelId = chapter.getNovelId();
-        if(response == null || response.length == 0){
+        if(responseWrapper == null || responseWrapper.scenes() == null || responseWrapper.scenes().isEmpty()){
             throw new LLMResponseEmptyException("小说" + novelId +"章节" +chapter.getId() +"分场景时llm响应为空");
         }
+        List<SceneSplitResponse> responses = responseWrapper.scenes();
 
         List<Scene> scenes= new ArrayList<>();
 
         String content = normalize(chapter.getContent());
 
-        for(int i = 0; i < response.length; i++){
-            SceneSplitResponse current = response[i];
+        for(int i = 0; i < responses.size(); i++){
+            SceneSplitResponse current = responses.get(i);
 
             Scene scene = new Scene();
             scene.setNovelId(chapter.getNovelId());
@@ -183,8 +185,8 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             // 定位原文位置
             int startIndex = content.indexOf(current.anchor());
             int endIndex;
-            if(i < response.length -1){
-                SceneSplitResponse next = response[i + 1];
+            if(i < responses.size() -1){
+                SceneSplitResponse next = responses.get(i + 1);
                 endIndex = content.indexOf(next.anchor());
             }
             else{

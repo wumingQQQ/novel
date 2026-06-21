@@ -10,6 +10,7 @@ import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponse;
+import com.wuming.novel.domain.llmresponse.EvidenceExtractResponseWrapper;
 import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.mapper.EvidenceMapper;
 import com.wuming.novel.service.IEvidenceService;
@@ -124,7 +125,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     protected CompletableFuture<Void> doMultiExtractEvidence(List<Scene> scenes, Long jobId, PoolType poolType, Layer layer, String targetName) {
         try{
 
-            EvidenceExtractResponse[] responses = chatClient.prompt()
+            EvidenceExtractResponseWrapper responseWrapper = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getEvidenceExtractPrompt())
                             .param("targetName", targetName)
                             .param("poolTypeName", poolType.name())
@@ -141,11 +142,12 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                             .build()
                     )
                     .call()
-                    .entity(EvidenceExtractResponse[].class);
+                    .entity(EvidenceExtractResponseWrapper.class);
 
-            if(responses == null || responses.length == 0){
+            if(responseWrapper == null || responseWrapper.evidences() == null || responseWrapper.evidences().isEmpty()){
                 throw new LLMResponseEmptyException("证据提取：layer-" + layer.getId() +", pool-" + poolType);
             }
+            List<EvidenceExtractResponse> responses = responseWrapper.evidences();
 
             List<Evidence> evidences = new ArrayList<>();
             for (EvidenceExtractResponse response : responses) {

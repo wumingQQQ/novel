@@ -10,6 +10,7 @@ import com.wuming.novel.domain.entity.rel.ScenePool;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponse;
+import com.wuming.novel.domain.llmresponse.ScenePoolResponseWrapper;
 import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.mapper.ScenePoolMapper;
 import com.wuming.novel.service.IJobService;
@@ -123,7 +124,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     @Async("poolClassifyExecutor")
     protected CompletableFuture<Void> doSimpleClassify(Scene scene, Long jobId, String protagonistName, String targetName){
         try {
-            ScenePoolResponse[] responses = chatClient.prompt()
+            ScenePoolResponseWrapper responseWrapper = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getScenePoolPrompt())
                             .param("protagonistName", protagonistName)
                             .param("targetName", targetName)
@@ -136,11 +137,12 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                             .build()
                     )
                     .call()
-                    .entity(ScenePoolResponse[].class);
+                    .entity(ScenePoolResponseWrapper.class);
 
-            if(responses == null || responses.length == 0){
+            if(responseWrapper == null || responseWrapper.pools() == null || responseWrapper.pools().isEmpty()){
                 throw new LLMResponseEmptyException("任务" + jobId + "场景" + scene.getId() +"分池时llm响应为空");
             }
+            List<ScenePoolResponse> responses = responseWrapper.pools();
 
             List<ScenePool> scenePools = new ArrayList<>();
 
