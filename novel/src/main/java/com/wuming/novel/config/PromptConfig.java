@@ -283,7 +283,7 @@ public class PromptConfig {
               - basicSetting.age: 年龄
               - basicSetting.identity: 身份（学生、会长等）
               - basicSetting.presume: 角色特殊设定（如"不会说谎"、"路痴"等）
-              - personality: 性格描述（核心性格、价值观）
+              - personality: 性格描述（核心性格、价值观），请控制在 800 个中文字符以内，只保留最稳定、最重要的特征，不要罗列所有证据
               - speechStyle.tone: 语气基调（冷淡/傲娇/温柔/暴躁/俏皮等）
               - speechStyle.wordsHabit: 口癖或习惯用语
               - speechStyle.representativeLines: 代表台词列表（2-5 句）

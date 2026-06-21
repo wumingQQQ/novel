@@ -84,7 +84,7 @@ create table if not exists character_profiles(
     id bigint primary key auto_increment comment '角色画像主键',
     job_id bigint not null comment '任务主键',
     basic_setting json comment '角色基础设定',
-    personality varchar(1000) comment '性格描述',
+    personality text comment '性格描述',
     speech_style json comment '说话风格',
     create_time datetime default current_timestamp comment '创建时间',
     update_time datetime default current_timestamp on update current_timestamp comment '更新时间',

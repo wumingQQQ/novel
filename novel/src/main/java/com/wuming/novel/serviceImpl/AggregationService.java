@@ -36,6 +36,7 @@ import java.util.List;
 @Slf4j
 @Service
 public class AggregationService {
+    private static final int MAX_PERSONALITY_LENGTH = 800;
 
     private final IEvidenceService evidenceService;
     private final ILayerService layerService;
@@ -198,7 +199,7 @@ public class AggregationService {
             basicSetting.setPresume(dto.getBasicSetting().getPresume());
         }
         entity.setBasicSetting(basicSetting);
-        entity.setPersonality(dto.getPersonality());
+        entity.setPersonality(limitPersonality(dto.getPersonality()));
 
         CharacterProfile.SpeechStyle speechStyle = new CharacterProfile.SpeechStyle();
         if (dto.getSpeechStyle() != null) {
@@ -209,6 +210,14 @@ public class AggregationService {
         entity.setSpeechStyle(speechStyle);
 
         return entity;
+    }
+
+    private String limitPersonality(String personality) {
+        if (personality == null || personality.length() <= MAX_PERSONALITY_LENGTH) {
+            return personality;
+        }
+        log.debug("personality 字段长度 {} 超过限制 {}，已截断", personality.length(), MAX_PERSONALITY_LENGTH);
+        return personality.substring(0, MAX_PERSONALITY_LENGTH);
     }
 
     private InteractionProfile toInteractionProfileEntity(InteractionProfileDto dto) {
