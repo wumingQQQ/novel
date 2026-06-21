@@ -50,8 +50,7 @@ create table if not exists scenes(
     content text not null comment '场景内容',
     create_time datetime default current_timestamp comment '创建时间',
     unique key uk_scenes_chapter_sequence (chapter_id, sequence),
-    key idx_scenes_novel_id (novel_id),
-    key idx_scenes_chapter_id (chapter_id)
+    key idx_scenes_novel_chapter (novel_id, chapter_id)
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
 
 create table if not exists scene_pool(
