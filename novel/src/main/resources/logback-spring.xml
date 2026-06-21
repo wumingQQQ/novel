@@ -57,7 +57,7 @@
     </appender>
 
     <!-- 6. 特定包的日志级别控制 -->
-    <logger name="com.wuming.novel.mapper" level="DEBUG"/>     <!-- SQL 日志 -->
+    <logger name="com.wuming.novel.mapper" level="INFO"/>      <!-- SQL 摘要由 SqlSummaryInterceptor 输出，避免打印大字段参数 -->
     <logger name="org.springframework.ai" level="DEBUG"/>       <!-- LLM 调用链路 -->
     <logger name="com.baomidou.mybatisplus" level="WARN"/>      <!-- 压制 MyBatis 内部噪音 -->
     <logger name="com.wuming.novel" level="DEBUG"/>
