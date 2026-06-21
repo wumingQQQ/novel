@@ -2,12 +2,16 @@ package com.wuming.novel.serviceImpl;
 
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
-import com.wuming.novel.service.*;
+import com.wuming.novel.service.IChapterService;
+import com.wuming.novel.service.IEvidenceService;
+import com.wuming.novel.service.IJobService;
+import com.wuming.novel.service.ILayerService;
+import com.wuming.novel.service.INovelService;
+import com.wuming.novel.service.IScenePoolService;
+import com.wuming.novel.service.ISceneService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.io.IOException;
 
 @Service
 @Slf4j
@@ -24,7 +28,7 @@ public class PipelineService {
 
     // TODO 将来各个阶段抛出异常则从原处恢复
     // TODO 针对前面几个与job无关的阶段可以检测是否已经完成，完成则跳过
-    public boolean handleNovel(Long jobId) throws IOException {
+    public boolean handleNovel(Long jobId) {
         Job job = jobService.getById(jobId);
         if(job == null){
             throw new IllegalArgumentException("该job不存在，请创建后重试");

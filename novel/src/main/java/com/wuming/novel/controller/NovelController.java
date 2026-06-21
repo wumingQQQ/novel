@@ -2,9 +2,14 @@ package com.wuming.novel.controller;
 
 import com.wuming.novel.domain.dto.ApiResonse;
 import com.wuming.novel.domain.dto.CreateJobRequest;
-import com.wuming.novel.service.*;
+import com.wuming.novel.service.IJobService;
+import com.wuming.novel.service.INovelService;
 import com.wuming.novel.serviceImpl.PipelineService;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.constraints.NotNull;
@@ -37,14 +42,14 @@ public class NovelController {
     }
 
     @RequestMapping("/process/{jobId}")
-    public ApiResonse<String> processJob(@PathVariable("jobId") Long jobId) throws IOException {
+    public ApiResonse<String> processJob(@PathVariable("jobId") Long jobId) {
         boolean success = pipelineService.handleNovel(jobId);
         String message = success ? "success" : "fail";
         return ApiResonse.success(message);
     }
 
     @RequestMapping("/redo/{jobId}")
-    public ApiResonse<String> redoJob(@PathVariable("jobId") Long jobId) throws IOException {
+    public ApiResonse<String> redoJob(@PathVariable("jobId") Long jobId) {
         boolean success = pipelineService.handleNovel(jobId);
         String message = success ? "success" : "fail";
         return ApiResonse.success(message);

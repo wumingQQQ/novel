@@ -3,7 +3,6 @@ package com.wuming.novel.config;
 import com.wuming.novel.domain.enums.PoolType;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.HashMap;
 import java.util.Map;
 
 
