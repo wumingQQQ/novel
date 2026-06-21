@@ -90,6 +90,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             if(!chapters.isEmpty()) {
                 saveBatch(chapters);
             }
+            log.debug("job: {} 小说{}章节切分完成，编码: {}, 章节数: {}", jobId, novelId, encoding, chapters.size());
 
             return true;
         } catch (Exception e) {
