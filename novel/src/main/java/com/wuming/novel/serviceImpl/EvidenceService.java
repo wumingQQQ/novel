@@ -87,11 +87,13 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                         layer.getStartChapterSequence(),
                         layer.getEndChapterSequence()
                 );
+                log.debug("job: {} layer: {} pool: {} 召回场景数: {}", jobId, layer.getId(), poolType, scenes.size());
                 if(scenes.isEmpty()){
                     continue;
                 }
 
                 List<List<Scene>> partitions = Lists.partition(scenes, batchSize);
+                log.debug("job: {} layer: {} pool: {} 证据提取批次数: {}", jobId, layer.getId(), poolType, partitions.size());
                 List<CompletableFuture<Void>> futures = partitions.stream()
                         .map(list -> self.doMultiExtractEvidence(list, jobId, poolType, layer, targetName))
                         .toList();
@@ -157,6 +159,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
             }
 
             self.saveBatch(evidences);
+            log.debug("job: {} layer: {} pool: {} 证据提取完成，输入场景数: {}, 证据数: {}", jobId, layer.getId(), poolType, scenes.size(), evidences.size());
 
             return CompletableFuture.completedFuture(null);
         }
