@@ -71,22 +71,23 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
 
         Long novelId = job.getNovelId();
         try {
-            List<String> chapterTitles = chapterService.lambdaQuery()
+            List<Chapter> chapters = chapterService.lambdaQuery()
                     .eq(Chapter::getNovelId, novelId)
-                    .select(Chapter::getTitle)
+                    .select(Chapter::getSequence, Chapter::getTitle)
                     .orderByAsc(Chapter::getSequence)
-                    .list()
-                    .stream()
-                    .map(Chapter::getTitle)
-                    .toList();
+                    .list();
             Novel novel = novelService.getById(novelId);
             String novelName = novel.getName();
 
-            int chapterCount = chapterTitles.size();
+            int chapterCount = chapters.size();
             if(chapterCount == 0){
                 log.warn("小说{}的章节数据为空，请检查后重试", novelId);
                 return false;
             }
+
+            String chapterList = chapters.stream()
+                    .map(chapter -> chapter.getSequence() + ". " + chapter.getTitle())
+                    .collect(java.util.stream.Collectors.joining("\n"));
 
             log.debug("job: {} 小说{}开始剧情分层，章节数: {}", jobId, novelId, chapterCount);
             LayerSplitResponse[] responses = chatClient.prompt()
@@ -97,7 +98,7 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
                             .param("maxChaptersPerLayer", maxChapterSize)
                             .param("minLayers", minLayerSize)
                             .param("maxLayers", maxLayerSize)
-                            .param("chapterList", String.join("\n", chapterTitles))
+                            .param("chapterList", chapterList)
                     )
                     .options(OpenAiChatOptions.builder()
                             .responseFormat(ResponseFormat.builder()

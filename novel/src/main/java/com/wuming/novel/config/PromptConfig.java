@@ -96,7 +96,7 @@ public class PromptConfig {
             【章节信息】
             总章节数：{totalChapters}
       
-            章节列表：
+            章节列表（每行左侧数字为系统内部章节序号，标题中的“第X章”可能不是内部序号）：
             {chapterList}
       
             【分层约束】
@@ -123,10 +123,11 @@ public class PromptConfig {
             ]
       
             【输出格式校验规则】
-            1. 第一层必须从第1章开始，最后一层必须在第{totalChapters}章结束。
-            2. 前后层的章节必须严格连续：每一层的 startChapter 应等于上一层的 endChapter + 1。
-            3. layerIndex 必须从 1 开始连续递增，不得跳跃或重复。
-            4. 输出前请自行校验：a) 总章数是否为{totalChapters}；b) 层数是否在{minLayers}至{maxLayers}之间；c) 是否存在章节重叠或遗漏。
+            1. startChapter 和 endChapter 必须使用章节列表左侧的系统内部章节序号，不得使用标题中的原始章节号。
+            2. 第一层必须从第1章开始，最后一层必须在第{totalChapters}章结束。
+            3. 前后层的章节必须严格连续：每一层的 startChapter 应等于上一层的 endChapter + 1。
+            4. layerIndex 必须从 1 开始连续递增，不得跳跃或重复。
+            5. 输出前请自行校验：a) 总章数是否为{totalChapters}；b) 层数是否在{minLayers}至{maxLayers}之间；c) 是否存在章节重叠或遗漏。
             """;
 
     private static final Map<PoolType, String> POOL_TYPE_DESCRIPTIONS = Map.of(
