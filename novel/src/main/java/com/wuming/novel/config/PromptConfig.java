@@ -100,9 +100,10 @@ public class PromptConfig {
             {chapterList}
       
             【分层约束】
-            1. 每层应包含 {minChaptersPerLayer} 至 {maxChaptersPerLayer} 章，若叙事完整性要求超出此范围，仅在迫不得已时方可触及边界，并需在 boundaryReason 中特别说明。
+            1. 每层应包含 {minChaptersPerLayer} 至 {maxChaptersPerLayer} 章，若叙事完整性要求超出此范围，仅在迫不得已时方可触及边界，但不要输出额外字段。
             2. 最终生成的总层数必须介于 {minLayers} 到 {maxLayers} 之间。
             3. 当上述两条约束冲突时，优先满足每层章节数约束。
+            4. 如果总章节数小于每层最小章数，则只输出 1 层：startChapter=1，endChapter={totalChapters}，此时 minLayers/maxLayers约束以 1 层为准。
       
             【层边界判定依据】
             请优先选择叙事节奏自然转换的节点作为层边界，确保层与层之间的过渡顺滑，不割裂故事的连贯性：
@@ -112,15 +113,17 @@ public class PromptConfig {
             - 情节线明显转折
             - 情绪基调变化
       
-            【输出格式】严格按以下 JSON 数组格式输出，不要额外内容：
-            [
-              {{
-                "layerIndex": 1,
-                "layerName": "初遇",
-                "startChapter": 1,
-                "endChapter": 52,
-              }}
-            ]
+            【输出格式】严格按以下 JSON 对象格式输出，不要额外内容，不要直接返回数组：
+            {{
+              "layers": [
+                {{
+                  "layerIndex": 1,
+                  "layerName": "初遇",
+                  "startChapter": 1,
+                  "endChapter": 52
+                }}
+              ]
+            }}
       
             【输出格式校验规则】
             1. startChapter 和 endChapter 必须使用章节列表左侧的系统内部章节序号，不得使用标题中的原始章节号。
