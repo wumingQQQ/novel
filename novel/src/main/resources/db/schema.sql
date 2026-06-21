@@ -63,8 +63,7 @@ create table if not exists scene_pool(
     create_time datetime default current_timestamp comment '创建时间',
     unique key uk_scene_pool_job_scene_type (job_id, scene_id, pool_type),
     key idx_scene_pool_job_type_confidence (job_id, pool_type, confidence),
-    key idx_scene_pool_novel_job (novel_id, job_id),
-    key idx_scene_pool_scene_id (scene_id)
+    key idx_scene_pool_novel_job (novel_id, job_id)
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
 
 create table if not exists evidences(
