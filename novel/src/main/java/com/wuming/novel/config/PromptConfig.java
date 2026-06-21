@@ -68,13 +68,16 @@ public class PromptConfig {
             - 0.2-0.5：暗示了该维度但不够明确
             - 0.2以下：几乎没有该维度信息
             
-            【输出格式】严格按以下 JSON 格式：
+            【输出格式】严格按以下 JSON 数组格式：
+            - code 只能取 SETTING、PERSONALITY、SPEECH、INTERACTION、KEY_EVENT
+            - confidence 为 0.0-1.0 的数字
+            - 只输出数组，不要输出额外文字
             [
-              {{"SETTING": 0.05}},
-              {{"PERSONALITY": 0.72}},
-              {{"SPEECH": 0.68}},
-              {{"INTERACTION": 0.65}},
-              {{"KEY_EVENT": 0.00}}
+              {{"code": "SETTING", "confidence": 0.05}},
+              {{"code": "PERSONALITY", "confidence": 0.72}},
+              {{"code": "SPEECH", "confidence": 0.68}},
+              {{"code": "INTERACTION", "confidence": 0.65}},
+              {{"code": "KEY_EVENT", "confidence": 0.00}}
             ]
             """;
 
