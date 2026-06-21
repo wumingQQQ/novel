@@ -62,6 +62,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
         Set<Long> unfinishedChapterIds = computeUnfinishedChapterIds(finishedChapterIds, novelId);
 
         List<Chapter> chapters = chapterService.listByIds(unfinishedChapterIds);
+        log.debug("job: {} 小说{}开始场景切分，已完成章节数: {}, 待处理章节数: {}", jobId, novelId, finishedChapterIds.size(), chapters.size());
         List<CompletableFuture<Void>> futures = chapters.stream()
                 .map(self::splitOneChapter)     // 使用代理，否则异步注解失效
                 .toList();
@@ -127,7 +128,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             List<Scene> scenes = extractSceneFromChapter(chapter, splitResponses);
 
             self.saveBatch(scenes);
-            log.debug("小说{}的章节{}处理成功", chapter.getNovelId(), chapter.getSequence());
+            log.debug("小说{}章节{}切分成功，chapterId: {}, 场景数: {}", chapter.getNovelId(), chapter.getSequence(), chapter.getId(), scenes.size());
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             // TODO 后面考虑增加记录重试逻辑
