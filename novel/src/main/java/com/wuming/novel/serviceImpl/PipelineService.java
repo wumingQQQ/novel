@@ -30,6 +30,8 @@ public class PipelineService {
             throw new IllegalArgumentException("该job不存在，请创建后重试");
         }
 
+        log.debug("job: {} 开始处理，当前阶段: {}", jobId, job.getStage());
+
         switch (job.getStage()) {
             case PENDING:
                 if (!chapterService.splitChapter(jobId)) {
