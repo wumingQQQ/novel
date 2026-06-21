@@ -90,6 +90,7 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
                 return false;
             }
 
+            log.debug("job: {} 小说{}开始剧情分层，章节数: {}", jobId, novelId, chapterCount);
             LayerSplitResponse[] responses = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getLayerSplitPrompt())
                             .param("novelName", novelName)
@@ -118,6 +119,7 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
             List<Layer> layers = extractLayers(responses, novelId);
 
             self.saveLayers(novelId, layers);
+            log.debug("job: {} 小说{}剧情分层完成，层数: {}", jobId, novelId, layers.size());
             return true;
         } catch (Exception e) {
             log.error("job: {}剧情分层失败", jobId, e);
