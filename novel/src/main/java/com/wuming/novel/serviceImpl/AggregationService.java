@@ -86,6 +86,7 @@ public class AggregationService {
                         continue;
                     }
 
+                    log.debug("job: {} layer: {} pool: {} 聚合证据数: {}", jobId, layer.getId(), poolType, evidences.size());
                     List<List<Evidence>> partition = Lists.partition(evidences, 20);
                     for(List<Evidence> evidenceList : partition) {
                         AggregationResponse response = aggregationPool(evidenceList, layer, fullPortrait);
@@ -94,6 +95,7 @@ public class AggregationService {
                         }
 
                         copyAggregationResponse(fullPortrait, response);
+                        log.debug("job: {} layer: {} pool: {} 画像聚合批次完成，批次证据数: {}", jobId, layer.getId(), poolType, evidenceList.size());
                     }
                 }
             }
@@ -123,6 +125,7 @@ public class AggregationService {
         characterProfileService.save(characterProfile);
         interactionProfile.setCharacterId(characterProfile.getId());
         interactionProfileService.save(interactionProfile);
+        log.debug("job: {} 画像保存完成，characterProfileId: {}, interactionProfileId: {}", jobId, characterProfile.getId(), interactionProfile.getId());
     }
 
 
