@@ -202,7 +202,14 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             }
             else{
                 // 可能发生幻觉，原文位置找不到，或者顺序错乱
-                log.warn("小说{}的章节{}的锚点匹配失败，无法切分", chapter.getNovelId(), chapter.getSequence());
+                String nextAnchor = i < responses.size() - 1 ? responses.get(i + 1).anchor() : null;
+                log.warn("小说{}章节{}锚点匹配失败，chapterId: {}, sceneSequence: {},  anchor: {}, nextAnchor: {}",
+                        chapter.getNovelId(),
+                        chapter.getSequence(),
+                        chapter.getId(),
+                        current.sequence(),
+                        current.anchor(),
+                        nextAnchor);
                 throw new RuntimeException("llm返回锚点解析失败");
             }
         }
