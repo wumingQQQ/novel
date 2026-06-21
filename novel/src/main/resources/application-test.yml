@@ -10,7 +10,5 @@ spring:
 novel:
   upload:
     save-path: data/test
-
-  sample:
-    protagonistName: "渡边澈"
-    targetName: "清野凛"
+  recall:
+    threshold: 0.1
