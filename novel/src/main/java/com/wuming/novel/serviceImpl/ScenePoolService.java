@@ -56,6 +56,9 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     @Override
     public boolean divideSceneIntoPool(Long jobId) {
         Job job = jobService.getById(jobId);
+        if (job == null) {
+            throw new IllegalArgumentException("该job不存在，请创建后重试");
+        }
         // 幂等校验
         if(job.getStage().getCode() >= JobStage.POOL_CLASSIFY.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.POOL_CLASSIFY);
@@ -63,6 +66,8 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         }
 
         Long novelId = job.getNovelId();
+        String protagonistName = job.getProtagonistName();
+        String targetName = job.getTargetName();
         List<Long> finishedSceneIds = queryFinishedSceneIds(novelId, jobId);
         Set<Long> unfinishedSceneIds = computeUnfinishedSceneIds(novelId, finishedSceneIds);
 
@@ -71,7 +76,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         log.debug("job: {} 小说{}开始场景分池，已完成场景数: {}, 待处理场景数: {}", jobId, novelId, finishedSceneIds.size(), scenes.size());
 
         List<CompletableFuture<Void>> futures = scenes.stream()
-                .map(scene -> self.doSimpleClassify(scene, jobId))
+                .map(scene -> self.doSimpleClassify(scene, jobId, protagonistName, targetName))
                 .toList();
 
         // 便于测试，等待任务完成
@@ -116,13 +121,8 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
 
     @Async("poolClassifyExecutor")
-    protected CompletableFuture<Void> doSimpleClassify(Scene scene, Long jobId){
+    protected CompletableFuture<Void> doSimpleClassify(Scene scene, Long jobId, String protagonistName, String targetName){
         try {
-            Job job = jobService.getById(jobId);
-
-            String protagonistName = job.getProtagonistName();
-            String targetName = job.getTargetName();
-
             ScenePoolResponse[] responses = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getScenePoolPrompt())
                             .param("protagonistName", protagonistName)
