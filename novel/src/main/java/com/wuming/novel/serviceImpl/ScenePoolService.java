@@ -73,6 +73,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
 
         List<Scene> scenes = sceneService.listByIds(unfinishedSceneIds);
+        log.debug("job: {} 小说{}开始场景分池，已完成场景数: {}, 待处理场景数: {}", jobId, novelId, finishedSceneIds.size(), scenes.size());
 
         List<CompletableFuture<Void>> futures = scenes.stream()
                 .map(scene -> self.doSimpleClassify(scene, jobId))
@@ -161,6 +162,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
             }
 
             self.saveBatch(scenePools);
+            log.debug("job: {} scene: {} 分池完成，池数量: {}", jobId, scene.getId(), scenePools.size());
 
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
