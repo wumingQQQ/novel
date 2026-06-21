@@ -271,7 +271,8 @@ public class PromptConfig {
             2. 新证据与当前画像一致时，保留已有内容并补充更具体的细节，适用于所有字段
             3. 新证据与当前画像冲突时，以新证据为准修正对应字段——该原则适用于所有字段，包括但不限于：
                - basicSetting.characterName、basicSetting.age、basicSetting.identity、basicSetting.presume
-               - personality、speechStyle.tone、speechStyle.wordsHabit、speechStyle.representativeLines
+               - coreTraits、valueSystem、behaviorPatterns、emotionalPatterns、relationshipAttitude、weaknesses
+               - speechStyle.tone、speechStyle.wordsHabit、speechStyle.representativeLines
                - protagonistName、tone、keyEvents、conversationSamples
             4. 新证据涉及当前画像未覆盖的维度时，直接添加对应字段内容，适用于所有字段
             5. 当前画像中已有但新证据未涉及的维度，保持原样不变，适用于所有字段
@@ -283,7 +284,12 @@ public class PromptConfig {
               - basicSetting.age: 年龄
               - basicSetting.identity: 身份（学生、会长等）
               - basicSetting.presume: 角色特殊设定（如"不会说谎"、"路痴"等）
-              - personality: 性格描述（核心性格、价值观），请控制在 800 个中文字符以内，只保留最稳定、最重要的特征，不要罗列所有证据
+              - coreTraits: 核心性格标签，多个短标签，每个标签不超过 12 个中文字符
+              - valueSystem: 价值观与判断标准，400 个中文字符以内
+              - behaviorPatterns: 行为模式，描述遇事通常如何行动，400 个中文字符以内
+              - emotionalPatterns: 情绪模式，描述情绪触发点与表达方式，400 个中文字符以内
+              - relationshipAttitude: 关系态度，描述对主角和他人的亲疏、防备、信任方式，400 个中文字符以内
+              - weaknesses: 弱点、缺陷或内在矛盾，400 个中文字符以内
               - speechStyle.tone: 语气基调（冷淡/傲娇/温柔/暴躁/俏皮等）
               - speechStyle.wordsHabit: 口癖或习惯用语
               - speechStyle.representativeLines: 代表台词列表（2-5 句）
@@ -303,7 +309,12 @@ public class PromptConfig {
                   "identity": "身份描述",
                   "presume": "特殊设定"
                 }},
-                "personality": "性格描述",
+                "coreTraits": ["核心标签1", "核心标签2"],
+                "valueSystem": "价值观与判断标准",
+                "behaviorPatterns": "行为模式",
+                "emotionalPatterns": "情绪模式",
+                "relationshipAttitude": "关系态度",
+                "weaknesses": "弱点与矛盾点",
                 "speechStyle": {{
                   "tone": "语气基调",
                   "wordsHabit": "口癖",

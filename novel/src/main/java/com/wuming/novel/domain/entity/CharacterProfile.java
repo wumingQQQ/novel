@@ -24,8 +24,13 @@ public class CharacterProfile implements Serializable {
 
     @TableField(typeHandler = JacksonTypeHandler.class)
     private BasicSetting basicSetting = new BasicSetting();
-    // 后期考虑定义多个字段
-    private String personality;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> coreTraits = new ArrayList<>();
+    private String valueSystem;
+    private String behaviorPatterns;
+    private String emotionalPatterns;
+    private String relationshipAttitude;
+    private String weaknesses;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private SpeechStyle speechStyle = new SpeechStyle();
 

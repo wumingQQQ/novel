@@ -8,7 +8,12 @@ import java.util.List;
 @Data
 public class CharacterProfileDto {
     private BasicSettingDto basicSetting = new BasicSettingDto();
-    private String personality;
+    private List<String> coreTraits = new ArrayList<>();
+    private String valueSystem;
+    private String behaviorPatterns;
+    private String emotionalPatterns;
+    private String relationshipAttitude;
+    private String weaknesses;
     private SpeechStyleDto speechStyle = new SpeechStyleDto();
 
     @Data
