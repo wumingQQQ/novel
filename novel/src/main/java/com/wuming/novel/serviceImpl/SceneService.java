@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -109,6 +110,25 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
         );
     }
 
+    private String normalize(String chapterContent){
+        if (chapterContent == null) {
+            return "";
+        }
+
+        return chapterContent
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .replace('\u3000', ' ')
+                .replace('\u00A0', ' ')
+                .replace("\uFEFF", "")
+                .replace("\u200B", "")
+                .lines()
+                .map(line -> line.trim().replaceAll("[ \\t\\f]+", " "))
+                .collect(Collectors.joining("\n"))
+                .replaceAll("\\n{3,}", "\n\n")
+                .trim();
+    }
+
 
     @Async("sceneSplitExecutor")
     protected CompletableFuture<Void> splitOneChapter(Chapter chapter) {
@@ -117,7 +137,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             SceneSplitResponse[] splitResponses = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getSceneSplitPrompt())
                             .param("chapterTitle", chapter.getTitle())
-                            .param("chapterContent", chapter.getContent())
+                            .param("chapterContent", normalize(chapter.getContent()))
                     )
                     .options(OpenAiChatOptions.builder()
                             .responseFormat(ResponseFormat.builder()
@@ -150,7 +170,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
 
         List<Scene> scenes= new ArrayList<>();
 
-        String content = chapter.getContent();
+        String content = normalize(chapter.getContent());
 
         for(int i = 0; i < response.length; i++){
             SceneSplitResponse current = response[i];
