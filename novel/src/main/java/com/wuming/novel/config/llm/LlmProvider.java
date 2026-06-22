@@ -6,6 +6,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.ai.openai.api.ResponseFormat;
 
 
 @Setter
@@ -26,6 +27,7 @@ public class LlmProvider {
                             .build())
                     .defaultOptions(OpenAiChatOptions.builder()
                             .model(model)
+                            .responseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
                             .temperature(0.8)
                             .build())
                     .build();
