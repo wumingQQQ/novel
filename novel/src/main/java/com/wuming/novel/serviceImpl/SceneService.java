@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.common.collect.Sets;
 import com.wuming.novel.config.PromptConfig;
+import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
@@ -46,12 +47,12 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     @Autowired
     private SceneService self;
 
-    public SceneService(SceneMapper sceneMapper, IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, ChatModel chatModel) {
+    public SceneService(SceneMapper sceneMapper, IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, LlmClientFactory clientFactory) {
         this.sceneMapper = sceneMapper;
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
         this.jobService = jobService;
-        this.chatClient = ChatClient.builder(chatModel).build();
+        this.chatClient = clientFactory.defaultClient();
     }
 
     @Override

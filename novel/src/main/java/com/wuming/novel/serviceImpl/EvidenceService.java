@@ -3,6 +3,7 @@ package com.wuming.novel.serviceImpl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.common.collect.Lists;
 import com.wuming.novel.config.PromptConfig;
+import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.entity.Evidence;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Layer;
@@ -46,12 +47,12 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     @Autowired
     private EvidenceService self;
 
-    public EvidenceService(RecallService recallService, ILayerService layerService, IJobService jobService, PromptConfig promptConfig, ChatModel chatModel) {
+    public EvidenceService(RecallService recallService, ILayerService layerService, IJobService jobService, PromptConfig promptConfig, LlmClientFactory clientFactory) {
         this.recallService = recallService;
         this.layerService = layerService;
         this.jobService = jobService;
         this.promptConfig = promptConfig;
-        this.chatClient = ChatClient.builder(chatModel).build();
+        this.chatClient = clientFactory.defaultClient();
     }
 
     @Override

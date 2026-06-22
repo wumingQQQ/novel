@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.common.collect.Sets;
 import com.wuming.novel.config.PromptConfig;
+import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.entity.rel.ScenePool;
@@ -46,12 +47,12 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     @Autowired
     private ScenePoolService self;
 
-    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, ScenePoolMapper scenePoolMapper, ChatModel chatModel) {
+    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, ScenePoolMapper scenePoolMapper, LlmClientFactory clientFactory) {
         this.promptConfig = promptConfig;
         this.sceneService = sceneService;
         this.jobService = jobService;
         this.scenePoolMapper = scenePoolMapper;
-        this.chatClient = ChatClient.builder(chatModel).build();
+        this.chatClient = clientFactory.defaultClient();
     }
 
     @Override

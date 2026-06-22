@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.wuming.novel.config.PromptConfig;
+import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.dto.CharacterProfileDto;
 import com.wuming.novel.domain.dto.FullPortraitDto;
 import com.wuming.novel.domain.dto.InteractionProfileDto;
@@ -49,14 +50,14 @@ public class AggregationService {
     private AggregationService self;
 
 
-    public AggregationService(IEvidenceService evidenceService, ILayerService layerService, IJobService jobService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, ChatModel chatModel, ObjectMapper objectMapper) {
+    public AggregationService(IEvidenceService evidenceService, ILayerService layerService, IJobService jobService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, LlmClientFactory clientFactory, ObjectMapper objectMapper) {
         this.evidenceService = evidenceService;
         this.layerService = layerService;
         this.jobService = jobService;
         this.characterProfileService = characterProfileService;
         this.interactionProfileService = interactionProfileService;
         this.promptConfig = promptConfig;
-        this.chatClient = ChatClient.builder(chatModel).build();
+        this.chatClient = clientFactory.defaultClient();
         this.objectMapper = objectMapper;
     }
 

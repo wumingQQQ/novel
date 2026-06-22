@@ -3,6 +3,7 @@ package com.wuming.novel.serviceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuming.novel.config.PromptConfig;
+import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Layer;
@@ -45,12 +46,12 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
     @Autowired
     private LayerService self;
 
-    public LayerService(LayerMapper layerMapper, INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, ChatModel chatModel, IJobService jobService) {
+    public LayerService(LayerMapper layerMapper, INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, LlmClientFactory clientFactory, IJobService jobService) {
         this.layerMapper = layerMapper;
         this.novelService = novelService;
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
-        this.chatClient = ChatClient.builder(chatModel).build();
+        this.chatClient = clientFactory.defaultClient();
         this.jobService = jobService;
     }
 
