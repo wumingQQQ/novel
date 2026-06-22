@@ -11,11 +11,7 @@ spring:
 
   ai:
     openai:
-      embedding:
-        api-key: ${EMBEDDING_API_KEY}
-        base-url: https://aigc.x-see.cn
-        options:
-          model: bge-m3
+      api-key: ${DS_API_KEY}
 
 llm:
   default-provider: deepseek
@@ -25,11 +21,11 @@ llm:
       api-key: ${DS_API_KEY}
       model: deepseek-v4-flash
     mimo:
-      base-url: https://api.xiaomimimo.com/v1
+      base-url: https://api.xiaomimimo.com
       api-key: ${MIMO_API_KEY:}
       model: mimo-v2.5-pro
     agnes:
-      base-url: https://apihub.agnes-ai.com/v1/chat/completions
+      base-url: https://apihub.agnes-ai.com
       api-key: ${AGNES_API_KEY:}
       model: agnes-2.0-flash
     qwen:
