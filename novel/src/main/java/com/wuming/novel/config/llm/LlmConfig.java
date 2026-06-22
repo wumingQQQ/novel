@@ -22,6 +22,10 @@ public class LlmConfig {
         if (name == null || name.isBlank()) {
             return defaultProvider;
         }
+        if (providers == null || providers.isEmpty()) {
+            throw new IllegalArgumentException("未找到可用模型配置，请配置 llm.providers");
+        }
+
         if (!providers.containsKey(name)) {
             log.warn("模型 {} 不存在，切换到默认模型 {}", name, defaultProvider);
             return defaultProvider;
@@ -30,9 +34,6 @@ public class LlmConfig {
     }
 
     public LlmProvider getProvider(String name) {
-        if (providers == null || providers.isEmpty()) {
-            throw new IllegalArgumentException("未找到可用模型配置，请配置 llm.providers");
-        }
 
         LlmProvider provider = providers.get(name);
         if (provider == null) {
