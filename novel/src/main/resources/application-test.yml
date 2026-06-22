@@ -12,3 +12,6 @@ novel:
     save-path: data/test
   recall:
     threshold: 0.1
+
+llm:
+  default-provider: mimo
