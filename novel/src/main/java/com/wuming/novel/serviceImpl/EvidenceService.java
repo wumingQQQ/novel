@@ -134,13 +134,6 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                             .param("scenes", concatScenes(scenes))
                             .param("poolDescription", promptConfig.getPoolDescription(poolType))
                     )
-                    .options(OpenAiChatOptions.builder()
-                            .responseFormat(ResponseFormat.builder()
-                                    .type(ResponseFormat.Type.JSON_OBJECT)
-                                    .build()
-                            )
-                            .build()
-                    )
                     .call()
                     .entity(EvidenceExtractResponseWrapper.class);
 

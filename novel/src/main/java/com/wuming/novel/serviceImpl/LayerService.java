@@ -103,12 +103,6 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
                             .param("maxLayers", constraints.maxLayerSize())
                             .param("chapterList", chapterList)
                     )
-                    .options(OpenAiChatOptions.builder()
-                            .responseFormat(ResponseFormat.builder()
-                                    .type(ResponseFormat.Type.JSON_OBJECT)
-                                    .build())
-                            .build()
-                    )
                     .call()
                     .entity(LayerSplitResponseWrapper.class);
 

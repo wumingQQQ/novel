@@ -152,12 +152,6 @@ public class AggregationService {
                             }
                         }
                 )
-                .options(OpenAiChatOptions.builder()
-                        .responseFormat(ResponseFormat.builder()
-                                .type(ResponseFormat.Type.JSON_OBJECT)
-                                .build())
-                        .build()
-                )
                 .call()
                 .entity(AggregationResponse.class);
     }

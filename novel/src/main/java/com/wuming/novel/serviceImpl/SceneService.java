@@ -140,11 +140,6 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
                             .param("chapterTitle", chapter.getTitle())
                             .param("chapterContent", normalize(chapter.getContent()))
                     )
-                    .options(OpenAiChatOptions.builder()
-                            .responseFormat(ResponseFormat.builder()
-                                    .type(ResponseFormat.Type.JSON_OBJECT)
-                                    .build())
-                            .build())
                     .call()
                     .entity(SceneSplitResponseWrapper.class);
 

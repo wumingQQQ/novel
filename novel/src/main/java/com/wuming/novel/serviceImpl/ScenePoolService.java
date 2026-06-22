@@ -130,12 +130,6 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                             .param("targetName", targetName)
                             .param("sceneContent", scene.getContent())
                     )
-                    .options(OpenAiChatOptions.builder()
-                            .responseFormat(ResponseFormat.builder()
-                                    .type(ResponseFormat.Type.JSON_OBJECT)
-                                    .build())
-                            .build()
-                    )
                     .call()
                     .entity(ScenePoolResponseWrapper.class);
 
