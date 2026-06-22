@@ -15,16 +15,16 @@ import java.util.Map;
 @Configuration
 @ConfigurationProperties(prefix = "llm")
 public class LlmConfig {
-    private String default_provider = "deepseek";
+    private String defaultProvider = "deepseek";
     Map<String, LlmProvider> providers;
 
     public String resolveProviderName(String name) {
         if (name == null || name.isBlank()) {
-            return default_provider;
+            return defaultProvider;
         }
         if (!providers.containsKey(name)) {
-            log.warn("模型 {} 不存在，切换到默认模型 {}", name, default_provider);
-            return default_provider;
+            log.warn("模型 {} 不存在，切换到默认模型 {}", name, defaultProvider);
+            return defaultProvider;
         }
         return name;
     }
