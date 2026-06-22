@@ -1,6 +1,7 @@
 package com.wuming.novel.config.llm;
 
 
+import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import java.util.Map;
 
 @Slf4j
+@Getter
 @Setter
 @Configuration
 @ConfigurationProperties(prefix = "llm")
