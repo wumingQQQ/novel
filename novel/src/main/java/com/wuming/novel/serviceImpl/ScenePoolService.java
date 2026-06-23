@@ -1,8 +1,6 @@
 package com.wuming.novel.serviceImpl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.google.common.collect.Sets;
 import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.entity.Job;
@@ -19,18 +17,13 @@ import com.wuming.novel.service.IScenePoolService;
 import com.wuming.novel.service.ISceneService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -40,19 +33,19 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     private final PromptConfig promptConfig;
     private final ISceneService sceneService;
     private final IJobService jobService;
-    private final ScenePoolMapper scenePoolMapper;
     private final ChatClient chatClient;
+    private final RedisStageFailureStore redisStageFailureStore;
 
     @Lazy
     @Autowired
     private ScenePoolService self;
 
-    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, ScenePoolMapper scenePoolMapper, LlmClientFactory clientFactory) {
+    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore) {
         this.promptConfig = promptConfig;
         this.sceneService = sceneService;
         this.jobService = jobService;
-        this.scenePoolMapper = scenePoolMapper;
         this.chatClient = clientFactory.defaultClient();
+        this.redisStageFailureStore = redisStageFailureStore;
     }
 
     @Override
@@ -70,12 +63,11 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         Long novelId = job.getNovelId();
         String protagonistName = job.getProtagonistName();
         String targetName = job.getTargetName();
-        List<Long> finishedSceneIds = queryFinishedSceneIds(novelId, jobId);
-        Set<Long> unfinishedSceneIds = computeUnfinishedSceneIds(novelId, finishedSceneIds);
+        List<Long> targetSceneIds = queryTargetSceneIds(jobId, novelId);
 
 
-        List<Scene> scenes = sceneService.listByIds(unfinishedSceneIds);
-        log.debug("job: {} 小说{}开始场景分池，已完成场景数: {}, 待处理场景数: {}", jobId, novelId, finishedSceneIds.size(), scenes.size());
+        List<Scene> scenes = sceneService.listByIds(targetSceneIds);
+        log.debug("job: {} 小说{}开始场景分池，待处理场景数: {}", jobId, novelId, scenes.size());
 
         List<CompletableFuture<Void>> futures = scenes.stream()
                 .map(scene -> self.doSimpleClassify(scene, jobId, protagonistName, targetName))
@@ -94,31 +86,18 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         return allSuccess.get();
     }
 
-    private List<Long> queryFinishedSceneIds(Long novelId, Long jobId) {
-        QueryWrapper<ScenePool> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("novel_id", novelId)
-                .eq("job_id", jobId)
-                .select("scene_id")
-                .groupBy("scene_id");
-        return scenePoolMapper.selectList(queryWrapper)
-                .stream()
-                .map(ScenePool::getSceneId)
-                .toList();
-    }
-
-    private Set<Long> computeUnfinishedSceneIds(Long novelId, List<Long> finishedSceneIds){
-        List<Long> allSceneIds = sceneService.lambdaQuery()
+    private List<Long> queryTargetSceneIds(Long jobId, Long novelId) {
+        List<Long> failedSceneIds = redisStageFailureStore.consumeFailedLongItems(jobId, JobStage.POOL_CLASSIFY);
+        if (!failedSceneIds.isEmpty()) {
+            return failedSceneIds;
+        }
+        return sceneService.lambdaQuery()
                 .eq(Scene::getNovelId, novelId)
                 .select(Scene::getId)
                 .list()
                 .stream()
                 .map(Scene::getId)
                 .toList();
-
-        return Sets.difference(
-                new HashSet<>(allSceneIds),
-                new HashSet<>(finishedSceneIds)
-        );
     }
 
 
@@ -158,6 +137,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
+            redisStageFailureStore.recordFailure(jobId, JobStage.POOL_CLASSIFY, scene.getId());
             log.error("处理任务：{}, scene{}分池出现异常", jobId, scene.getId(), e);
             return CompletableFuture.failedFuture(e);
         }

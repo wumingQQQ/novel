@@ -1,8 +1,6 @@
 package com.wuming.novel.serviceImpl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.google.common.collect.Sets;
 import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.entity.Chapter;
@@ -18,18 +16,13 @@ import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ISceneService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -37,22 +30,22 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISceneService {
-    private final SceneMapper sceneMapper;
     private final IChapterService chapterService;
     private final PromptConfig promptConfig;
     private final IJobService jobService;
     private final ChatClient chatClient;
+    private final RedisStageFailureStore redisStageFailureStore;
 
     @Lazy
     @Autowired
     private SceneService self;
 
-    public SceneService(SceneMapper sceneMapper, IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, LlmClientFactory clientFactory) {
-        this.sceneMapper = sceneMapper;
+    public SceneService(IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore) {
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
         this.jobService = jobService;
         this.chatClient = clientFactory.defaultClient();
+        this.redisStageFailureStore = redisStageFailureStore;
     }
 
     @Override
@@ -63,14 +56,12 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             return true;
         }
         Long novelId = job.getNovelId();
-        List<Long> finishedChapterIds = queryFinishedChapter(novelId);
+        List<Long> targetChapterIds = queryTargetChapterIds(jobId, novelId);
 
-        Set<Long> unfinishedChapterIds = computeUnfinishedChapterIds(finishedChapterIds, novelId);
-
-        List<Chapter> chapters = chapterService.listByIds(unfinishedChapterIds);
-        log.debug("job: {} 小说{}开始场景切分，已完成章节数: {}, 待处理章节数: {}", jobId, novelId, finishedChapterIds.size(), chapters.size());
+        List<Chapter> chapters = chapterService.listByIds(targetChapterIds);
+        log.debug("job: {} 小说{}开始场景切分，待处理章节数: {}", jobId, novelId, chapters.size());
         List<CompletableFuture<Void>> futures = chapters.stream()
-                .map(self::splitOneChapter)     // 使用代理，否则异步注解失效
+                .map(chapter -> self.splitOneChapter(chapter, jobId))     // 使用代理，否则异步注解失效
                 .toList();
 
         // TODO 可以考虑使用thenAccept实现进度显示
@@ -88,28 +79,20 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
         return allSuccess.get();
     }
 
-    // 查询已经处理完成的章节id
-    private List<Long> queryFinishedChapter(Long novelId){
-        QueryWrapper<Scene> queryWrapper = new QueryWrapper<>();
-        queryWrapper.select("chapter_id")
-                .eq("novel_id", novelId)
-                .groupBy("chapter_id");
-        return sceneMapper.selectList(queryWrapper).stream().map(Scene::getChapterId).toList();
-    }
+    private List<Long> queryTargetChapterIds(Long jobId, Long novelId) {
+        List<Long> failedChapterIds = redisStageFailureStore.consumeFailedLongItems(jobId, JobStage.SCENE_SPLIT);
 
-    private Set<Long> computeUnfinishedChapterIds(List<Long> finishedChapterIds, Long novelId){
-        List<Long> allChapterIds = chapterService.lambdaQuery()
+        if (!failedChapterIds.isEmpty()) {
+            return failedChapterIds;
+        }
+        // 如果查询结果为空则表示是首次进入该阶段，全量处理
+        return chapterService.lambdaQuery()
                 .eq(Chapter::getNovelId, novelId)
                 .select(Chapter::getId)
                 .list()
                 .stream()
                 .map(Chapter::getId)
                 .toList();
-
-        return Sets.difference(
-                new HashSet<>(allChapterIds),
-                new HashSet<>(finishedChapterIds)
-        );
     }
 
     private String normalize(String chapterContent){
@@ -133,7 +116,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
 
 
     @Async("sceneSplitExecutor")
-    protected CompletableFuture<Void> splitOneChapter(Chapter chapter) {
+    protected CompletableFuture<Void> splitOneChapter(Chapter chapter, Long jobId) {
 
         try {
             SceneSplitResponseWrapper responseWrapper = chatClient.prompt()
@@ -152,6 +135,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             // TODO 后面考虑增加记录重试逻辑
+            redisStageFailureStore.recordFailure(jobId, JobStage.SCENE_SPLIT, chapter.getId());
             log.error("小说{}的章节{}处理失败", chapter.getNovelId(), chapter.getSequence(), e);
             return CompletableFuture.failedFuture(e);
         }

@@ -19,9 +19,6 @@ import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -29,7 +26,9 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -42,17 +41,19 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     private final IJobService jobService;
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
+    private final RedisStageFailureStore redisStageFailureStore;
 
     @Lazy
     @Autowired
     private EvidenceService self;
 
-    public EvidenceService(RecallService recallService, ILayerService layerService, IJobService jobService, PromptConfig promptConfig, LlmClientFactory clientFactory) {
+    public EvidenceService(RecallService recallService, ILayerService layerService, IJobService jobService, PromptConfig promptConfig, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore) {
         this.recallService = recallService;
         this.layerService = layerService;
         this.jobService = jobService;
         this.promptConfig = promptConfig;
         this.chatClient = clientFactory.defaultClient();
+        this.redisStageFailureStore = redisStageFailureStore;
     }
 
     @Override
@@ -65,21 +66,24 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
 
         Long novelId = job.getNovelId();
         String targetName = job.getTargetName();
-        // TODO 后续考虑同小说不同人物
         List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
+        // 失败的层池，对应layerId:poolType
+        Set<String> failedItems = new HashSet<>(redisStageFailureStore.consumeFailedItems(jobId, JobStage.EVIDENCE_EXTRACT));
+        boolean retryFailedOnly = !failedItems.isEmpty();   // false意味着没有失败项或者没有跑过
 
         AtomicBoolean allSuccess = new AtomicBoolean(true);
         AtomicBoolean hasEvidence = new AtomicBoolean(false);
 
         for (Layer layer : layers) {
             for(PoolType poolType : PoolType.values()){
-                // 判断该层该池是否处理完毕
-                if(lambdaQuery()
-                        .eq(Evidence::getLayerId, layer.getId())
-                        .eq(Evidence::getJobId, jobId)
-                        .eq(Evidence::getPoolType, poolType)
-                        .count() >0
-                ){
+                String itemKey = evidenceItemKey(layer.getId(), poolType);
+                if (retryFailedOnly && !failedItems.contains(itemKey)) {
+                    // 没有该层池的key
+                    continue;
+                }
+                if (retryFailedOnly) {
+                    cleanEvidenceItem(jobId, layer.getId(), poolType);
+                } else if (hasEvidenceItem(jobId, layer.getId(), poolType)) {
                     continue;
                 }
 
@@ -96,7 +100,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                 List<List<Scene>> partitions = Lists.partition(scenes, batchSize);
                 log.debug("job: {} layer: {} pool: {} 证据提取批次数: {}", jobId, layer.getId(), poolType, partitions.size());
                 List<CompletableFuture<Void>> futures = partitions.stream()
-                        .map(list -> self.doMultiExtractEvidence(list, jobId, poolType, layer, targetName))
+                        .map(list -> self.doMultiExtractEvidence(list, jobId, poolType, layer, targetName, itemKey))
                         .toList();
 
                 futures.forEach(future -> {
@@ -123,7 +127,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     private int batchSize;
 
     @Async("evidenceExtractExecutor")
-    protected CompletableFuture<Void> doMultiExtractEvidence(List<Scene> scenes, Long jobId, PoolType poolType, Layer layer, String targetName) {
+    protected CompletableFuture<Void> doMultiExtractEvidence(List<Scene> scenes, Long jobId, PoolType poolType, Layer layer, String targetName, String itemKey) {
         try{
 
             EvidenceExtractResponseWrapper responseWrapper = chatClient.prompt()
@@ -164,9 +168,30 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
             return CompletableFuture.completedFuture(null);
         }
         catch (Exception e){
+            redisStageFailureStore.recordFailure(jobId, JobStage.EVIDENCE_EXTRACT, itemKey);
             log.error("layer:{}, pool: {}证据解析时出现异常", layer.getId(), poolType, e);
             return CompletableFuture.failedFuture(e);
         }
+    }
+
+    private String evidenceItemKey(Long layerId, PoolType poolType) {
+        return layerId + ":" + poolType.name();
+    }
+
+    private void cleanEvidenceItem(Long jobId, Long layerId, PoolType poolType) {
+        lambdaUpdate()
+                .eq(Evidence::getJobId, jobId)
+                .eq(Evidence::getLayerId, layerId)
+                .eq(Evidence::getPoolType, poolType)
+                .remove();
+    }
+
+    private boolean hasEvidenceItem(Long jobId, Long layerId, PoolType poolType) {
+        return lambdaQuery()
+                .eq(Evidence::getJobId, jobId)
+                .eq(Evidence::getLayerId, layerId)
+                .eq(Evidence::getPoolType, poolType)
+                .count() > 0;
     }
 
 
