@@ -42,20 +42,20 @@ public class NovelController {
         return ApiResonse.success(novelId);
     }
 
-    @RequestMapping("/createJob")
+    @PostMapping("/createJob")
     public ApiResonse<Long> createJob(@RequestBody CreateJobRequest request) {
         Long jobId = jobService.createJob(request);
         return ApiResonse.success(jobId);
     }
 
-    @RequestMapping("/process/{jobId}")
+    @PostMapping("/process/{jobId}")
     public ApiResonse<String> processJob(@PathVariable("jobId") Long jobId) {
         boolean success = pipelineService.handleNovel(jobId);
         String message = success ? "success" : "fail";
         return ApiResonse.success(message);
     }
 
-    @RequestMapping("/redo/{jobId}")
+    @PostMapping("/redo/{jobId}")
     public ApiResonse<String> redoJob(@PathVariable("jobId") Long jobId) {
         boolean success = pipelineService.handleNovel(jobId);
         String message = success ? "success" : "fail";
