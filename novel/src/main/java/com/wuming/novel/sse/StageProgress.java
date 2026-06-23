@@ -91,6 +91,8 @@ public class StageProgress {
             throw new IllegalArgumentException("totalItems不能小于0");
         }
         this.totalItems = totalItems;
+        this.successItems = new AtomicInteger();
+        this.failedItems = new AtomicInteger();
     }
 
     public boolean isCounted(){
