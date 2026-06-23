@@ -20,11 +20,10 @@ public class JobProgressService {
     // 订阅关系, 暂时只做单对单
     private final Map<Long, SseEmitter> subscribers = new ConcurrentHashMap<>();
 
-    public JobProgress initJob(Long jobId) {
+    public void initJob(Long jobId) {
         JobProgress progress = JobProgress.initJob(jobId);
         jobProgressMap.put(jobId, progress);
         pushUpdate(jobId, progress);
-        return progress;
     }
 
     public void startJob(Long jobId) {
@@ -114,10 +113,8 @@ public class JobProgressService {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MILLIS);
         replaceSubscriber(jobId, emitter);
 
-        JobProgress progress = jobProgressMap.get(jobId);
-        if(progress != null){
-            send(jobId, emitter, progress);
-        }
+        JobProgress progress = getOrInitProgress(jobId);
+        send(jobId, emitter, progress);
 
         return emitter;
     }
