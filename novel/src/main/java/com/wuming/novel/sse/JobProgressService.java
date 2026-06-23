@@ -123,12 +123,17 @@ public class JobProgressService {
         if(!stage.isAllItemsFinished()){
             return;
         }
+        synchronized (stage) {
+            if(!stage.isAllItemsFinished()){
+                return;
+            }
 
-        if(stage.hasFailedItems()){
-            stage.fail(stage.getMessage());
-            return;
+            if (stage.hasFailedItems()) {
+                stage.fail(stage.getMessage());
+                return;
+            }
+            stage.complete(stage.getMessage());
         }
-        stage.complete(stage.getMessage());
     }
 
     private void updateAndPush(Long jobId, Consumer<JobProgress> updater) {
