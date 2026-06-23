@@ -13,6 +13,19 @@ spring:
     openai:
       api-key: ${DS_API_KEY}
 
+  data:
+    redis:
+      host: 118.190.199.42
+      port: 9379
+      lettuce:
+        pool:
+          min-idle: 1
+          max-idle: 6
+          max-active: 6
+          time-between-eviction-runs: 10s
+      password: ${REDIS_PWD}
+
+
 llm:
   default-provider: deepseek
   providers:
