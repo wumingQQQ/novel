@@ -82,15 +82,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                         }))
                 .toList();
 
-        // 便于测试，等待任务完成
-        futures.forEach(future -> {
-            try {
-                future.join();
-            }
-            catch (Exception e) {
-                log.debug("job: {} 场景分池子任务失败，等待统一重试", jobId, e);
-            }
-        });
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 
     private List<Long> queryTargetSceneIds(Long jobId, Long novelId) {

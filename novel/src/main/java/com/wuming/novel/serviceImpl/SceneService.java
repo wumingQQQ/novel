@@ -73,15 +73,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
                         }))
                 .toList();
 
-        // 为测试考虑，暂时先join全部任务完成
-        futures.forEach(future -> {
-            try{
-                future.join();
-            }
-            catch (Exception e){
-                log.debug("job: {} 场景切分子任务失败，等待统一重试", jobId, e);
-            }
-        });
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 
     private List<Long> queryTargetChapterIds(Long jobId, Long novelId) {
