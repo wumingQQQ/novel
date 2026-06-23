@@ -20,8 +20,7 @@ public class PipelineService {
     private final StageRetryExecutor stageRetryExecutor;
     private final JobProgressService jobProgressService;
 
-    // TODO 将来各个阶段抛出异常则从原处恢复
-    // TODO 针对前面几个与job无关的阶段可以检测是否已经完成，完成则跳过
+
     public boolean handleNovel(Long jobId) {
         Job job = jobService.getById(jobId);
         if (job == null) {
