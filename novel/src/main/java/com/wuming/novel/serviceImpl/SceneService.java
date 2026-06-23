@@ -9,7 +9,7 @@ import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponse;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
-import com.wuming.novel.exception.LLMResponseEmptyException;
+import com.wuming.novel.llm.checker.SceneSplitResponseChecker;
 import com.wuming.novel.mapper.SceneMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IChapterService;
@@ -37,18 +37,20 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     private final ChatClient chatClient;
     private final RedisStageFailureStore redisStageFailureStore;
     private final JobProgressService jobProgressService;
+    private final SceneSplitResponseChecker sceneSplitResponseChecker;
 
     @Lazy
     @Autowired
     private SceneService self;
 
-    public SceneService(IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService) {
+    public SceneService(IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService, SceneSplitResponseChecker sceneSplitResponseChecker) {
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
         this.jobService = jobService;
         this.chatClient = clientFactory.defaultClient();
         this.redisStageFailureStore = redisStageFailureStore;
         this.jobProgressService = jobProgressService;
+        this.sceneSplitResponseChecker = sceneSplitResponseChecker;
     }
 
     @Override
@@ -116,16 +118,17 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     protected CompletableFuture<Void> splitOneChapter(Chapter chapter, Long jobId) {
 
         try {
+            String normalizedContent = normalize(chapter.getContent());
             SceneSplitResponseWrapper responseWrapper = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getSceneSplitPrompt())
                             .param("chapterTitle", chapter.getTitle())
-                            .param("chapterContent", normalize(chapter.getContent()))
+                            .param("chapterContent", normalizedContent)
                     )
                     .call()
                     .entity(SceneSplitResponseWrapper.class);
 
 
-            List<Scene> scenes = extractSceneFromChapter(chapter, responseWrapper);
+            List<Scene> scenes = extractSceneFromChapter(chapter, normalizedContent, responseWrapper);
 
             self.saveBatch(scenes);
             log.debug("小说{}章节{}切分成功，chapterId: {}, 场景数: {}", chapter.getNovelId(), chapter.getSequence(), chapter.getId(), scenes.size());
@@ -139,16 +142,10 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
 
     }
 
-    private List<Scene> extractSceneFromChapter(Chapter chapter, SceneSplitResponseWrapper responseWrapper){
-        Long novelId = chapter.getNovelId();
-        if(responseWrapper == null || responseWrapper.scenes() == null || responseWrapper.scenes().isEmpty()){
-            throw new LLMResponseEmptyException("小说" + novelId +"章节" +chapter.getId() +"分场景时llm响应为空");
-        }
-        List<SceneSplitResponse> responses = responseWrapper.scenes();
+    private List<Scene> extractSceneFromChapter(Chapter chapter, String content, SceneSplitResponseWrapper responseWrapper){
+        List<SceneSplitResponse> responses = sceneSplitResponseChecker.check(chapter, content, responseWrapper);
 
         List<Scene> scenes= new ArrayList<>();
-
-        String content = normalize(chapter.getContent());
 
         for(int i = 0; i < responses.size(); i++){
             SceneSplitResponse current = responses.get(i);
@@ -170,24 +167,8 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
                 endIndex = content.length();
             }
 
-            // 边界保护
-            if(startIndex != -1 && endIndex != -1 && startIndex < endIndex){
-                String sceneContent = content.substring(startIndex, endIndex);
-                scene.setContent(sceneContent);
-                scenes.add(scene);
-            }
-            else{
-                // 可能发生幻觉，原文位置找不到，或者顺序错乱
-                String nextAnchor = i < responses.size() - 1 ? responses.get(i + 1).anchor() : null;
-                log.warn("小说{}章节{}锚点匹配失败，chapterId: {}, sceneSequence: {},  anchor: {}, nextAnchor: {}",
-                        chapter.getNovelId(),
-                        chapter.getSequence(),
-                        chapter.getId(),
-                        current.sequence(),
-                        current.anchor(),
-                        nextAnchor);
-                throw new RuntimeException("llm返回锚点解析失败");
-            }
+            scene.setContent(content.substring(startIndex, endIndex));
+            scenes.add(scene);
         }
         return scenes;
     }
