@@ -15,6 +15,7 @@ import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ISceneService;
+import com.wuming.novel.sse.JobProgressService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,17 +36,19 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     private final IJobService jobService;
     private final ChatClient chatClient;
     private final RedisStageFailureStore redisStageFailureStore;
+    private final JobProgressService jobProgressService;
 
     @Lazy
     @Autowired
     private SceneService self;
 
-    public SceneService(IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore) {
+    public SceneService(IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService) {
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
         this.jobService = jobService;
         this.chatClient = clientFactory.defaultClient();
         this.redisStageFailureStore = redisStageFailureStore;
+        this.jobProgressService = jobProgressService;
     }
 
     @Override
@@ -59,12 +62,17 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
         List<Long> targetChapterIds = queryTargetChapterIds(jobId, novelId);
 
         List<Chapter> chapters = chapterService.listByIds(targetChapterIds);
+        jobProgressService.setStageTotalItems(jobId, JobStage.SCENE_SPLIT, chapters.size());
         log.debug("job: {} 小说{}开始场景切分，待处理章节数: {}", jobId, novelId, chapters.size());
         List<CompletableFuture<Void>> futures = chapters.stream()
-                .map(chapter -> self.splitOneChapter(chapter, jobId))     // 使用代理，否则异步注解失效
+                .map(chapter -> self.splitOneChapter(chapter, jobId)     // 使用代理，否则异步注解失效
+                        .thenRun(() -> jobProgressService.recordItemSuccess(jobId, JobStage.SCENE_SPLIT))
+                        .exceptionally(e -> {
+                            jobProgressService.recordItemFailure(jobId, JobStage.SCENE_SPLIT);
+                            return null;
+                        }))
                 .toList();
 
-        // TODO 可以考虑使用thenAccept实现进度显示
         // 为测试考虑，暂时先join全部任务完成
         futures.forEach(future -> {
             try{
@@ -131,7 +139,6 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             log.debug("小说{}章节{}切分成功，chapterId: {}, 场景数: {}", chapter.getNovelId(), chapter.getSequence(), chapter.getId(), scenes.size());
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
-            // TODO 后面考虑增加记录重试逻辑
             redisStageFailureStore.recordFailure(jobId, JobStage.SCENE_SPLIT, chapter.getId());
             log.error("小说{}的章节{}处理失败", chapter.getNovelId(), chapter.getSequence(), e);
             return CompletableFuture.failedFuture(e);

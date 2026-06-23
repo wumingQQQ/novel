@@ -16,6 +16,7 @@ import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.IScenePoolService;
 import com.wuming.novel.service.ISceneService;
+import com.wuming.novel.sse.JobProgressService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,17 +36,19 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     private final IJobService jobService;
     private final ChatClient chatClient;
     private final RedisStageFailureStore redisStageFailureStore;
+    private final JobProgressService jobProgressService;
 
     @Lazy
     @Autowired
     private ScenePoolService self;
 
-    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore) {
+    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService) {
         this.promptConfig = promptConfig;
         this.sceneService = sceneService;
         this.jobService = jobService;
         this.chatClient = clientFactory.defaultClient();
         this.redisStageFailureStore = redisStageFailureStore;
+        this.jobProgressService = jobProgressService;
     }
 
     @Override
@@ -67,10 +70,16 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
 
 
         List<Scene> scenes = sceneService.listByIds(targetSceneIds);
+        jobProgressService.setStageTotalItems(jobId, JobStage.POOL_CLASSIFY, scenes.size());
         log.debug("job: {} 小说{}开始场景分池，待处理场景数: {}", jobId, novelId, scenes.size());
 
         List<CompletableFuture<Void>> futures = scenes.stream()
-                .map(scene -> self.doSimpleClassify(scene, jobId, protagonistName, targetName))
+                .map(scene -> self.doSimpleClassify(scene, jobId, protagonistName, targetName)
+                        .thenRun(() -> jobProgressService.recordItemSuccess(jobId, JobStage.POOL_CLASSIFY))
+                        .exceptionally(e -> {
+                            jobProgressService.recordItemFailure(jobId, JobStage.POOL_CLASSIFY);
+                            return null;
+                        }))
                 .toList();
 
         // 便于测试，等待任务完成

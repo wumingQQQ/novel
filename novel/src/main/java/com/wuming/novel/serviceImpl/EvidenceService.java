@@ -18,6 +18,7 @@ import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IEvidenceService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
+import com.wuming.novel.sse.JobProgressService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,18 +44,20 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
     private final RedisStageFailureStore redisStageFailureStore;
+    private final JobProgressService jobProgressService;
 
     @Lazy
     @Autowired
     private EvidenceService self;
 
-    public EvidenceService(RecallService recallService, ILayerService layerService, IJobService jobService, PromptConfig promptConfig, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore) {
+    public EvidenceService(RecallService recallService, ILayerService layerService, IJobService jobService, PromptConfig promptConfig, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService) {
         this.recallService = recallService;
         this.layerService = layerService;
         this.jobService = jobService;
         this.promptConfig = promptConfig;
         this.chatClient = clientFactory.defaultClient();
         this.redisStageFailureStore = redisStageFailureStore;
+        this.jobProgressService = jobProgressService;
     }
 
     @Override
@@ -72,7 +75,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
         Set<String> failedItems = new HashSet<>(redisStageFailureStore.consumeFailedItems(jobId, JobStage.EVIDENCE_EXTRACT));
         boolean retryFailedOnly = !failedItems.isEmpty();   // false意味着没有失败项或者没有跑过
 
-        AtomicBoolean hasEvidence = new AtomicBoolean(false);
+        List<LayerPoolEvidenceTask> tasks = new ArrayList<>();
 
         for (Layer layer : layers) {
             for(PoolType poolType : PoolType.values()){
@@ -99,20 +102,28 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
 
                 List<List<Scene>> partitions = Lists.partition(scenes, batchSize);
                 log.debug("job: {} layer: {} pool: {} 证据提取批次数: {}", jobId, layer.getId(), poolType, partitions.size());
-                List<CompletableFuture<Void>> futures = partitions.stream()
-                        .map(list -> self.doMultiExtractEvidence(list, jobId, poolType, layer, targetName, itemKey))
-                        .toList();
-
-                futures.forEach(future -> {
-                    try {
-                        future.join();
-                        hasEvidence.set(true);
-                    }
-                    catch (Exception e) {
-                        log.debug("job: {} 证据提取子任务失败，等待统一重试", jobId, e);
-                    }
-                });
+                tasks.add(new LayerPoolEvidenceTask(partitions, poolType, layer, itemKey));
             }
+        }
+        jobProgressService.setStageTotalItems(jobId, JobStage.EVIDENCE_EXTRACT, tasks.size());
+
+        AtomicBoolean hasEvidence = new AtomicBoolean(false);
+        for (LayerPoolEvidenceTask task : tasks) {
+            CompletableFuture<?>[] futures = task.partitions().stream()
+                    .map(scenes -> self.doMultiExtractEvidence(scenes, jobId, task.poolType(), task.layer(), targetName, task.itemKey()))
+                    .toArray(CompletableFuture[]::new);
+
+            CompletableFuture.allOf(futures)
+                    .thenRun(() -> {
+                        jobProgressService.recordItemSuccess(jobId, JobStage.EVIDENCE_EXTRACT);
+                        hasEvidence.set(true);
+                    })
+                    .exceptionally(e -> {
+                        jobProgressService.recordItemFailure(jobId, JobStage.EVIDENCE_EXTRACT);
+                        log.debug("job: {} 证据提取层池子任务失败，等待统一重试", jobId, e);
+                        return null;
+                    })
+                    .join();
         }
         if(!hasEvidence.get()){
             throw new IllegalStateException("job: " + jobId + " 证据提取未生成任何证据，请检查场景召回结果或场景分池置信度");
@@ -197,5 +208,8 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
         return scenes.stream()
                 .map(scene -> "[" + scene.getId() + "]: \n" + scene.getContent())
                 .collect(Collectors.joining("\n\n"));
+    }
+
+    private record LayerPoolEvidenceTask(List<List<Scene>> partitions, PoolType poolType, Layer layer, String itemKey) {
     }
 }
