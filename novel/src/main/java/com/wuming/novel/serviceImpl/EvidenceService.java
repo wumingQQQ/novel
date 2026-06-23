@@ -77,6 +77,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
 
         List<LayerPoolEvidenceTask> tasks = new ArrayList<>();
 
+        // 召回场景
         for (Layer layer : layers) {
             for(PoolType poolType : PoolType.values()){
                 String itemKey = evidenceItemKey(layer.getId(), poolType);
@@ -109,21 +110,26 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
 
         AtomicBoolean hasEvidence = new AtomicBoolean(false);
         for (LayerPoolEvidenceTask task : tasks) {
-            CompletableFuture<?>[] futures = task.partitions().stream()
-                    .map(scenes -> self.doMultiExtractEvidence(scenes, jobId, task.poolType(), task.layer(), targetName, task.itemKey()))
-                    .toArray(CompletableFuture[]::new);
+            List<CompletableFuture<Void>> futures = task.partitions().stream()
+                    .map(scenes -> self.doMultiExtractEvidence(scenes, jobId, task.poolType(), task.layer(), targetName, task.itemKey())
+                            .thenRun(() -> {
+                                jobProgressService.recordItemSuccess(jobId, JobStage.EVIDENCE_EXTRACT);
+                                hasEvidence.set(true);
+                            })
+                            .exceptionally(e -> {
+                                jobProgressService.recordItemFailure(jobId, JobStage.EVIDENCE_EXTRACT);
+                                log.debug("job: {} 证据提取层池子任务失败，等待统一重试", jobId, e);
+                                return null;
+                            })
+                    )
+                    .toList();
 
-            CompletableFuture.allOf(futures)
-                    .thenRun(() -> {
-                        jobProgressService.recordItemSuccess(jobId, JobStage.EVIDENCE_EXTRACT);
-                        hasEvidence.set(true);
-                    })
-                    .exceptionally(e -> {
-                        jobProgressService.recordItemFailure(jobId, JobStage.EVIDENCE_EXTRACT);
-                        log.debug("job: {} 证据提取层池子任务失败，等待统一重试", jobId, e);
-                        return null;
-                    })
-                    .join();
+            futures.forEach(f -> {
+                try{
+                    f.join();
+                }
+                catch (Exception ignored){}
+            });
         }
         if(!hasEvidence.get()){
             throw new IllegalStateException("job: " + jobId + " 证据提取未生成任何证据，请检查场景召回结果或场景分池置信度");
