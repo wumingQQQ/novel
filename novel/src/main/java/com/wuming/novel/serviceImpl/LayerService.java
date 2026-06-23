@@ -91,17 +91,16 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
             String chapterList = chapters.stream()
                     .map(chapter -> chapter.getSequence() + ". " + chapter.getTitle())
                     .collect(Collectors.joining("\n"));
-            LayerConstraints constraints = buildLayerConstraints(chapterCount);
 
             log.debug("job: {} 小说{}开始剧情分层，章节数: {}", jobId, novelId, chapterCount);
             LayerSplitResponseWrapper responseWrapper = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getLayerSplitPrompt())
                             .param("novelName", novelName)
                             .param("totalChapters", chapterCount)
-                            .param("minChaptersPerLayer", constraints.minChapterSize())
-                            .param("maxChaptersPerLayer", constraints.maxChapterSize())
-                            .param("minLayers", constraints.minLayerSize())
-                            .param("maxLayers", constraints.maxLayerSize())
+                            .param("minChaptersPerLayer", minChapterSize)
+                            .param("maxChaptersPerLayer", maxChapterSize)
+                            .param("minLayers", minLayerSize)
+                            .param("maxLayers", maxLayerSize)
                             .param("chapterList", chapterList)
                     )
                     .call()
@@ -114,7 +113,7 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
 
             // 从llm响应中解析layer
             List<LayerSplitResponse> responses = responseWrapper.layers();
-            validateLayers(responses, constraints, chapterCount);
+            // validateLayers(responses, constraints, chapterCount);
             List<Layer> layers = extractLayers(responses, novelId);
 
             self.saveLayers(novelId, layers);
@@ -124,89 +123,6 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
             log.error("job: {}剧情分层失败", jobId, e);
             return false;
         }
-    }
-
-    private void validateLayers(List<LayerSplitResponse> responses, LayerConstraints constraints, int chapterCount) {
-        int layerCount = responses.size();
-        if (layerCount < constraints.minLayerSize() || layerCount > constraints.maxLayerSize()) {
-            throw new IllegalArgumentException("分层数量不符合约束: actual=" + layerCount
-                    + ", expected=" + constraints.minLayerSize() + "-" + constraints.maxLayerSize());
-        }
-
-        int expectedStart = 1;
-        for (LayerSplitResponse response : responses) {
-            if (response.startChapter() != expectedStart) {
-                throw new IllegalArgumentException("分层章节不连续: layerIndex=" + response.layerIndex()
-                        + ", expectedStart=" + expectedStart + ", actualStart=" + response.startChapter());
-            }
-            if (response.endChapter() < response.startChapter()) {
-                throw new IllegalArgumentException("分层结束章节小于起始章节: layerIndex=" + response.layerIndex());
-            }
-
-            int layerChapterCount = response.endChapter() - response.startChapter() + 1;
-            if (layerChapterCount < constraints.minChapterSize() || layerChapterCount > constraints.maxChapterSize()) {
-                throw new IllegalArgumentException("分层章节数不符合约束: layerIndex=" + response.layerIndex()
-                        + ", actual=" + layerChapterCount
-                        + ", expected=" + constraints.minChapterSize() + "-" + constraints.maxChapterSize());
-            }
-            expectedStart = response.endChapter() + 1;
-        }
-
-        if (expectedStart != chapterCount + 1) {
-            throw new IllegalArgumentException("分层未覆盖全部章节: expectedEnd=" + chapterCount
-                    + ", actualEnd=" + (expectedStart - 1));
-        }
-    }
-
-    private LayerConstraints buildLayerConstraints(int chapterCount) {
-        int effectiveMinChapterSize = Math.min(minChapterSize, chapterCount);
-        int effectiveMaxChapterSize = Math.min(maxChapterSize, chapterCount);
-        if (effectiveMaxChapterSize < effectiveMinChapterSize) {
-            effectiveMaxChapterSize = effectiveMinChapterSize;
-        }
-
-        int minFeasibleLayers = ceilDiv(chapterCount, effectiveMaxChapterSize);
-        int maxFeasibleLayers = Math.max(1, chapterCount / effectiveMinChapterSize);
-        int effectiveMinLayerSize = Math.max(minFeasibleLayers, Math.min(minLayerSize, maxFeasibleLayers));
-        int effectiveMaxLayerSize = Math.min(maxLayerSize, maxFeasibleLayers);
-        if (effectiveMaxLayerSize < effectiveMinLayerSize) {
-            effectiveMaxLayerSize = effectiveMinLayerSize;
-        }
-
-        if (effectiveMinChapterSize != minChapterSize
-                || effectiveMaxChapterSize != maxChapterSize
-                || effectiveMinLayerSize != minLayerSize
-                || effectiveMaxLayerSize != maxLayerSize) {
-            log.debug("章节数{}触发分层约束调整: 每层章节 {}-{} -> {}-{}, 层数 {}-{} -> {}-{}",
-                    chapterCount,
-                    minChapterSize,
-                    maxChapterSize,
-                    effectiveMinChapterSize,
-                    effectiveMaxChapterSize,
-                    minLayerSize,
-                    maxLayerSize,
-                    effectiveMinLayerSize,
-                    effectiveMaxLayerSize);
-        }
-
-        return new LayerConstraints(
-                effectiveMinChapterSize,
-                effectiveMaxChapterSize,
-                effectiveMinLayerSize,
-                effectiveMaxLayerSize
-        );
-    }
-
-    private int ceilDiv(int dividend, int divisor) {
-        return (dividend + divisor - 1) / divisor;
-    }
-
-    private record LayerConstraints(
-            int minChapterSize,
-            int maxChapterSize,
-            int minLayerSize,
-            int maxLayerSize
-    ) {
     }
 
     private static List<Layer> extractLayers(List<LayerSplitResponse> responses, Long novelId) {
