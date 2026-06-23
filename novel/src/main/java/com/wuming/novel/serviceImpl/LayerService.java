@@ -19,9 +19,6 @@ import com.wuming.novel.service.ILayerService;
 import com.wuming.novel.service.INovelService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -65,11 +62,11 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
     private int maxLayerSize;
 
     @Override
-    public boolean splitLayer(Long jobId) {
+    public void splitLayer(Long jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.LAYER_SPLIT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.LAYER_SPLIT);
-            return true;
+            return;
         }
 
         Long novelId = job.getNovelId();
@@ -84,8 +81,7 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
 
             int chapterCount = chapters.size();
             if(chapterCount == 0){
-                log.warn("小说{}的章节数据为空，请检查后重试", novelId);
-                return false;
+                throw new IllegalStateException("小说" + novelId + "的章节数据为空，请检查后重试");
             }
 
             String chapterList = chapters.stream()
@@ -113,15 +109,13 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
 
             // 从llm响应中解析layer
             List<LayerSplitResponse> responses = responseWrapper.layers();
-            // validateLayers(responses, constraints, chapterCount);
             List<Layer> layers = extractLayers(responses, novelId);
 
             self.saveLayers(novelId, layers);
             log.debug("job: {} 小说{}剧情分层完成，层数: {}", jobId, novelId, layers.size());
-            return true;
         } catch (Exception e) {
             log.error("job: {}剧情分层失败", jobId, e);
-            return false;
+            throw new RuntimeException("剧情分层失败", e);
         }
     }
 

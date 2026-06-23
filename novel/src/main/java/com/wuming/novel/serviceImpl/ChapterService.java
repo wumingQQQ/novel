@@ -47,11 +47,11 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean splitChapter(Long jobId){
+    public void splitChapter(Long jobId){
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.CHAPTER_SPLIT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.CHAPTER_SPLIT);
-            return true;
+            return;
         }
         Long novelId  = job.getNovelId();
 
@@ -91,11 +91,9 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
                 saveBatch(chapters);
             }
             log.debug("job: {} 小说{}章节切分完成，编码: {}, 章节数: {}", jobId, novelId, encoding, chapters.size());
-
-            return true;
         } catch (Exception e) {
             log.error("job: {}章节切分失败", jobId, e);
-            return false;
+            throw new RuntimeException("章节切分失败", e);
         }
     }
 

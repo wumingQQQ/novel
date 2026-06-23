@@ -11,6 +11,7 @@ import com.wuming.novel.domain.llmresponse.SceneSplitResponse;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
 import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.mapper.SceneMapper;
+import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ISceneService;
@@ -24,7 +25,6 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -49,11 +49,11 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     }
 
     @Override
-    public boolean splitScene(Long jobId) {
+    public void splitScene(Long jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.SCENE_SPLIT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.SCENE_SPLIT);
-            return true;
+            return;
         }
         Long novelId = job.getNovelId();
         List<Long> targetChapterIds = queryTargetChapterIds(jobId, novelId);
@@ -66,17 +66,14 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
 
         // TODO 可以考虑使用thenAccept实现进度显示
         // 为测试考虑，暂时先join全部任务完成
-        AtomicBoolean allSuccess = new AtomicBoolean(true);
-
         futures.forEach(future -> {
             try{
                 future.join();
             }
             catch (Exception e){
-                allSuccess.set(false);
+                log.debug("job: {} 场景切分子任务失败，等待统一重试", jobId, e);
             }
         });
-        return allSuccess.get();
     }
 
     private List<Long> queryTargetChapterIds(Long jobId, Long novelId) {

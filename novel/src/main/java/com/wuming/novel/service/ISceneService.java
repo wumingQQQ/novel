@@ -4,5 +4,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.wuming.novel.domain.entity.Scene;
 
 public interface ISceneService extends IService<Scene> {
-    boolean splitScene(Long jobId);
+    void splitScene(Long jobId);
 }

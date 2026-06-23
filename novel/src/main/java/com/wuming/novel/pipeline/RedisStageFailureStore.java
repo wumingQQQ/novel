@@ -1,4 +1,4 @@
-package com.wuming.novel.serviceImpl;
+package com.wuming.novel.pipeline;
 
 import com.wuming.novel.domain.enums.JobStage;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +35,15 @@ public class RedisStageFailureStore {
 
     public void recordFailure(Long jobId, JobStage stage, String itemId) {
         stringRedisTemplate.opsForList().rightPush(failedKey(jobId, stage), itemId);
+    }
+
+    public boolean hasFailures(Long jobId, JobStage stage) {
+        return failureCount(jobId, stage) > 0;
+    }
+
+    public long failureCount(Long jobId, JobStage stage) {
+        Long size = stringRedisTemplate.opsForList().size(failedKey(jobId, stage));
+        return size == null ? 0 : size;
     }
 
     private String failedKey(Long jobId, JobStage stage) {

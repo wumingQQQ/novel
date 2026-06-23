@@ -4,5 +4,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.wuming.novel.domain.entity.Layer;
 
 public interface ILayerService extends IService<Layer> {
-    boolean splitLayer(Long jobId);
+    void splitLayer(Long jobId);
 }

@@ -24,9 +24,6 @@ import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -62,11 +59,11 @@ public class AggregationService {
     }
 
 
-    public boolean aggregation(Long jobId) {
+    public void aggregation(Long jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.PROFILE_AGGREGATION.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.PROFILE_AGGREGATION);
-            return true;
+            return;
         }
 
         Long novelId = job.getNovelId();
@@ -108,10 +105,9 @@ public class AggregationService {
                 }
             }
             self.saveProfile(fullPortrait, jobId);
-            return true;
         } catch (Exception e) {
             log.error("job:{}：画像聚合失败",  jobId, e);
-            return false;
+            throw new RuntimeException("画像聚合失败", e);
         }
     }
 

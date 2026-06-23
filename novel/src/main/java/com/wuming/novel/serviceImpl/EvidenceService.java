@@ -14,6 +14,7 @@ import com.wuming.novel.domain.llmresponse.EvidenceExtractResponse;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponseWrapper;
 import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.mapper.EvidenceMapper;
+import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IEvidenceService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
@@ -57,11 +58,11 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     }
 
     @Override
-    public boolean extractEvidence(Long jobId) {
+    public void extractEvidence(Long jobId) {
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.EVIDENCE_EXTRACT.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.EVIDENCE_EXTRACT);
-            return true;
+            return;
         }
 
         Long novelId = job.getNovelId();
@@ -71,7 +72,6 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
         Set<String> failedItems = new HashSet<>(redisStageFailureStore.consumeFailedItems(jobId, JobStage.EVIDENCE_EXTRACT));
         boolean retryFailedOnly = !failedItems.isEmpty();   // false意味着没有失败项或者没有跑过
 
-        AtomicBoolean allSuccess = new AtomicBoolean(true);
         AtomicBoolean hasEvidence = new AtomicBoolean(false);
 
         for (Layer layer : layers) {
@@ -109,16 +109,14 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                         hasEvidence.set(true);
                     }
                     catch (Exception e) {
-                        allSuccess.set(false);
+                        log.debug("job: {} 证据提取子任务失败，等待统一重试", jobId, e);
                     }
                 });
             }
         }
         if(!hasEvidence.get()){
-            log.warn("job: {} 证据提取未生成任何证据，请检查场景召回结果或场景分池置信度", jobId);
-            return false;
+            throw new IllegalStateException("job: " + jobId + " 证据提取未生成任何证据，请检查场景召回结果或场景分池置信度");
         }
-        return allSuccess.get();
 
     }
 

@@ -4,5 +4,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.wuming.novel.domain.entity.Chapter;
 
 public interface IChapterService extends IService<Chapter> {
-    boolean splitChapter(Long jobId);
+    void splitChapter(Long jobId);
 }

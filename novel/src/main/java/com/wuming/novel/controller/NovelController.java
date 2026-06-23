@@ -2,9 +2,9 @@ package com.wuming.novel.controller;
 
 import com.wuming.novel.domain.dto.ApiResonse;
 import com.wuming.novel.domain.dto.CreateJobRequest;
+import com.wuming.novel.pipeline.PipelineService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
-import com.wuming.novel.serviceImpl.PipelineService;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

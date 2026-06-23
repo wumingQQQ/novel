@@ -12,6 +12,7 @@ import com.wuming.novel.domain.llmresponse.ScenePoolResponse;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponseWrapper;
 import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.mapper.ScenePoolMapper;
+import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.IScenePoolService;
 import com.wuming.novel.service.ISceneService;
@@ -25,7 +26,6 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -49,7 +49,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     }
 
     @Override
-    public boolean divideSceneIntoPool(Long jobId) {
+    public void divideSceneIntoPool(Long jobId) {
         Job job = jobService.getById(jobId);
         if (job == null) {
             throw new IllegalArgumentException("该job不存在，请创建后重试");
@@ -57,7 +57,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         // 幂等校验
         if(job.getStage().getCode() >= JobStage.POOL_CLASSIFY.getCode()){
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.POOL_CLASSIFY);
-            return true;
+            return;
         }
 
         Long novelId = job.getNovelId();
@@ -74,16 +74,14 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                 .toList();
 
         // 便于测试，等待任务完成
-        AtomicBoolean allSuccess = new AtomicBoolean(true);
         futures.forEach(future -> {
             try {
                 future.join();
             }
             catch (Exception e) {
-                allSuccess.set(false);
+                log.debug("job: {} 场景分池子任务失败，等待统一重试", jobId, e);
             }
         });
-        return allSuccess.get();
     }
 
     private List<Long> queryTargetSceneIds(Long jobId, Long novelId) {

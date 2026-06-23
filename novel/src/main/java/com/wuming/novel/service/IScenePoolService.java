@@ -4,5 +4,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.wuming.novel.domain.entity.rel.ScenePool;
 
 public interface IScenePoolService extends IService<ScenePool> {
-    boolean divideSceneIntoPool(Long jobId);
+    void divideSceneIntoPool(Long jobId);
 }
