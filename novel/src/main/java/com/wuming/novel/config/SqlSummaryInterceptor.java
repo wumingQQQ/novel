@@ -1,6 +1,7 @@
 package com.wuming.novel.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.executor.BatchExecutor;
 import org.apache.ibatis.executor.Executor;
 import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.mapping.SqlCommandType;
@@ -33,11 +34,11 @@ public class SqlSummaryInterceptor implements Interceptor {
         long start = System.currentTimeMillis();
         try {
             Object result = invocation.proceed();
-            log.debug("sql summary: mapper={}, type={}, costMs={}, resultSize={}",
+            log.debug("sql summary: mapper={}, type={}, costMs={}, result={}",
                     statement.getId(),
                     commandType,
                     System.currentTimeMillis() - start,
-                    getResultSize(result));
+                    getResultSummary(result));
             return result;
         } catch (Throwable e) {
             log.warn("sql summary: mapper={}, type={}, costMs={}, failed=true",
@@ -48,13 +49,17 @@ public class SqlSummaryInterceptor implements Interceptor {
         }
     }
 
-    private int getResultSize(Object result) {
+    private String getResultSummary(Object result) {
         if (result instanceof Collection<?> collection) {
-            return collection.size();
+            return String.valueOf(collection.size());
         }
         if (result instanceof Number number) {
-            return number.intValue();
+            int value = number.intValue();
+            if (value == BatchExecutor.BATCH_UPDATE_RETURN_VALUE) {
+                return "BATCH";
+            }
+            return String.valueOf(value);
         }
-        return result == null ? 0 : 1;
+        return result == null ? "0" : "1";
     }
 }
