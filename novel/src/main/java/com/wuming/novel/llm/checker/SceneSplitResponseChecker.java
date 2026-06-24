@@ -44,6 +44,8 @@ public class SceneSplitResponseChecker {
                         + "章节" + chapter.getSequence()
                         + "锚点匹配失败，chapterId: " + chapter.getId()
                         + ", sceneSequence: " + current.sequence()
+                        + ", currentAnchorMatched: " + (startMatch != null)
+                        + ", nextAnchorMatched: " + (i == responses.size() - 1 || endMatch != null)
                         + ", anchor: " + current.anchor()
                         + ", nextAnchor: " + nextAnchor);
             }
