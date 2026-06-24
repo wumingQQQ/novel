@@ -36,9 +36,18 @@ public class PromptConfig {
                 {{
                   "sequence": 1,
                   "anchor": "张明推开门，走进了昏暗的房间。"
+                }},
+                {{
+                  "sequence": 2,
+                  "anchor": "张明找到一间密室"
                 }}
               ]
             }}
+            
+            【输出格式校验规则】
+            输出时请自行校验：
+            1. 最外层必须是 JSON 对象，包含 scenes 数组，不得直接返回数组
+            2. JSON 必须完整闭合，所有 {{、}}、[、]、双引号和逗号都必须合法匹配
             """;
 
     private static final String SCENE_POOL_PROMPT = """
