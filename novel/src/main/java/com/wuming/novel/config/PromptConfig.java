@@ -145,9 +145,9 @@ public class PromptConfig {
       
             【分层约束】
             1. 每层应包含 {minChaptersPerLayer} 至 {maxChaptersPerLayer} 章，若叙事完整性要求超出此范围，仅在迫不得已时方可触及边界，但不要输出额外字段。
-            2. 最终生成的总层数必须介于 {minLayers} 到 {maxLayers} 之间。
+            2. 最终生成的总层数必须小于{maxLayers} 之间。
             3. 当上述两条约束冲突时，优先满足每层章节数约束。
-            4. 如果总章节数小于每层最小章数，则只输出 1 层：startChapter=1，endChapter={totalChapters}，此时 minLayers/maxLayers约束以 1 层为准。
+            4. 如果总章节数小于每层最小章数或总章数不大于每层最大章数的1.2倍，则只输出 1 层：startChapter=1，endChapter={totalChapters}，此时 maxLayers约束以 1 层为准。
       
             【层边界判定依据】
             请优先选择叙事节奏自然转换的节点作为层边界，确保层与层之间的过渡顺滑，不割裂故事的连贯性：
@@ -191,7 +191,7 @@ public class PromptConfig {
             2. 第一层必须从第1章开始，最后一层必须在第{totalChapters}章结束。
             3. 前后层的章节必须严格连续：每一层的 startChapter 应等于上一层的 endChapter + 1。
             4. layerIndex 必须从 1 开始连续递增，不得跳跃或重复。
-            5. 输出前请自行校验：a) 总章数是否为{totalChapters}；b) 层数是否在{minLayers}至{maxLayers}之间；c) 是否存在章节重叠或遗漏。
+            5. 输出前请自行校验：a) 总章数是否为{totalChapters}；b) 层数是否小于{maxLayers}；c) 是否存在章节重叠或遗漏。
             """;
 
     private static final Map<PoolType, String> POOL_TYPE_DESCRIPTIONS = Map.of(
