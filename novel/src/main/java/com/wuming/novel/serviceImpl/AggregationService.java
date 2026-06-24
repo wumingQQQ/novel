@@ -57,7 +57,7 @@ public class AggregationService {
         this.characterProfileService = characterProfileService;
         this.interactionProfileService = interactionProfileService;
         this.promptConfig = promptConfig;
-        this.chatClient = clientFactory.defaultClient();
+        this.chatClient = clientFactory.taskClient(LlmClientFactory.TASK_AGGREGATION);
         this.objectMapper = objectMapper;
         this.aggregationResponseChecker = aggregationResponseChecker;
         this.llmJsonResponseParser = llmJsonResponseParser;

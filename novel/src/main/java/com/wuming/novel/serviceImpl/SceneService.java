@@ -2,6 +2,7 @@ package com.wuming.novel.serviceImpl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuming.novel.config.PromptConfig;
+import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
@@ -19,7 +20,6 @@ import com.wuming.novel.sse.JobProgressService;
 import com.wuming.novel.text.NovelTextNormalizer;
 import com.wuming.novel.text.TextAnchorMatcher;
 import com.wuming.novel.text.TextMatch;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +33,6 @@ import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISceneService {
     private final IChapterService chapterService;
     private final PromptConfig promptConfig;
@@ -45,6 +44,30 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     private final NovelTextNormalizer textNormalizer;
     private final TextAnchorMatcher textAnchorMatcher;
     private final LlmJsonResponseParser llmJsonResponseParser;
+
+    public SceneService(
+            IChapterService chapterService,
+            PromptConfig promptConfig,
+            IJobService jobService,
+            LlmClientFactory clientFactory,
+            RedisStageFailureStore redisStageFailureStore,
+            JobProgressService jobProgressService,
+            SceneSplitResponseChecker sceneSplitResponseChecker,
+            NovelTextNormalizer textNormalizer,
+            TextAnchorMatcher textAnchorMatcher,
+            LlmJsonResponseParser llmJsonResponseParser
+    ) {
+        this.chapterService = chapterService;
+        this.promptConfig = promptConfig;
+        this.jobService = jobService;
+        this.chatClient = clientFactory.taskClient(LlmClientFactory.TASK_SCENE_SPLIT);
+        this.redisStageFailureStore = redisStageFailureStore;
+        this.jobProgressService = jobProgressService;
+        this.sceneSplitResponseChecker = sceneSplitResponseChecker;
+        this.textNormalizer = textNormalizer;
+        this.textAnchorMatcher = textAnchorMatcher;
+        this.llmJsonResponseParser = llmJsonResponseParser;
+    }
 
     @Lazy
     @Autowired

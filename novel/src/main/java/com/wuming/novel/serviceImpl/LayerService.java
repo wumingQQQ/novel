@@ -51,7 +51,7 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
         this.novelService = novelService;
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
-        this.chatClient = clientFactory.defaultClient();
+        this.chatClient = clientFactory.taskClient(LlmClientFactory.TASK_LAYER_SPLIT);
         this.jobService = jobService;
         this.layerSplitResponseChecker = layerSplitResponseChecker;
         this.llmJsonResponseParser = llmJsonResponseParser;

@@ -49,7 +49,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         this.promptConfig = promptConfig;
         this.sceneService = sceneService;
         this.jobService = jobService;
-        this.chatClient = clientFactory.defaultClient();
+        this.chatClient = clientFactory.taskClient(LlmClientFactory.TASK_SCENE_POOL);
         this.redisStageFailureStore = redisStageFailureStore;
         this.jobProgressService = jobProgressService;
         this.scenePoolResponseChecker = scenePoolResponseChecker;

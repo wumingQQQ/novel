@@ -20,7 +20,6 @@ import com.wuming.novel.service.IEvidenceService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
 import com.wuming.novel.sse.JobProgressService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +38,6 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> implements IEvidenceService {
     private final RecallService recallService;
     private final ILayerService layerService;
@@ -50,6 +48,28 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     private final JobProgressService jobProgressService;
     private final EvidenceExtractResponseChecker evidenceExtractResponseChecker;
     private final LlmJsonResponseParser llmJsonResponseParser;
+
+    public EvidenceService(
+            RecallService recallService,
+            ILayerService layerService,
+            IJobService jobService,
+            PromptConfig promptConfig,
+            LlmClientFactory clientFactory,
+            RedisStageFailureStore redisStageFailureStore,
+            JobProgressService jobProgressService,
+            EvidenceExtractResponseChecker evidenceExtractResponseChecker,
+            LlmJsonResponseParser llmJsonResponseParser
+    ) {
+        this.recallService = recallService;
+        this.layerService = layerService;
+        this.jobService = jobService;
+        this.promptConfig = promptConfig;
+        this.chatClient = clientFactory.taskClient(LlmClientFactory.TASK_EVIDENCE_EXTRACT);
+        this.redisStageFailureStore = redisStageFailureStore;
+        this.jobProgressService = jobProgressService;
+        this.evidenceExtractResponseChecker = evidenceExtractResponseChecker;
+        this.llmJsonResponseParser = llmJsonResponseParser;
+    }
 
     @Lazy
     @Autowired
