@@ -28,7 +28,7 @@ public class LlmProvider {
                     .defaultOptions(OpenAiChatOptions.builder()
                             .model(model)
                             .responseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
-                            .temperature(0.8)
+                            .temperature(0.0)
                             .build())
                     .build();
     }
