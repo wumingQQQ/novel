@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -16,6 +17,8 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "llm")
 public class LlmConfig {
     private String defaultProvider = "deepseek";
+    private Double temperature = 0.0;
+    private Map<String, Double> taskTemperature = new HashMap<>();
     Map<String, LlmProvider> providers;
 
     public String resolveProviderName(String name) {
@@ -41,5 +44,12 @@ public class LlmConfig {
         }
 
         return provider;
+    }
+
+    public Double resolveTemperature(String taskKey) {
+        if (taskKey == null || taskKey.isBlank()) {
+            return temperature;
+        }
+        return taskTemperature.getOrDefault(taskKey, temperature);
     }
 }

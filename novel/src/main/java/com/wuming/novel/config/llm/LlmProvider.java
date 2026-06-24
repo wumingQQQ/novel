@@ -16,7 +16,7 @@ public class LlmProvider {
     private String model;
     private String apiKey;
 
-    public ChatModel chatModel(){
+    public ChatModel chatModel(Double temperature){
         if(baseUrl == null || model == null || apiKey == null){
             throw new  IllegalStateException("baseUrl or model or apiKey 为空，模型无法正确配置");
         }
@@ -27,6 +27,7 @@ public class LlmProvider {
                             .build())
                     .defaultOptions(OpenAiChatOptions.builder()
                             .model(model)
+                            .temperature(temperature)
                             .responseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
                             .build())
                     .build();
