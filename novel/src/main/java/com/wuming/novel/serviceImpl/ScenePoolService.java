@@ -10,7 +10,7 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponse;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponseWrapper;
-import com.wuming.novel.exception.LLMResponseEmptyException;
+import com.wuming.novel.llm.checker.ScenePoolResponseChecker;
 import com.wuming.novel.mapper.ScenePoolMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IJobService;
@@ -37,18 +37,20 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     private final ChatClient chatClient;
     private final RedisStageFailureStore redisStageFailureStore;
     private final JobProgressService jobProgressService;
+    private final ScenePoolResponseChecker scenePoolResponseChecker;
 
     @Lazy
     @Autowired
     private ScenePoolService self;
 
-    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService) {
+    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService, ScenePoolResponseChecker scenePoolResponseChecker) {
         this.promptConfig = promptConfig;
         this.sceneService = sceneService;
         this.jobService = jobService;
         this.chatClient = clientFactory.defaultClient();
         this.redisStageFailureStore = redisStageFailureStore;
         this.jobProgressService = jobProgressService;
+        this.scenePoolResponseChecker = scenePoolResponseChecker;
     }
 
     @Override
@@ -112,10 +114,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
                     .call()
                     .entity(ScenePoolResponseWrapper.class);
 
-            if(responseWrapper == null || responseWrapper.pools() == null || responseWrapper.pools().isEmpty()){
-                throw new LLMResponseEmptyException("任务" + jobId + "场景" + scene.getId() +"分池时llm响应为空");
-            }
-            List<ScenePoolResponse> responses = responseWrapper.pools();
+            List<ScenePoolResponse> responses = scenePoolResponseChecker.check(jobId, scene, responseWrapper);
 
             List<ScenePool> scenePools = new ArrayList<>();
 

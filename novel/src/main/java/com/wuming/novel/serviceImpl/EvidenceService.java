@@ -12,7 +12,7 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponse;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponseWrapper;
-import com.wuming.novel.exception.LLMResponseEmptyException;
+import com.wuming.novel.llm.checker.EvidenceExtractResponseChecker;
 import com.wuming.novel.mapper.EvidenceMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IEvidenceService;
@@ -45,12 +45,13 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     private final ChatClient chatClient;
     private final RedisStageFailureStore redisStageFailureStore;
     private final JobProgressService jobProgressService;
+    private final EvidenceExtractResponseChecker evidenceExtractResponseChecker;
 
     @Lazy
     @Autowired
     private EvidenceService self;
 
-    public EvidenceService(RecallService recallService, ILayerService layerService, IJobService jobService, PromptConfig promptConfig, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService) {
+    public EvidenceService(RecallService recallService, ILayerService layerService, IJobService jobService, PromptConfig promptConfig, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService, EvidenceExtractResponseChecker evidenceExtractResponseChecker) {
         this.recallService = recallService;
         this.layerService = layerService;
         this.jobService = jobService;
@@ -58,6 +59,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
         this.chatClient = clientFactory.defaultClient();
         this.redisStageFailureStore = redisStageFailureStore;
         this.jobProgressService = jobProgressService;
+        this.evidenceExtractResponseChecker = evidenceExtractResponseChecker;
     }
 
     @Override
@@ -155,10 +157,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                     .call()
                     .entity(EvidenceExtractResponseWrapper.class);
 
-            if(responseWrapper == null || responseWrapper.evidences() == null || responseWrapper.evidences().isEmpty()){
-                throw new LLMResponseEmptyException("证据提取：layer-" + layer.getId() +", pool-" + poolType);
-            }
-            List<EvidenceExtractResponse> responses = responseWrapper.evidences();
+            List<EvidenceExtractResponse> responses = evidenceExtractResponseChecker.check(scenes, jobId, layer, poolType, responseWrapper);
 
             List<Evidence> evidences = new ArrayList<>();
             for (EvidenceExtractResponse response : responses) {

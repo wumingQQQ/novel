@@ -16,7 +16,7 @@ import com.wuming.novel.domain.entity.Layer;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.AggregationResponse;
-import com.wuming.novel.exception.LLMResponseEmptyException;
+import com.wuming.novel.llm.checker.AggregationResponseChecker;
 import com.wuming.novel.service.ICharacterProfileService;
 import com.wuming.novel.service.IEvidenceService;
 import com.wuming.novel.service.IInteractionProfileService;
@@ -42,12 +42,13 @@ public class AggregationService {
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
+    private final AggregationResponseChecker aggregationResponseChecker;
     @Lazy
     @Autowired
     private AggregationService self;
 
 
-    public AggregationService(IEvidenceService evidenceService, ILayerService layerService, IJobService jobService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, LlmClientFactory clientFactory, ObjectMapper objectMapper) {
+    public AggregationService(IEvidenceService evidenceService, ILayerService layerService, IJobService jobService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, LlmClientFactory clientFactory, ObjectMapper objectMapper, AggregationResponseChecker aggregationResponseChecker) {
         this.evidenceService = evidenceService;
         this.layerService = layerService;
         this.jobService = jobService;
@@ -56,6 +57,7 @@ public class AggregationService {
         this.promptConfig = promptConfig;
         this.chatClient = clientFactory.defaultClient();
         this.objectMapper = objectMapper;
+        this.aggregationResponseChecker = aggregationResponseChecker;
     }
 
 
@@ -95,9 +97,7 @@ public class AggregationService {
                     List<List<Evidence>> partition = Lists.partition(evidences, 20);
                     for(List<Evidence> evidenceList : partition) {
                         AggregationResponse response = aggregationPool(evidenceList, layer, fullPortrait);
-                        if(response == null){
-                            throw new LLMResponseEmptyException("聚合服务时llm返回空");
-                        }
+                        response = aggregationResponseChecker.check(jobId, response);
 
                         copyAggregationResponse(fullPortrait, response);
                         log.debug("job: {} layer: {} pool: {} 画像聚合批次完成，批次证据数: {}", jobId, layer.getId(), poolType, evidenceList.size());

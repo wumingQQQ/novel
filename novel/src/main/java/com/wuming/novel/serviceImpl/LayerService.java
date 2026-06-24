@@ -11,7 +11,7 @@ import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.LayerSplitResponse;
 import com.wuming.novel.domain.llmresponse.LayerSplitResponseWrapper;
-import com.wuming.novel.exception.LLMResponseEmptyException;
+import com.wuming.novel.llm.checker.LayerSplitResponseChecker;
 import com.wuming.novel.mapper.LayerMapper;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
@@ -39,25 +39,25 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
     private final IJobService jobService;
+    private final LayerSplitResponseChecker layerSplitResponseChecker;
     @Lazy
     @Autowired
     private LayerService self;
 
-    public LayerService(LayerMapper layerMapper, INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, LlmClientFactory clientFactory, IJobService jobService) {
+    public LayerService(LayerMapper layerMapper, INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, LlmClientFactory clientFactory, IJobService jobService, LayerSplitResponseChecker layerSplitResponseChecker) {
         this.layerMapper = layerMapper;
         this.novelService = novelService;
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
         this.chatClient = clientFactory.defaultClient();
         this.jobService = jobService;
+        this.layerSplitResponseChecker = layerSplitResponseChecker;
     }
 
     @Value("${novel.layer.min-chapter-per-layer}")
     private int minChapterSize;
     @Value("${novel.layer.max-chapter-per-layer}")
     private int maxChapterSize;
-    @Value("${novel.layer.min-layer-size}")
-    private int minLayerSize;
     @Value("${novel.layer.max-layer-size}")
     private int maxLayerSize;
 
@@ -95,20 +95,14 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
                             .param("totalChapters", chapterCount)
                             .param("minChaptersPerLayer", minChapterSize)
                             .param("maxChaptersPerLayer", maxChapterSize)
-                            .param("minLayers", minLayerSize)
                             .param("maxLayers", maxLayerSize)
                             .param("chapterList", chapterList)
                     )
                     .call()
                     .entity(LayerSplitResponseWrapper.class);
 
-            if(responseWrapper == null || responseWrapper.layers() == null || responseWrapper.layers().isEmpty()) {
-                throw new LLMResponseEmptyException("小说" + novelId + "分层时llm响应为空，请稍后重试");
-                // TODO 考虑增加降级逻辑，固定章节数分层
-            }
-
             // 从llm响应中解析layer
-            List<LayerSplitResponse> responses = responseWrapper.layers();
+            List<LayerSplitResponse> responses = layerSplitResponseChecker.check(novelId, chapterCount, maxLayerSize, responseWrapper);
             List<Layer> layers = extractLayers(responses, novelId);
 
             self.saveLayers(novelId, layers);
