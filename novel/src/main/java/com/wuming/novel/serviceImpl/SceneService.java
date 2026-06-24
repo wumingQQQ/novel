@@ -16,6 +16,8 @@ import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ISceneService;
 import com.wuming.novel.sse.JobProgressService;
+import com.wuming.novel.text.NovelTextNormalizer;
+import com.wuming.novel.text.TextAnchorMatcher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +28,6 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -38,12 +39,14 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     private final RedisStageFailureStore redisStageFailureStore;
     private final JobProgressService jobProgressService;
     private final SceneSplitResponseChecker sceneSplitResponseChecker;
+    private final NovelTextNormalizer textNormalizer;
+    private final TextAnchorMatcher textAnchorMatcher;
 
     @Lazy
     @Autowired
     private SceneService self;
 
-    public SceneService(IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService, SceneSplitResponseChecker sceneSplitResponseChecker) {
+    public SceneService(IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService, SceneSplitResponseChecker sceneSplitResponseChecker, NovelTextNormalizer textNormalizer, TextAnchorMatcher textAnchorMatcher) {
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
         this.jobService = jobService;
@@ -51,6 +54,8 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
         this.redisStageFailureStore = redisStageFailureStore;
         this.jobProgressService = jobProgressService;
         this.sceneSplitResponseChecker = sceneSplitResponseChecker;
+        this.textNormalizer = textNormalizer;
+        this.textAnchorMatcher = textAnchorMatcher;
     }
 
     @Override
@@ -94,31 +99,11 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
                 .toList();
     }
 
-    private String normalize(String chapterContent){
-        if (chapterContent == null) {
-            return "";
-        }
-
-        return chapterContent
-                .replace("\r\n", "\n")
-                .replace('\r', '\n')
-                .replace('\u3000', ' ')
-                .replace('\u00A0', ' ')
-                .replace("\uFEFF", "")
-                .replace("\u200B", "")
-                .lines()
-                .map(line -> line.trim().replaceAll("[ \\t\\f]+", " "))
-                .collect(Collectors.joining("\n"))
-                .replaceAll("\\n{3,}", "\n\n")
-                .trim();
-    }
-
-
     @Async("sceneSplitExecutor")
     protected CompletableFuture<Void> splitOneChapter(Chapter chapter, Long jobId) {
 
         try {
-            String normalizedContent = normalize(chapter.getContent());
+            String normalizedContent = textNormalizer.normalizeForPrompt(chapter.getContent());
             SceneSplitResponseWrapper responseWrapper = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getSceneSplitPrompt())
                             .param("chapterTitle", chapter.getTitle())
@@ -156,11 +141,11 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             scene.setSequence(i + 1);
 
             // 定位原文位置
-            int startIndex = content.indexOf(current.anchor());
+            int startIndex = textAnchorMatcher.indexOf(content, current.anchor());
             int endIndex;
             if(i < responses.size() -1){
                 SceneSplitResponse next = responses.get(i + 1);
-                endIndex = content.indexOf(next.anchor());
+                endIndex = textAnchorMatcher.indexOf(content, next.anchor());
             }
             else{
                 // 如果是最后一个场景，则结束位置为章节末尾

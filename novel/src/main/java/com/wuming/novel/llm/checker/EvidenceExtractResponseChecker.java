@@ -6,6 +6,8 @@ import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponse;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponseWrapper;
 import com.wuming.novel.exception.LLMResponseEmptyException;
+import com.wuming.novel.text.TextAnchorMatcher;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -15,7 +17,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class EvidenceExtractResponseChecker {
+    private final TextAnchorMatcher textAnchorMatcher;
+
     public List<EvidenceExtractResponse> check(List<Scene> inputScenes, Long jobId, Layer layer, PoolType poolType, EvidenceExtractResponseWrapper responseWrapper) {
         if (responseWrapper == null || responseWrapper.evidences() == null || responseWrapper.evidences().isEmpty()) {
             throw new LLMResponseEmptyException("证据提取：layer-" + layer.getId() + ", pool-" + poolType);
@@ -77,17 +82,16 @@ public class EvidenceExtractResponseChecker {
         if (quote == null || quote.isBlank()) {
             throw new LlmResponseCheckException("job: " + jobId + " layer: " + layer.getId() + " pool: " + poolType + " 支撑原文为空白，index: " + index);
         }
-        String trimmedQuote = quote.trim();
-        boolean quoteFound = inputScenes.stream()
+        boolean quoteFound = textAnchorMatcher.containsQuoteInAny(inputScenes.stream()
                 .map(Scene::getContent)
                 .filter(content -> content != null && !content.isBlank())
-                .anyMatch(content -> content.contains(trimmedQuote));
+                .toList(), quote);
         if (!quoteFound) {
             throw new LlmResponseCheckException("job: " + jobId
                     + " layer: " + layer.getId()
                     + " pool: " + poolType
                     + " 支撑原文不在输入场景中，index: " + index
-                    + ", quote: " + trimmedQuote);
+                    + ", quote: " + quote.trim());
         }
     }
 }

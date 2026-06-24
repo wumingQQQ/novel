@@ -4,12 +4,17 @@ import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponse;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
 import com.wuming.novel.exception.LLMResponseEmptyException;
+import com.wuming.novel.text.TextAnchorMatcher;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class SceneSplitResponseChecker {
+    private final TextAnchorMatcher textAnchorMatcher;
+
     public List<SceneSplitResponse> check(Chapter chapter, String chapterContent, SceneSplitResponseWrapper responseWrapper) {
         if (responseWrapper == null || responseWrapper.scenes() == null || responseWrapper.scenes().isEmpty()) {
             throw new LLMResponseEmptyException("小说" + chapter.getNovelId() + "章节" + chapter.getId() + "分场景时llm响应为空");
@@ -24,9 +29,9 @@ public class SceneSplitResponseChecker {
         for (int i = 0; i < responses.size(); i++) {
             SceneSplitResponse current = responses.get(i);
 
-            int startIndex = chapterContent.indexOf(current.anchor());
+            int startIndex = textAnchorMatcher.indexOf(chapterContent, current.anchor());
             int endIndex = i < responses.size() - 1
-                    ? chapterContent.indexOf(responses.get(i + 1).anchor())
+                    ? textAnchorMatcher.indexOf(chapterContent, responses.get(i + 1).anchor())
                     : chapterContent.length();
             if (startIndex == -1 || endIndex == -1 || startIndex >= endIndex || startIndex <= previousStartIndex) {
                 String nextAnchor = i < responses.size() - 1 ? responses.get(i + 1).anchor() : null;
