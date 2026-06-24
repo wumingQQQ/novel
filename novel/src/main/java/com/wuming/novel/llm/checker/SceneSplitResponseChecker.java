@@ -5,6 +5,7 @@ import com.wuming.novel.domain.llmresponse.SceneSplitResponse;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
 import com.wuming.novel.exception.LLMResponseEmptyException;
 import com.wuming.novel.text.TextAnchorMatcher;
+import com.wuming.novel.text.TextMatch;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -29,9 +30,13 @@ public class SceneSplitResponseChecker {
         for (int i = 0; i < responses.size(); i++) {
             SceneSplitResponse current = responses.get(i);
 
-            int startIndex = textAnchorMatcher.indexOf(chapterContent, current.anchor());
+            TextMatch startMatch = textAnchorMatcher.find(chapterContent, current.anchor()).orElse(null);
+            TextMatch endMatch = i < responses.size() - 1
+                    ? textAnchorMatcher.find(chapterContent, responses.get(i + 1).anchor()).orElse(null)
+                    : null;
+            int startIndex = startMatch == null ? -1 : startMatch.startIndex();
             int endIndex = i < responses.size() - 1
-                    ? textAnchorMatcher.indexOf(chapterContent, responses.get(i + 1).anchor())
+                    ? endMatch == null ? -1 : endMatch.startIndex()
                     : chapterContent.length();
             if (startIndex == -1 || endIndex == -1 || startIndex >= endIndex || startIndex <= previousStartIndex) {
                 String nextAnchor = i < responses.size() - 1 ? responses.get(i + 1).anchor() : null;

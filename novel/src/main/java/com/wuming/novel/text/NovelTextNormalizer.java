@@ -29,12 +29,12 @@ public class NovelTextNormalizer {
         String promptText = normalizeForPrompt(text);
         StringBuilder builder = new StringBuilder(promptText.length());
         for (int i = 0; i < promptText.length(); i++) {
-            appendMatchChar(builder, promptText.charAt(i));
+            appendNormalizedMatchChar(builder, promptText.charAt(i));
         }
-        return builder.toString().replace("……", "...");
+        return builder.toString();
     }
 
-    private void appendMatchChar(StringBuilder builder, char ch) {
+    void appendNormalizedMatchChar(StringBuilder builder, char ch) {
         switch (ch) {
             case '“', '”', '「', '」', '『', '』' -> builder.append('"');
             case '‘', '’' -> builder.append('\'');
@@ -45,6 +45,7 @@ public class NovelTextNormalizer {
             case '？' -> builder.append('?');
             case '！' -> builder.append('!');
             case '—' -> builder.append('-');
+            case '…' -> builder.append('.');
             default -> builder.append(ch);
         }
     }
