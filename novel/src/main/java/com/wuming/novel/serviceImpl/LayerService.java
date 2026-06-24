@@ -11,6 +11,7 @@ import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.LayerSplitResponse;
 import com.wuming.novel.domain.llmresponse.LayerSplitResponseWrapper;
+import com.wuming.novel.llm.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.LayerSplitResponseChecker;
 import com.wuming.novel.mapper.LayerMapper;
 import com.wuming.novel.service.IChapterService;
@@ -40,11 +41,12 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
     private final ChatClient chatClient;
     private final IJobService jobService;
     private final LayerSplitResponseChecker layerSplitResponseChecker;
+    private final LlmJsonResponseParser llmJsonResponseParser;
     @Lazy
     @Autowired
     private LayerService self;
 
-    public LayerService(LayerMapper layerMapper, INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, LlmClientFactory clientFactory, IJobService jobService, LayerSplitResponseChecker layerSplitResponseChecker) {
+    public LayerService(LayerMapper layerMapper, INovelService novelService, IChapterService chapterService, PromptConfig promptConfig, LlmClientFactory clientFactory, IJobService jobService, LayerSplitResponseChecker layerSplitResponseChecker, LlmJsonResponseParser llmJsonResponseParser) {
         this.layerMapper = layerMapper;
         this.novelService = novelService;
         this.chapterService = chapterService;
@@ -52,6 +54,7 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
         this.chatClient = clientFactory.defaultClient();
         this.jobService = jobService;
         this.layerSplitResponseChecker = layerSplitResponseChecker;
+        this.llmJsonResponseParser = llmJsonResponseParser;
     }
 
     @Value("${novel.layer.min-chapter-per-layer}")
@@ -89,7 +92,7 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
                     .collect(Collectors.joining("\n"));
 
             log.debug("job: {} 小说{}开始剧情分层，章节数: {}", jobId, novelId, chapterCount);
-            LayerSplitResponseWrapper responseWrapper = chatClient.prompt()
+            String rawContent = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getLayerSplitPrompt())
                             .param("novelName", novelName)
                             .param("totalChapters", chapterCount)
@@ -99,7 +102,11 @@ public class LayerService extends ServiceImpl<LayerMapper, Layer> implements ILa
                             .param("chapterList", chapterList)
                     )
                     .call()
-                    .entity(LayerSplitResponseWrapper.class);
+                    .content();
+            LayerSplitResponseWrapper responseWrapper = llmJsonResponseParser.parse(
+                    rawContent,
+                    LayerSplitResponseWrapper.class
+            );
 
             // 从llm响应中解析layer
             List<LayerSplitResponse> responses = layerSplitResponseChecker.check(novelId, chapterCount, maxLayerSize, responseWrapper);

@@ -12,6 +12,7 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponse;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponseWrapper;
+import com.wuming.novel.llm.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.EvidenceExtractResponseChecker;
 import com.wuming.novel.mapper.EvidenceMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
@@ -48,6 +49,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
     private final RedisStageFailureStore redisStageFailureStore;
     private final JobProgressService jobProgressService;
     private final EvidenceExtractResponseChecker evidenceExtractResponseChecker;
+    private final LlmJsonResponseParser llmJsonResponseParser;
 
     @Lazy
     @Autowired
@@ -185,7 +187,7 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
             String itemKey
     ) {
         try {
-            EvidenceExtractResponseWrapper responseWrapper = chatClient.prompt()
+            String rawContent = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getEvidenceExtractPrompt())
                             .param("targetName", targetName)
                             .param("poolTypeName", poolType.name())
@@ -195,7 +197,11 @@ public class EvidenceService extends ServiceImpl<EvidenceMapper, Evidence> imple
                             .param("poolDescription", promptConfig.getPoolDescription(poolType))
                     )
                     .call()
-                    .entity(EvidenceExtractResponseWrapper.class);
+                    .content();
+            EvidenceExtractResponseWrapper responseWrapper = llmJsonResponseParser.parse(
+                    rawContent,
+                    EvidenceExtractResponseWrapper.class
+            );
 
             List<EvidenceExtractResponse> responses = evidenceExtractResponseChecker.check(
                     scenes,

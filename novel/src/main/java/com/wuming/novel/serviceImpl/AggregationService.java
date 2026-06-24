@@ -16,6 +16,7 @@ import com.wuming.novel.domain.entity.Layer;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.AggregationResponse;
+import com.wuming.novel.llm.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.AggregationResponseChecker;
 import com.wuming.novel.service.ICharacterProfileService;
 import com.wuming.novel.service.IEvidenceService;
@@ -43,12 +44,13 @@ public class AggregationService {
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
     private final AggregationResponseChecker aggregationResponseChecker;
+    private final LlmJsonResponseParser llmJsonResponseParser;
     @Lazy
     @Autowired
     private AggregationService self;
 
 
-    public AggregationService(IEvidenceService evidenceService, ILayerService layerService, IJobService jobService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, LlmClientFactory clientFactory, ObjectMapper objectMapper, AggregationResponseChecker aggregationResponseChecker) {
+    public AggregationService(IEvidenceService evidenceService, ILayerService layerService, IJobService jobService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, LlmClientFactory clientFactory, ObjectMapper objectMapper, AggregationResponseChecker aggregationResponseChecker, LlmJsonResponseParser llmJsonResponseParser) {
         this.evidenceService = evidenceService;
         this.layerService = layerService;
         this.jobService = jobService;
@@ -58,6 +60,7 @@ public class AggregationService {
         this.chatClient = clientFactory.defaultClient();
         this.objectMapper = objectMapper;
         this.aggregationResponseChecker = aggregationResponseChecker;
+        this.llmJsonResponseParser = llmJsonResponseParser;
     }
 
 
@@ -135,7 +138,7 @@ public class AggregationService {
 
     private AggregationResponse aggregationPool(List<Evidence> evidences, Layer layer, FullPortraitDto fullPortrait) {
 
-        return chatClient.prompt()
+        String rawContent = chatClient.prompt()
                 .user(u -> {
                             try {
                                 u.text(promptConfig.getAggregationPrompt())
@@ -150,7 +153,8 @@ public class AggregationService {
                         }
                 )
                 .call()
-                .entity(AggregationResponse.class);
+                .content();
+        return llmJsonResponseParser.parse(rawContent, AggregationResponse.class);
     }
 
     private void copyAggregationResponse(FullPortraitDto fullPortrait, AggregationResponse aggregationResponse) {

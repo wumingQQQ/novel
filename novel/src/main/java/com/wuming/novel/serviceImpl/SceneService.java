@@ -8,6 +8,7 @@ import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponse;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
+import com.wuming.novel.llm.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.SceneSplitResponseChecker;
 import com.wuming.novel.mapper.SceneMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
@@ -43,6 +44,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     private final SceneSplitResponseChecker sceneSplitResponseChecker;
     private final NovelTextNormalizer textNormalizer;
     private final TextAnchorMatcher textAnchorMatcher;
+    private final LlmJsonResponseParser llmJsonResponseParser;
 
     @Lazy
     @Autowired
@@ -141,13 +143,14 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             Chapter chapter,
             String normalizedContent
     ) {
-        return chatClient.prompt()
+        String rawContent = chatClient.prompt()
                 .user(u -> u.text(promptConfig.getSceneSplitPrompt())
                         .param("chapterTitle", chapter.getTitle())
                         .param("chapterContent", normalizedContent)
                 )
                 .call()
-                .entity(SceneSplitResponseWrapper.class);
+                .content();
+        return llmJsonResponseParser.parse(rawContent, SceneSplitResponseWrapper.class);
     }
 
     private List<Scene> extractSceneFromChapter(

@@ -10,6 +10,7 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponse;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponseWrapper;
+import com.wuming.novel.llm.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.ScenePoolResponseChecker;
 import com.wuming.novel.mapper.ScenePoolMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
@@ -38,12 +39,13 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     private final RedisStageFailureStore redisStageFailureStore;
     private final JobProgressService jobProgressService;
     private final ScenePoolResponseChecker scenePoolResponseChecker;
+    private final LlmJsonResponseParser llmJsonResponseParser;
 
     @Lazy
     @Autowired
     private ScenePoolService self;
 
-    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService, ScenePoolResponseChecker scenePoolResponseChecker) {
+    public ScenePoolService(PromptConfig promptConfig, ISceneService sceneService, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService, ScenePoolResponseChecker scenePoolResponseChecker, LlmJsonResponseParser llmJsonResponseParser) {
         this.promptConfig = promptConfig;
         this.sceneService = sceneService;
         this.jobService = jobService;
@@ -51,6 +53,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
         this.redisStageFailureStore = redisStageFailureStore;
         this.jobProgressService = jobProgressService;
         this.scenePoolResponseChecker = scenePoolResponseChecker;
+        this.llmJsonResponseParser = llmJsonResponseParser;
     }
 
     @Override
@@ -105,14 +108,18 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     @Async("poolClassifyExecutor")
     protected CompletableFuture<Void> doSimpleClassify(Scene scene, Long jobId, String protagonistName, String targetName){
         try {
-            ScenePoolResponseWrapper responseWrapper = chatClient.prompt()
+            String rawContent = chatClient.prompt()
                     .user(u -> u.text(promptConfig.getScenePoolPrompt())
                             .param("protagonistName", protagonistName)
                             .param("targetName", targetName)
                             .param("sceneContent", scene.getContent())
                     )
                     .call()
-                    .entity(ScenePoolResponseWrapper.class);
+                    .content();
+            ScenePoolResponseWrapper responseWrapper = llmJsonResponseParser.parse(
+                    rawContent,
+                    ScenePoolResponseWrapper.class
+            );
 
             List<ScenePoolResponse> responses = scenePoolResponseChecker.check(jobId, scene, responseWrapper);
 
