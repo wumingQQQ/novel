@@ -2,7 +2,6 @@ package com.wuming.novel.serviceImpl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuming.novel.config.PromptConfig;
-import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
@@ -18,6 +17,8 @@ import com.wuming.novel.service.ISceneService;
 import com.wuming.novel.sse.JobProgressService;
 import com.wuming.novel.text.NovelTextNormalizer;
 import com.wuming.novel.text.TextAnchorMatcher;
+import com.wuming.novel.text.TextMatch;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,7 @@ import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISceneService {
     private final IChapterService chapterService;
     private final PromptConfig promptConfig;
@@ -45,114 +47,143 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     @Lazy
     @Autowired
     private SceneService self;
-
-    public SceneService(IChapterService chapterService, PromptConfig promptConfig, IJobService jobService, LlmClientFactory clientFactory, RedisStageFailureStore redisStageFailureStore, JobProgressService jobProgressService, SceneSplitResponseChecker sceneSplitResponseChecker, NovelTextNormalizer textNormalizer, TextAnchorMatcher textAnchorMatcher) {
-        this.chapterService = chapterService;
-        this.promptConfig = promptConfig;
-        this.jobService = jobService;
-        this.chatClient = clientFactory.defaultClient();
-        this.redisStageFailureStore = redisStageFailureStore;
-        this.jobProgressService = jobProgressService;
-        this.sceneSplitResponseChecker = sceneSplitResponseChecker;
-        this.textNormalizer = textNormalizer;
-        this.textAnchorMatcher = textAnchorMatcher;
-    }
-
     @Override
     public void splitScene(Long jobId) {
         Job job = jobService.getById(jobId);
-        if(job.getStage().getCode() >= JobStage.SCENE_SPLIT.getCode()){
+        if (job.getStage().getCode() >= JobStage.SCENE_SPLIT.getCode()) {
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.SCENE_SPLIT);
             return;
         }
-        Long novelId = job.getNovelId();
-        List<Long> targetChapterIds = queryTargetChapterIds(jobId, novelId);
 
-        List<Chapter> chapters = chapterService.listByIds(targetChapterIds);
-        jobProgressService.setStageTotalItems(jobId, JobStage.SCENE_SPLIT, chapters.size());
+        Long novelId = job.getNovelId();
+        List<Chapter> chapters = queryTargetChapters(jobId, novelId);
+
+        jobProgressService.setStageTotalItems(
+                jobId,
+                JobStage.SCENE_SPLIT,
+                chapters.size()
+        );
         log.debug("job: {} 小说{}开始场景切分，待处理章节数: {}", jobId, novelId, chapters.size());
+
         List<CompletableFuture<Void>> futures = chapters.stream()
-                .map(chapter -> self.splitOneChapter(chapter, jobId)     // 使用代理，否则异步注解失效
-                        .thenRun(() -> jobProgressService.recordItemSuccess(jobId, JobStage.SCENE_SPLIT))
-                        .exceptionally(e -> {
-                            jobProgressService.recordItemFailure(jobId, JobStage.SCENE_SPLIT);
-                            return null;
-                        }))
+                .map(chapter -> submitChapterSplit(chapter, jobId))
                 .toList();
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 
-    private List<Long> queryTargetChapterIds(Long jobId, Long novelId) {
-        List<Long> failedChapterIds = redisStageFailureStore.consumeFailedLongItems(jobId, JobStage.SCENE_SPLIT);
+    private List<Chapter> queryTargetChapters(Long jobId, Long novelId) {
+        List<Long> failedChapterIds = redisStageFailureStore.consumeFailedLongItems(
+                jobId,
+                JobStage.SCENE_SPLIT
+        );
 
         if (!failedChapterIds.isEmpty()) {
-            return failedChapterIds;
+            return chapterService.listByIds(failedChapterIds);
         }
+
         // 如果查询结果为空则表示是首次进入该阶段，全量处理
-        return chapterService.lambdaQuery()
+        List<Long> chapterIds = chapterService.lambdaQuery()
                 .eq(Chapter::getNovelId, novelId)
                 .select(Chapter::getId)
                 .list()
                 .stream()
                 .map(Chapter::getId)
                 .toList();
+        return chapterService.listByIds(chapterIds);
+    }
+
+    private CompletableFuture<Void> submitChapterSplit(Chapter chapter, Long jobId) {
+        // 使用代理调用，否则异步注解不会生效
+        return self.splitOneChapter(chapter, jobId)
+                .thenRun(() -> jobProgressService.recordItemSuccess(
+                        jobId,
+                        JobStage.SCENE_SPLIT
+                ))
+                .exceptionally(e -> {
+                    jobProgressService.recordItemFailure(jobId, JobStage.SCENE_SPLIT);
+                    return null;
+                });
     }
 
     @Async("sceneSplitExecutor")
     protected CompletableFuture<Void> splitOneChapter(Chapter chapter, Long jobId) {
-
         try {
             String normalizedContent = textNormalizer.normalizeForPrompt(chapter.getContent());
-            SceneSplitResponseWrapper responseWrapper = chatClient.prompt()
-                    .user(u -> u.text(promptConfig.getSceneSplitPrompt())
-                            .param("chapterTitle", chapter.getTitle())
-                            .param("chapterContent", normalizedContent)
-                    )
-                    .call()
-                    .entity(SceneSplitResponseWrapper.class);
-
-
+            SceneSplitResponseWrapper responseWrapper = requestSceneSplit(
+                    chapter,
+                    normalizedContent
+            );
             List<Scene> scenes = extractSceneFromChapter(chapter, normalizedContent, responseWrapper);
 
             self.saveBatch(scenes);
-            log.debug("小说{}章节{}切分成功，chapterId: {}, 场景数: {}", chapter.getNovelId(), chapter.getSequence(), chapter.getId(), scenes.size());
+            log.debug(
+                    "小说{}章节{}切分成功，chapterId: {}, 场景数: {}",
+                    chapter.getNovelId(),
+                    chapter.getSequence(),
+                    chapter.getId(),
+                    scenes.size()
+            );
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
-            redisStageFailureStore.recordFailure(jobId, JobStage.SCENE_SPLIT, chapter.getId());
+            redisStageFailureStore.recordFailure(
+                    jobId,
+                    JobStage.SCENE_SPLIT,
+                    chapter.getId()
+            );
             log.error("小说{}的章节{}处理失败", chapter.getNovelId(), chapter.getSequence(), e);
             return CompletableFuture.failedFuture(e);
         }
-
-
     }
 
-    private List<Scene> extractSceneFromChapter(Chapter chapter, String content, SceneSplitResponseWrapper responseWrapper){
-        List<SceneSplitResponse> responses = sceneSplitResponseChecker.check(chapter, content, responseWrapper);
+    // 调用llm拆分章节
+    private SceneSplitResponseWrapper requestSceneSplit(
+            Chapter chapter,
+            String normalizedContent
+    ) {
+        return chatClient.prompt()
+                .user(u -> u.text(promptConfig.getSceneSplitPrompt())
+                        .param("chapterTitle", chapter.getTitle())
+                        .param("chapterContent", normalizedContent)
+                )
+                .call()
+                .entity(SceneSplitResponseWrapper.class);
+    }
 
-        List<Scene> scenes= new ArrayList<>();
+    private List<Scene> extractSceneFromChapter(
+            Chapter chapter,
+            String content,
+            SceneSplitResponseWrapper responseWrapper
+    ) {
+        // 检验llm返回结果
+        List<SceneSplitResponse> responses = sceneSplitResponseChecker.check(
+                chapter,
+                content,
+                responseWrapper
+        );
+        List<Scene> scenes = new ArrayList<>();
 
-        for(int i = 0; i < responses.size(); i++){
+        for (int i = 0; i < responses.size(); i++) {
             SceneSplitResponse current = responses.get(i);
+            TextMatch startMatch = textAnchorMatcher.find(content, current.anchor())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "场景锚点未匹配，anchor: " + current.anchor()
+                    ));
+            int endIndex = content.length();
+            if (i < responses.size() - 1) {
+                SceneSplitResponse next = responses.get(i + 1);
+                endIndex = textAnchorMatcher.find(content, next.anchor())
+                        .orElseThrow(() -> new IllegalStateException(
+                                "场景锚点未匹配，anchor: " + next.anchor()
+                        ))
+                        .startIndex();
+            }
 
             Scene scene = new Scene();
             scene.setNovelId(chapter.getNovelId());
             scene.setChapterId(chapter.getId());
             scene.setSequence(i + 1);
-
-            // 定位原文位置
-            int startIndex = textAnchorMatcher.indexOf(content, current.anchor());
-            int endIndex;
-            if(i < responses.size() -1){
-                SceneSplitResponse next = responses.get(i + 1);
-                endIndex = textAnchorMatcher.indexOf(content, next.anchor());
-            }
-            else{
-                // 如果是最后一个场景，则结束位置为章节末尾
-                endIndex = content.length();
-            }
-
-            scene.setContent(content.substring(startIndex, endIndex));
+            scene.setContent(content.substring(startMatch.startIndex(), endIndex));
             scenes.add(scene);
         }
         return scenes;
