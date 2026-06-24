@@ -75,6 +75,19 @@ public class PromptConfig {
                 }}
               ]
             }}
+            
+            【结果确认要求】
+            在输出最终结果前，请逐条进行以下确认：
+            1. 场景切分必须覆盖本章完整内容，不能遗漏关键叙事片段
+            2. 每个 anchor 必须来自原文中的连续片段，不得改写、概括、补字、删字或替换标点
+            3. 所有场景必须按原文叙事顺序排列，不得改变前后顺序
+            
+            【输出格式校验规则】
+            输出时请自行校验：
+            1. 最外层必须是 JSON 对象，包含 scenes 数组，不得直接返回数组
+            2. scenes 中每项必须是完整对象，包含数字 sequence 和字符串 anchor
+            3. sequence 从 1 开始连续递增
+            4. JSON 必须完整闭合，所有 {{、}}、[、]、双引号和逗号都必须合法匹配
             """;
 
     private static final String SCENE_POOL_PROMPT = """
@@ -97,8 +110,7 @@ public class PromptConfig {
             | KEY_EVENT | 目标角色与主角之间发生的转折性事件 | 关键事件 |
             
             【分析要求】
-            1. 仔细阅读场景，判断它包含以上哪些维度的信息
-            2. 置信度 0.0-1.0，越高表示该维度信息越明确、越重要
+            请判断该场景对每个维度的信息强度，并给出 0.0-1.0 的 confidence。
             
             【置信度参考】
             - 0.8以上：该场景主要就在展现这个维度
@@ -119,17 +131,18 @@ public class PromptConfig {
                 {{"code": "KEY_EVENT", "confidence": 0.00}}
               ]
             }}
-
-            【输出示例】
-            {{
-              "pools": [
-                {{"code": "SETTING", "confidence": 0.10}},
-                {{"code": "PERSONALITY", "confidence": 0.85}},
-                {{"code": "SPEECH", "confidence": 0.70}},
-                {{"code": "INTERACTION", "confidence": 0.65}},
-                {{"code": "KEY_EVENT", "confidence": 0.20}}
-              ]
-            }}
+            
+            【结果确认要求】
+            在输出最终结果前，请逐条进行以下确认：
+            1. 五个维度都要基于场景内容独立判断
+            2. confidence 必须反映场景中的明确信息强度，不得因为目标角色重要就随意提高
+            
+            【输出格式校验规则】
+            输出时请自行校验：
+            1. 最外层必须是 JSON 对象，包含 pools 数组，不得直接返回数组
+            2. pools 必须包含 5 个对象，code 分别为 SETTING、PERSONALITY、SPEECH、INTERACTION、KEY_EVENT
+            3. confidence 必须是 0.0 到 1.0 之间的数字
+            4. JSON 必须完整闭合，所有 {{、}}、[、]、双引号和逗号都必须合法匹配
             """;
 
     private static final String LAYER_SPLIT_PROMPT = """
@@ -145,7 +158,7 @@ public class PromptConfig {
       
             【分层约束】
             1. 每层应包含 {minChaptersPerLayer} 至 {maxChaptersPerLayer} 章，若叙事完整性要求超出此范围，仅在迫不得已时方可触及边界，但不要输出额外字段。
-            2. 最终生成的总层数必须小于{maxLayers} 之间。
+            2. 最终生成的总层数不得超过 {maxLayers}。
             3. 当上述两条约束冲突时，优先满足每层章节数约束。
             4. 如果总章节数小于每层最小章数或总章数不大于每层最大章数的1.2倍，则只输出 1 层：startChapter=1，endChapter={totalChapters}，此时 maxLayers约束以 1 层为准。
       
@@ -186,149 +199,129 @@ public class PromptConfig {
               ]
             }}
       
+            【结果确认要求】
+            在输出最终结果前，请逐条进行以下确认：
+            1. 所有层必须连续覆盖第 1 章到第 {totalChapters} 章，不得遗漏或重叠
+            2. 分层边界必须符合叙事节奏，不得为了凑层数而强行切分
+            3. 层数不得超过 {maxLayers}；如果总章节数较少，应优先输出 1 层
+            
             【输出格式校验规则】
-            1. startChapter 和 endChapter 必须使用章节列表左侧的系统内部章节序号，不得使用标题中的原始章节号。
-            2. 第一层必须从第1章开始，最后一层必须在第{totalChapters}章结束。
-            3. 前后层的章节必须严格连续：每一层的 startChapter 应等于上一层的 endChapter + 1。
-            4. layerIndex 必须从 1 开始连续递增，不得跳跃或重复。
-            5. 输出前请自行校验：a) 总章数是否为{totalChapters}；b) 层数是否小于{maxLayers}；c) 是否存在章节重叠或遗漏。
+            输出时请自行校验：
+            1. 最外层必须是 JSON 对象，包含 layers 数组，不得直接返回数组
+            2. layers 中每项必须是完整对象，包含 layerIndex、layerName、startChapter、endChapter
+            3. layerIndex、startChapter、endChapter 必须是数字，layerName 必须是简短字符串
+            4. startChapter 和 endChapter 必须使用章节列表左侧的系统内部章节序号
+            5. JSON 必须完整闭合，所有 {{、}}、[、]、双引号和逗号都必须合法匹配
             """;
 
     private static final Map<PoolType, String> POOL_TYPE_DESCRIPTIONS = Map.of(
-            PoolType.SETTING, """
-          【提取要求】
-          从场景中提取目标角色的基础设定信息。只提取以下内容：
+              PoolType.SETTING, """
+            【提取要求】
+            关注目标角色的年龄、身份、家庭背景、成长经历、特殊设定和显著外貌特征。
 
-          1. 身份信息：年龄、职业、身份地位（如"学生会会长"、"富家千金"）
-          2. 背景信息：家庭出身、成长环境、教育经历
-          3. 设定信息：明确交代的人物设定（如"天生不会说谎"、"路痴"）
-          4. 外貌特征：显著的外貌描写
+            【原则】
+            - 只提取原文明确事实，不推测
+            - 忽略情绪、态度和互动关系内容
+            """,
 
-          【原则】
-          - 只提取原文明确提及的事实，不推测、不脑补
-          - 同一设定在不同场景重复出现时，取证据更充足的信息
-          - 忽略情绪和态度相关内容（那些归 PERSONALITY 池）
-          """,
+              PoolType.PERSONALITY, """
+            【提取要求】
+            关注目标角色的核心性格、价值观、动机、情感模式和内在矛盾。
 
-            PoolType.PERSONALITY, """
-          【提取要求】
-          从场景中分析目标角色的性格特征，关注以下维度：
+            【原则】
+            - 区分临时状态和稳定特质
+            - 只在证据足够时形成性格结论
+            - 前后表现变化时，说明变化方向
+            """,
 
-          1. 核心性格：用 2-3 个关键词概括（如"傲娇"、"外冷内热"、"温柔坚定"）
-          2. 价值观：角色在意什么、坚持什么原则
-          3. 动机：角色想要什么、害怕什么
-          4. 情感模式：表达情感的方式（压抑/外放/别扭）
-          5. 矛盾点：角色内心冲突（如"想靠近又害怕受伤"）
+              PoolType.SPEECH, """
+            【提取要求】
+            关注目标角色的称呼方式、语气基调、口癖、句式特点和代表性台词。
 
-          【原则】
-          - 必须跨场景验证：只在单个场景出现的行为不能作为性格结论
-          - 区分"状态"和"特质"：暂时的心情≠稳定的性格
-          - 如果前后矛盾（前期冷漠、后期热情），两个都写并说明转变
-          """,
+            【原则】
+            - 区分口头禅和情境性用语
+            - 注意角色在不同对象面前说话方式是否有差异
+            """,
 
-            PoolType.SPEECH, """
-          【提取要求】
-          从场景中分析目标角色的语言风格，关注以下维度：
+              PoolType.INTERACTION, """
+            【提取要求】
+            关注目标角色与主角的关系距离、信任程度、互动模式、冲突方式和情感基调。
 
-          1. 称呼方式：如何称呼主角/他人（如直呼其名、"喂"、"前辈"）
-          2. 语气基调：冷淡/傲娇/温柔/暴躁/俏皮
-          3. 口癖：习惯性用语（如"笨蛋"、"无聊"、"啧"）
-          4. 句式特点：反问句多/陈述句多/说话简洁或啰嗦
-          5. 语言习惯：说话前先叹气/喜欢打断别人/说话带刺
+            【原则】
+            - 关注关系变化，而不是静态标签
+            - 如果关系有多次转折，按时间线描述
+            """,
 
-          【原则】
-          - 区分口头禅和情境性用语（生气时说"笨蛋"≠日常口癖）
-          - 注意角色在不同对象面前说话方式是否有差异
-          """,
+              PoolType.KEY_EVENT, """
+            【提取要求】
+            识别目标角色与主角之间的关键事件。关键事件必须同时满足：
+            - 是叙事转折点（之后关系或剧情发生明显变化）
+            - 涉及目标角色（不单是主角的个人事件）
 
-            PoolType.INTERACTION, """
-          【提取要求】
-          从场景中分析目标角色与主角之间的互动关系，关注以下维度：
-
-          1. 关系距离：从陌生→熟悉→亲密的程度和变化
-          2. 信任程度：角色是否信任主角、愿意分享什么
-          3. 互动模式：——谁主动、谁回避、谁主导关系
-          4. 冲突模式：——争吵方式、和好方式、冷战时长
-          5. 情感基调：——轻松/紧张/暧昧/敌对/依赖等
-
-          【原则】
-          - 关注"变化"而非"状态"：关系是动态的
-          - 标注证据所在的阶段（如"前期"、"中期"）
-          - 如果关系有多次转折，按时间线排列
-          """,
-
-            PoolType.KEY_EVENT, """
-          【提取要求】
-          从场景中识别目标角色与主角之间的关键事件。关键事件必须同时满足：
-          - 是叙事转折点（之后关系或剧情发生明显变化）
-          - 涉及目标角色（不单是主角的个人事件）
-
-          按以下类型分类：
-
-          A. 关系转折：初遇、表白、决裂、和解、重逢
-          B. 情感爆发：争吵、哭泣、坦白、告白
-          C. 身份变化：转学、毕业、晋升、觉醒
-          D. 重大选择：角色做出的影响后续的重要决定
-
-          【原则】
-          - 日常互动不算关键事件（那些归 INTERACTION 池）
-          - 每个事件注明"发生原因→事件经过→后续影响"
-          """
+            【原则】
+            - 日常互动不算关键事件
+            - 说明事件原因、经过和后续影响
+            """
     );
 
     private static final String EVIDENCE_EXTRACT_PROMPT = """
-                你是一个角色画像分析专家。请根据以下场景，归纳目标角色的画像信息。
-                
-                【目标角色】：{targetName}
-                【池类型】：{poolTypeName}
-                【层信息】：{layerName}
-               
-                【相关场景】（共{sceneCount}个，每个以“[sceneId]: 场景”格式给出）
-                {scenes}
-               
-                {poolDescription}
-               
-                【引用限制】
-                每条画像结论的 supportingQuotes 数量必须控制在 2~3 条。请优先选取信息最丰富、指向最明确的原文引用，避免使用重复或冗余的引用凑数。
-               
-                【输出格式】严格按以下 JSON 对象格式输出，不要额外内容，不要直接返回数组。evidences 数组中的每个元素包含：
-                - conclusion: 画像结论（50字内）
-                - supportingQuotes: 支撑结论的原文引用列表（2~3条，来自多个场景）
-                - sceneIds: 引用对应的场景id列表，需使用原文中给定的sceneId
-                - confidence: 置信度（0.0-1.0）
-               
+            你是一个角色画像分析专家。请根据以下场景，归纳目标角色的画像信息。
+            
+            【目标角色】：{targetName}
+            【池类型】：{poolTypeName}
+            【层信息】：{layerName}
+           
+            【相关场景】（共{sceneCount}个，每个以“[sceneId]: 场景”格式给出）
+            {scenes}
+           
+            {poolDescription}
+           
+            【引用限制】
+            每条画像结论的 supportingQuotes 数量必须控制在 2~3 条。请优先选取信息最丰富、指向最明确的原文引用，避免使用重复或冗余的引用凑数。
+           
+            【输出格式】严格按以下 JSON 对象格式输出，不要额外内容，不要直接返回数组。evidences 数组中的每个元素包含：
+            - conclusion: 画像结论（50字内）
+            - supportingQuotes: 支撑结论的原文引用列表（2~3条，来自多个场景）
+            - sceneIds: 引用对应的场景id列表，需使用原文中给定的sceneId
+            - confidence: 置信度（0.0-1.0）
+           
+            {{
+              "evidences": [
                 {{
-                  "evidences": [
-                    {{
-                      "conclusion": "画像结论",
-                      "supportingQuotes": ["引用1", "引用2"],
-                      "sceneIds": [0, 3],
-                      "confidence": 0.85
-                    }}
-                  ]
+                  "conclusion": "画像结论",
+                  "supportingQuotes": ["引用1", "引用2"],
+                  "sceneIds": [0, 3],
+                  "confidence": 0.85
                 }}
-
-                【输出示例】
+              ]
+            }}
+            
+            【输出示例】
+            {{
+              "evidences": [
                 {{
-                  "evidences": [
-                    {{
-                      "conclusion": "目标角色表面冷淡，但会在关键时刻关心主角。",
-                      "supportingQuotes": ["她沉默片刻，还是把伞递给了他。", "她别过脸说：不用谢。"],
-                      "sceneIds": [12, 18],
-                      "confidence": 0.86
-                    }}
-                  ]
+                  "conclusion": "目标角色表面冷淡，但会在关键时刻关心主角。",
+                  "supportingQuotes": ["她沉默片刻，还是把伞递给了他。", "她别过脸说：不用谢。"],
+                  "sceneIds": [12, 18],
+                  "confidence": 0.86
                 }}
-               
-                【结果确认要求】
-                在输出最终结果前，请逐条进行以下确认：
-                1. 每条supportingQuotes中的引用必须是来自上述【相关场景】中的原文原句，不得改写或概括
-                2. sceneIds是与supportingQuotes等长的整数数组，其中 sceneIds[i] 表示 supportingQuotes[i] 真实来源的场景编号，且该引用必须能在对应场景的原文中找到
-                3. 所有conclusion必须能直接由supportingQuotes中的原文引用支撑，不得包含无原文依据的推断
-                4. confidence评分需基于引用场景的数量和一致性进行合理评估，引用场景数量越多且证据方向越一致，confidence 应越高。但请注意，supportingQuotes存在数量限制，不得为了提升 confidence 而突破此数量限制
-               
-                返回结果前请确认以上各项均已验证通过
-                """;
+              ]
+            }}
+           
+            【结果确认要求】
+            在输出最终结果前，请逐条进行以下确认：
+            1. conclusion 必须能由 supportingQuotes 支撑，不得包含无依据的推断
+            2. supportingQuotes 应优先直接摘自【相关场景】，sceneIds 必须指向引用来源场景
+            3. confidence 应基于证据数量、一致性和明确程度合理评估
+           
+            【输出格式校验规则】
+            输出时请自行校验：
+            1. 最外层必须是 JSON 对象，包含 evidences 数组，不得直接返回数组
+            2. evidences 中每项必须是完整对象，包含 conclusion、supportingQuotes、sceneIds、confidence
+            3. conclusion 为 50 字内字符串；supportingQuotes 为 2~3 条字符串数组；sceneIds 为等长整数数组
+            4. confidence 必须是 0.0 到 1.0 之间的数字
+            5. JSON 必须完整闭合，所有 {{、}}、[、]、双引号和逗号都必须合法匹配
+            """;
 
     private static final String AGGREGATION_PROMPT = """
             你是一个角色画像聚合专家。请根据新证据更新和完善目标角色的完整画像。
@@ -343,40 +336,18 @@ public class PromptConfig {
             【新证据】
             {evidences}
   
-            【聚合规则与字段绑定】
-            以下规则明确适用于所有字段（characterProfile 和 interactionProfile 下的全部字段），除非特别指明：
-            1. 如果当前画像为空（所有字段为 null），直接用证据中的信息构建初始画像，填充所有字段
-            2. 新证据与当前画像一致时，保留已有内容并补充更具体的细节，适用于所有字段
-            3. 新证据与当前画像冲突时，以新证据为准修正对应字段——该原则适用于所有字段，包括但不限于：
-               - basicSetting.characterName、basicSetting.age、basicSetting.identity、basicSetting.presume
-               - coreTraits、valueSystem、behaviorPatterns、emotionalPatterns、relationshipAttitude、weaknesses
-               - speechStyle.tone、speechStyle.wordsHabit、speechStyle.representativeLines
-               - protagonistName、tone、keyEvents、conversationSamples
-            4. 新证据涉及当前画像未覆盖的维度时，直接添加对应字段内容，适用于所有字段
-            5. 当前画像中已有但新证据未涉及的维度，保持原样不变，适用于所有字段
-            6. 所有结论必须有证据中的 supportingQuotes 支撑，禁止推测或脑补——此原则适用于所有字段的更新与填充
+            【聚合规则】
+            1. 当前画像为空时，根据新证据初始化完整画像
+            2. 新证据与当前画像一致时，保留原结论并补充更具体细节
+            3. 新证据与当前画像冲突时，以新证据为准修正对应字段
+            4. 新证据未涉及的字段保持原样
+            5. 所有新增或修改内容必须能被 supportingQuotes 支撑，禁止推测
   
-            【字段说明】
-            characterProfile:
-              - basicSetting.characterName: 角色名称
-              - basicSetting.age: 年龄
-              - basicSetting.identity: 身份（学生、会长等）
-              - basicSetting.presume: 角色特殊设定（如"不会说谎"、"路痴"等）
-              - coreTraits: 核心性格标签，多个短标签，每个标签不超过 12 个中文字符
-              - valueSystem: 价值观与判断标准，400 个中文字符以内
-              - behaviorPatterns: 行为模式，描述遇事通常如何行动，400 个中文字符以内
-              - emotionalPatterns: 情绪模式，描述情绪触发点与表达方式，400 个中文字符以内
-              - relationshipAttitude: 关系态度，描述对主角和他人的亲疏、防备、信任方式，400 个中文字符以内
-              - weaknesses: 弱点、缺陷或内在矛盾，400 个中文字符以内
-              - speechStyle.tone: 语气基调（冷淡/傲娇/温柔/暴躁/俏皮等）
-              - speechStyle.wordsHabit: 口癖或习惯用语
-              - speechStyle.representativeLines: 代表台词列表（2-5 句）
-  
-            interactionProfile:
-              - protagonistName: 主角名称
-              - tone: 与主角的互动基调
-              - keyEvents: 关键事件列表（关系转折、重大选择，按时间顺序）
-              - conversationSamples: 对话示例列表（2-5 条能体现互动模式的对话）
+            【字段提示】
+            - presume 表示角色特殊设定，如“不会说谎”“路痴”
+            - coreTraits 使用短标签，每个标签不超过 12 个中文字符
+            - keyEvents 按时间顺序记录关系转折或关键事件
+            - conversationSamples 只保留能体现互动模式的代表性对话
   
             【输出格式】严格按以下 JSON 返回完整画像，不得省略任何字段：
             {{
@@ -406,35 +377,20 @@ public class PromptConfig {
                 "conversationSamples": ["对话1", "对话2"]
               }}
             }}
-
-            【输出示例】
-            {{
-              "characterProfile": {{
-                "basicSetting": {{
-                  "characterName": "清野凛",
-                  "age": 16,
-                  "identity": "学生会相关人物",
-                  "presume": "坚持诚实，不擅长说谎"
-                }},
-                "coreTraits": ["冷静克制", "原则感强"],
-                "valueSystem": "重视真实与自我选择，不愿因他人期待改变判断。",
-                "behaviorPatterns": "遇到冲突时先保持距离和观察，再用直接语言指出问题。",
-                "emotionalPatterns": "情绪表达克制，常以沉默、反问或简短回应掩饰真实波动。",
-                "relationshipAttitude": "对亲近关系保持谨慎，但会在信任后允许对方进入私人空间。",
-                "weaknesses": "过度坚持原则时容易显得疏离，也可能忽略他人的情绪缓冲。",
-                "speechStyle": {{
-                  "tone": "冷静、直接、偶尔带讽刺",
-                  "wordsHabit": "常用反问和简短判断回应对方",
-                  "representativeLines": ["你在说什么？", "请不要擅自下结论。"]
-                }}
-              }},
-              "interactionProfile": {{
-                "protagonistName": "渡边彻",
-                "tone": "表面斗嘴，实际互相信任",
-                "keyEvents": ["初次合作调查", "关系因共同事件加深"],
-                "conversationSamples": ["“你又在胡说。” “这是合理推测。”", "“需要帮忙吗？” “不用，但你可以留下。”"]
-              }}
-            }}
+            
+            【结果确认要求】
+            在输出最终结果前，请逐条进行以下确认：
+            1. 新画像必须基于【当前画像】和【新证据】更新，不得忽略已有画像内容
+            2. 新证据与当前画像一致时补充细节；冲突时以新证据为准修正
+            3. 所有画像内容都必须能由输入证据支撑，字段值保持简洁
+            
+            【输出格式校验规则】
+            输出时请自行校验：
+            1. 最外层必须是 JSON 对象，包含 characterProfile 和 interactionProfile
+            2. 输出结构必须与上方 JSON 结构一致，不得省略嵌套对象或数组字段
+            3. coreTraits、representativeLines、keyEvents、conversationSamples 必须是字符串数组
+            4. age 必须是数字；无法确认年龄时使用 0
+            5. JSON 必须完整闭合，所有 {{、}}、[、]、双引号和逗号都必须合法匹配
             """;
 
     public String getAggregationPrompt() {
