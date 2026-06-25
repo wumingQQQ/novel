@@ -19,6 +19,10 @@ public class LlmJsonResponseParser {
             "\"sequence\"\\s*:\\s*(\\d+)\\s*,?\\s*\"anchor\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"",
             Pattern.DOTALL
     );
+    private static final Pattern ANCHOR_VALUE_PATTERN = Pattern.compile(
+            "\"((?:\\\\.|[^\"\\\\])*)\"",
+            Pattern.DOTALL
+    );
 
     private final ObjectMapper objectMapper;
 
@@ -67,29 +71,42 @@ public class LlmJsonResponseParser {
     }
 
     private String repairSceneArrayItems(String json, Class<?> targetType) {
-        if (targetType != SceneSplitResponseWrapper.class
-                || !json.contains("\"scenes\"")) {
+        if (targetType != SceneSplitResponseWrapper.class) {
             return json;
         }
 
         Matcher matcher = SCENE_ITEM_PATTERN.matcher(json);
-        StringBuilder scenes = new StringBuilder();
+        StringBuilder anchors = new StringBuilder();
         int count = 0;
         while (matcher.find()) {
             if (count > 0) {
-                scenes.append(',');
+                anchors.append(',');
             }
-            scenes.append("{\"sequence\":")
-                    .append(matcher.group(1))
-                    .append(",\"anchor\":")
-                    .append(toJsonString(matcher.group(2)))
-                    .append('}');
+            anchors.append(toJsonString(matcher.group(2)));
             count++;
         }
-        if (count == 0) {
+        if (count > 0) {
+            return "{\"anchors\":[" + anchors + "]}";
+        }
+
+        if (!json.contains("\"anchors\"")) {
             return json;
         }
-        return "{\"scenes\":[" + scenes + "]}";
+        int arrayStart = json.indexOf('[');
+        int arrayEnd = json.lastIndexOf(']');
+        if (arrayStart < 0 || arrayEnd <= arrayStart) {
+            return json;
+        }
+
+        matcher = ANCHOR_VALUE_PATTERN.matcher(json.substring(arrayStart + 1, arrayEnd));
+        while (matcher.find()) {
+            if (count > 0) {
+                anchors.append(',');
+            }
+            anchors.append(toJsonString(matcher.group(1)));
+            count++;
+        }
+        return count == 0 ? json : "{\"anchors\":[" + anchors + "]}";
     }
 
     private String toJsonString(String value) {

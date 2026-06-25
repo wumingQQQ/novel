@@ -7,7 +7,6 @@ import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.enums.JobStage;
-import com.wuming.novel.domain.llmresponse.SceneSplitResponse;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
 import com.wuming.novel.llm.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.SceneSplitResponseChecker;
@@ -182,34 +181,34 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             SceneSplitResponseWrapper responseWrapper
     ) {
         // 检验llm返回结果
-        List<SceneSplitResponse> responses = sceneSplitResponseChecker.check(
+        List<String> anchors = sceneSplitResponseChecker.check(
                 chapter,
                 content,
                 responseWrapper
         );
         List<Scene> scenes = new ArrayList<>();
-
-        for (int i = 0; i < responses.size(); i++) {
-            SceneSplitResponse current = responses.get(i);
-            TextMatch startMatch = textAnchorMatcher.find(content, current.anchor())
+        List<Integer> startIndexes = new ArrayList<>();
+        startIndexes.add(0);
+        for (String anchor : anchors) {
+            TextMatch match = textAnchorMatcher.find(content, anchor)
                     .orElseThrow(() -> new IllegalStateException(
-                            "场景锚点未匹配，anchor: " + current.anchor()
+                            "场景锚点未匹配，anchor: " + anchor
                     ));
+            startIndexes.add(match.startIndex());
+        }
+
+        for (int i = 0; i < startIndexes.size(); i++) {
+            int startIndex = startIndexes.get(i);
             int endIndex = content.length();
-            if (i < responses.size() - 1) {
-                SceneSplitResponse next = responses.get(i + 1);
-                endIndex = textAnchorMatcher.find(content, next.anchor())
-                        .orElseThrow(() -> new IllegalStateException(
-                                "场景锚点未匹配，anchor: " + next.anchor()
-                        ))
-                        .startIndex();
+            if (i < startIndexes.size() - 1) {
+                endIndex = startIndexes.get(i + 1);
             }
 
             Scene scene = new Scene();
             scene.setNovelId(chapter.getNovelId());
             scene.setChapterId(chapter.getId());
             scene.setSequence(i + 1);
-            scene.setContent(content.substring(startMatch.startIndex(), endIndex));
+            scene.setContent(content.substring(startIndex, endIndex));
             scenes.add(scene);
         }
         return scenes;
