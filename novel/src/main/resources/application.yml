@@ -35,6 +35,7 @@ llm:
     layer-split: 0.3
     evidence-extract: 0.3
     aggregation: 0.4
+    profile-detail-enhance: 0.4
   providers:
     deepseek:
       base-url: https://api.deepseek.com
@@ -72,5 +73,8 @@ novel:
   recall:
     threshold: 0.6
     topK: 40
+  profile-enhance:
+    threshold: 0.7
+    top-k-per-pool: 2
   analysis:
     batch-size: 10
