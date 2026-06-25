@@ -75,6 +75,13 @@ novel:
     topK: 40
   profile-enhance:
     threshold: 0.7
-    top-k-per-pool: 2
+    default-top-k: 10
+    top-k:
+      SETTING: 10
+      PERSONALITY: 15
+      SPEECH: 20
+      INTERACTION: 20
+      KEY_EVENT: 15
+    batch-size: 5
   analysis:
     batch-size: 10
