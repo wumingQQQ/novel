@@ -13,4 +13,10 @@ public interface RecallMapper {
                                            @Param("startSeq") int startSeq,
                                            @Param("endSeq") int endSeq,
                                            @Param("limit") int limit);
+
+    List<Scene> recallTopScenesByPool(@Param("novelId") Long novelId,
+                                      @Param("jobId") Long jobId,
+                                      @Param("poolType") String poolType,
+                                      @Param("threshold") double threshold,
+                                      @Param("limit") int limit);
 }

@@ -35,22 +35,6 @@ public class RecallService {
     @Value("${novel.recall.topK}")
     private int topK;
 
-    // 全局召回
-    public List<Scene> recallScenes(Long novelId, PoolType poolType) {
-        List<Long> sceneIds = scenePoolService.lambdaQuery()
-                .eq(ScenePool::getNovelId, novelId)
-                .eq(ScenePool::getPoolType, poolType)
-                .ge(ScenePool::getConfidence, threshold)
-                .orderByDesc(ScenePool::getConfidence)
-                .last("limit " + topK)
-                .select(ScenePool::getSceneId)
-                .list()
-                .stream()
-                .map(ScenePool::getSceneId)
-                .toList();
-        return sceneService.listByIds(sceneIds);
-    }
-
     // 按层召回
     public List<Scene> recallScenes(Long novelId, Long jobId, PoolType poolType, int startChapterSeq, int endChapterSeq) {
         return recallMapper.recallScenesByLayerAndPool(
@@ -61,6 +45,16 @@ public class RecallService {
                 startChapterSeq,
                 endChapterSeq,
                 topK
+        );
+    }
+
+    public List<Scene> recallTopScenes(Long novelId, Long jobId, PoolType poolType, double threshold, int limit) {
+        return recallMapper.recallTopScenesByPool(
+                novelId,
+                jobId,
+                poolType.getCode(),
+                threshold,
+                limit
         );
     }
 }

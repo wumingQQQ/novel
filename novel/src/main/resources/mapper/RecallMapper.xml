@@ -17,4 +17,16 @@
         LIMIT #{limit}
     </select>
 
+    <select id="recallTopScenesByPool" resultType="Scene">
+        SELECT s.*
+        FROM scenes s
+                 INNER JOIN scene_pool sp ON s.id = sp.scene_id
+        WHERE s.novel_id = #{novelId}
+          AND sp.job_id = #{jobId}
+          AND sp.pool_type = #{poolType}
+          AND sp.confidence >= #{threshold}
+        ORDER BY sp.confidence DESC
+        LIMIT #{limit}
+    </select>
+
 </mapper>
