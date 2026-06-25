@@ -5,12 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.config.llm.LlmClientFactory;
-import com.wuming.novel.domain.dto.CharacterProfileDto;
 import com.wuming.novel.domain.dto.FullPortraitDto;
-import com.wuming.novel.domain.dto.InteractionProfileDto;
-import com.wuming.novel.domain.entity.CharacterProfile;
 import com.wuming.novel.domain.entity.Evidence;
-import com.wuming.novel.domain.entity.InteractionProfile;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Layer;
 import com.wuming.novel.domain.enums.JobStage;
@@ -18,17 +14,12 @@ import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.AggregationResponse;
 import com.wuming.novel.llm.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.AggregationResponseChecker;
-import com.wuming.novel.service.ICharacterProfileService;
 import com.wuming.novel.service.IEvidenceService;
-import com.wuming.novel.service.IInteractionProfileService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -38,24 +29,29 @@ public class AggregationService {
     private final IEvidenceService evidenceService;
     private final ILayerService layerService;
     private final IJobService jobService;
-    private final ICharacterProfileService characterProfileService;
-    private final IInteractionProfileService interactionProfileService;
+    private final FullPortraitPersistenceService fullPortraitPersistenceService;
     private final PromptConfig promptConfig;
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
     private final AggregationResponseChecker aggregationResponseChecker;
     private final LlmJsonResponseParser llmJsonResponseParser;
-    @Lazy
-    @Autowired
-    private AggregationService self;
 
 
-    public AggregationService(IEvidenceService evidenceService, ILayerService layerService, IJobService jobService, ICharacterProfileService characterProfileService, IInteractionProfileService interactionProfileService, PromptConfig promptConfig, LlmClientFactory clientFactory, ObjectMapper objectMapper, AggregationResponseChecker aggregationResponseChecker, LlmJsonResponseParser llmJsonResponseParser) {
+    public AggregationService(
+            IEvidenceService evidenceService,
+            ILayerService layerService,
+            IJobService jobService,
+            FullPortraitPersistenceService fullPortraitPersistenceService,
+            PromptConfig promptConfig,
+            LlmClientFactory clientFactory,
+            ObjectMapper objectMapper,
+            AggregationResponseChecker aggregationResponseChecker,
+            LlmJsonResponseParser llmJsonResponseParser
+    ) {
         this.evidenceService = evidenceService;
         this.layerService = layerService;
         this.jobService = jobService;
-        this.characterProfileService = characterProfileService;
-        this.interactionProfileService = interactionProfileService;
+        this.fullPortraitPersistenceService = fullPortraitPersistenceService;
         this.promptConfig = promptConfig;
         this.chatClient = clientFactory.taskClient(LlmClientFactory.TASK_AGGREGATION);
         this.objectMapper = objectMapper;
@@ -76,9 +72,6 @@ public class AggregationService {
         String targetName = job.getTargetName();
 
         try {
-            // 清除旧画像
-            deleteExistingPortrait(jobId);
-
             List<Layer> layers = layerService.lambdaQuery().eq(Layer::getNovelId, novelId).orderByAsc(Layer::getLayerIndex).list();
             FullPortraitDto fullPortrait = new FullPortraitDto();
             fullPortrait.getCharacterProfile().getBasicSetting().setCharacterName(targetName);
@@ -107,32 +100,11 @@ public class AggregationService {
                     }
                 }
             }
-            self.saveProfile(fullPortrait, jobId);
+            fullPortraitPersistenceService.replace(jobId, fullPortrait);
         } catch (Exception e) {
             log.error("job:{}：画像聚合失败",  jobId, e);
             throw new RuntimeException("画像聚合失败", e);
         }
-    }
-
-    private void deleteExistingPortrait(Long jobId) {
-        characterProfileService.lambdaUpdate().
-                eq(CharacterProfile::getJobId, jobId)
-                .remove();
-        interactionProfileService.lambdaUpdate()
-                .eq(InteractionProfile::getJobId, jobId)
-                .remove();
-    }
-
-    @Transactional
-    public void saveProfile(FullPortraitDto fullPortrait, Long jobId) {
-        CharacterProfile characterProfile = toCharacterProfileEntity(fullPortrait.getCharacterProfile());
-        characterProfile.setJobId(jobId);
-        InteractionProfile interactionProfile = toInteractionProfileEntity(fullPortrait.getInteractionProfile());
-        interactionProfile.setJobId(jobId);
-        characterProfileService.save(characterProfile);
-        interactionProfile.setCharacterId(characterProfile.getId());
-        interactionProfileService.save(interactionProfile);
-        log.debug("job: {} 画像保存完成，characterProfileId: {}, interactionProfileId: {}", jobId, characterProfile.getId(), interactionProfile.getId());
     }
 
 
@@ -176,53 +148,6 @@ public class AggregationService {
             sb.append("\n");
         }
         return sb.toString();
-    }
-
-    private CharacterProfile toCharacterProfileEntity(CharacterProfileDto dto) {
-        CharacterProfile entity = new CharacterProfile();
-        if (dto == null) {
-            return entity;
-        }
-
-        CharacterProfile.BasicSetting basicSetting = new CharacterProfile.BasicSetting();
-        if (dto.getBasicSetting() != null) {
-            basicSetting.setCharacterName(dto.getBasicSetting().getCharacterName());
-            basicSetting.setAge(dto.getBasicSetting().getAge());
-            basicSetting.setIdentity(dto.getBasicSetting().getIdentity());
-            basicSetting.setPresume(dto.getBasicSetting().getPresume());
-        }
-        entity.setBasicSetting(basicSetting);
-        if (dto.getCoreTraits() != null) {
-            entity.setCoreTraits(dto.getCoreTraits());
-        }
-        entity.setValueSystem(dto.getValueSystem());
-        entity.setBehaviorPatterns(dto.getBehaviorPatterns());
-        entity.setEmotionalPatterns(dto.getEmotionalPatterns());
-        entity.setRelationshipAttitude(dto.getRelationshipAttitude());
-        entity.setWeaknesses(dto.getWeaknesses());
-
-        CharacterProfile.SpeechStyle speechStyle = new CharacterProfile.SpeechStyle();
-        if (dto.getSpeechStyle() != null) {
-            speechStyle.setTone(dto.getSpeechStyle().getTone());
-            speechStyle.setWordsHabit(dto.getSpeechStyle().getWordsHabit());
-            speechStyle.setRepresentativeLines(dto.getSpeechStyle().getRepresentativeLines());
-        }
-        entity.setSpeechStyle(speechStyle);
-
-        return entity;
-    }
-
-    private InteractionProfile toInteractionProfileEntity(InteractionProfileDto dto) {
-        InteractionProfile entity = new InteractionProfile();
-        if (dto == null) {
-            return entity;
-        }
-
-        entity.setProtagonistName(dto.getProtagonistName());
-        entity.setTone(dto.getTone());
-        entity.setKeyEvents(dto.getKeyEvents());
-        entity.setConversationSamples(dto.getConversationSamples());
-        return entity;
     }
 
 }
