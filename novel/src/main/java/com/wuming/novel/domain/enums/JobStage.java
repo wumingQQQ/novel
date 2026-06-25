@@ -13,7 +13,8 @@ public enum JobStage {
     POOL_CLASSIFY(4, "场景分池"),
     EVIDENCE_EXTRACT(5, "证据提取"),
     PROFILE_AGGREGATION(6, "聚合画像"),
-    COMPLETE(7, "完成");
+    PROFILE_DETAIL_ENHANCE(7, "画像细节增强"),
+    COMPLETE(8, "完成");
 
 
 
