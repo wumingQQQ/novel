@@ -15,3 +15,10 @@ novel:
 
 llm:
   default-provider: deepseek
+  temperature: 0.0
+  task-temperature:
+    scene-split: 0.4
+    scene-pool: 0.0
+    layer-split: 0.5
+    evidence-extract: 0.7
+    aggregation: 0.8
