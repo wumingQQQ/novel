@@ -375,8 +375,76 @@ public class PromptConfig {
             5. JSON 必须完整闭合，所有 {{、}}、[、]、双引号和逗号都必须合法匹配
             """;
 
+    private static final String PROFILE_DETAIL_ENHANCE_PROMPT = """
+            你是一个角色画像细节增强专家。请基于已有画像和补充场景，生成增强后的最终画像。
+
+            【主角】
+            {protagonistName}
+
+            【目标角色】
+            {targetName}
+
+            【当前画像】
+            {currentProfile}
+
+            【补充高分场景】
+            {scenes}
+
+            【增强规则】
+            1. 这是画像细节增强，不是重新创建画像；必须保留当前画像中的核心结论。
+            2. 只根据补充场景补充更具体的语言风格、代表性台词、行为习惯、情绪反应和互动样例。
+            3. 如果补充场景没有提供新信息，保持当前画像对应字段不变。
+            4. 不得仅凭单个场景推翻当前画像中的稳定结论。
+            5. 不得编造补充场景之外的信息。
+
+            【输出格式】严格按以下 JSON 返回完整画像，不得省略任何字段：
+            {{
+              "characterProfile": {{
+                "basicSetting": {{
+                  "characterName": "角色名",
+                  "age": 0,
+                  "identity": "身份描述",
+                  "presume": "特殊设定"
+                }},
+                "coreTraits": ["核心标签1", "核心标签2"],
+                "valueSystem": "价值观与判断标准",
+                "behaviorPatterns": "行为模式",
+                "emotionalPatterns": "情绪模式",
+                "relationshipAttitude": "关系态度",
+                "weaknesses": "弱点与矛盾点",
+                "speechStyle": {{
+                  "tone": "语气基调",
+                  "wordsHabit": "口癖",
+                  "representativeLines": ["台词1", "台词2"]
+                }}
+              }},
+              "interactionProfile": {{
+                "protagonistName": "主角名",
+                "tone": "互动基调",
+                "keyEvents": ["事件1", "事件2"],
+                "conversationSamples": ["对话1", "对话2"]
+              }}
+            }}
+
+            【结果确认要求】
+            1. 输出画像必须是在【当前画像】基础上增强，不能整体重写为另一个版本。
+            2. 新增细节必须能在【补充高分场景】中找到支撑。
+            3. 代表性台词和互动样例优先使用补充场景中的原文表达。
+
+            【输出格式校验规则】
+            1. 最外层必须是 JSON 对象，包含 characterProfile 和 interactionProfile。
+            2. 输出结构必须与上方 JSON 结构一致，不得省略嵌套对象或数组字段。
+            3. coreTraits、representativeLines、keyEvents、conversationSamples 必须是字符串数组。
+            4. age 必须是数字；无法确认年龄时使用 0。
+            5. JSON 必须完整闭合，所有 {{、}}、[、]、双引号和逗号都必须合法匹配。
+            """;
+
     public String getAggregationPrompt() {
         return AGGREGATION_PROMPT;
+    }
+
+    public String getProfileDetailEnhancePrompt() {
+        return PROFILE_DETAIL_ENHANCE_PROMPT;
     }
 
 
