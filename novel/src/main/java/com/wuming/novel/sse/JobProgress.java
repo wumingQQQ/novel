@@ -27,7 +27,8 @@ public class JobProgress {
                 StageProgress.counted(JobStage.SCENE_SPLIT, "场景切分"),
                 StageProgress.counted(JobStage.POOL_CLASSIFY, "池化分类"),
                 StageProgress.counted(JobStage.EVIDENCE_EXTRACT, "证据提取"),
-                StageProgress.simple(JobStage.PROFILE_AGGREGATION, "画像聚合")
+                StageProgress.simple(JobStage.PROFILE_AGGREGATION, "画像聚合"),
+                StageProgress.simple(JobStage.PROFILE_DETAIL_ENHANCE, "画像细节增强")
         );
 
         return JobProgress.builder()
@@ -105,4 +106,3 @@ public class JobProgress {
         updateTime = Instant.now();
     }
 }
-

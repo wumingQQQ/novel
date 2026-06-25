@@ -15,6 +15,7 @@ public class LlmClientFactory {
     public static final String TASK_LAYER_SPLIT = "layer-split";
     public static final String TASK_EVIDENCE_EXTRACT = "evidence-extract";
     public static final String TASK_AGGREGATION = "aggregation";
+    public static final String TASK_PROFILE_DETAIL_ENHANCE = "profile-detail-enhance";
 
     private final LlmConfig llmConfig;
     private final Map<String, ChatClient> cache = new ConcurrentHashMap<>();
