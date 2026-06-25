@@ -2,15 +2,23 @@ package com.wuming.novel.llm;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class LlmJsonResponseParser {
     private static final int RAW_LOG_LIMIT = 1200;
+    private static final Pattern SCENE_ITEM_PATTERN = Pattern.compile(
+            "\"sequence\"\\s*:\\s*(\\d+)\\s*,?\\s*\"anchor\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"",
+            Pattern.DOTALL
+    );
 
     private final ObjectMapper objectMapper;
 
@@ -24,12 +32,25 @@ public class LlmJsonResponseParser {
                 T result = objectMapper.readValue(repairedJson, targetType);
                 log.warn(
                         "LLM JSON解析失败后追加右括号修复成功，targetType={}",
-                        targetType.getSimpleName(),
-                        firstException
+                        targetType.getSimpleName()
                 );
                 return result;
             } catch (JsonProcessingException ignored) {
-                // 暂时只处理末尾缺少一个 } 的情况，其他错误保留原始异常，后续按真实样例补充。
+                // 继续尝试下面已知的场景数组结构修复。
+            }
+
+            String repairedSceneJson = repairSceneArrayItems(json, targetType);
+            if (!repairedSceneJson.equals(json)) {
+                try {
+                    T result = objectMapper.readValue(repairedSceneJson, targetType);
+                    log.warn(
+                            "LLM JSON解析失败后场景数组结构修复成功，targetType={}",
+                            targetType.getSimpleName()
+                    );
+                    return result;
+                } catch (JsonProcessingException ignored) {
+                    // 只修复已知的 scenes 数组对象缺失问题，失败后保留原始异常。
+                }
             }
 
             log.warn(
@@ -42,6 +63,45 @@ public class LlmJsonResponseParser {
                     "LLM JSON解析失败，targetType=" + targetType.getSimpleName(),
                     firstException
             );
+        }
+    }
+
+    private String repairSceneArrayItems(String json, Class<?> targetType) {
+        if (targetType != SceneSplitResponseWrapper.class
+                || !json.contains("\"scenes\"")) {
+            return json;
+        }
+
+        Matcher matcher = SCENE_ITEM_PATTERN.matcher(json);
+        StringBuilder scenes = new StringBuilder();
+        int count = 0;
+        while (matcher.find()) {
+            if (count > 0) {
+                scenes.append(',');
+            }
+            scenes.append("{\"sequence\":")
+                    .append(matcher.group(1))
+                    .append(",\"anchor\":")
+                    .append(toJsonString(matcher.group(2)))
+                    .append('}');
+            count++;
+        }
+        if (count == 0) {
+            return json;
+        }
+        return "{\"scenes\":[" + scenes + "]}";
+    }
+
+    private String toJsonString(String value) {
+        try {
+            String unescaped = objectMapper.readValue("\"" + value + "\"", String.class);
+            return objectMapper.writeValueAsString(unescaped);
+        } catch (JsonProcessingException e) {
+            try {
+                return objectMapper.writeValueAsString(value);
+            } catch (JsonProcessingException ignored) {
+                return "\"\"";
+            }
         }
     }
 
