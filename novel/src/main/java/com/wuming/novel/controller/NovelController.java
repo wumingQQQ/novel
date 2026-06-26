@@ -2,7 +2,8 @@ package com.wuming.novel.controller;
 
 import com.wuming.novel.domain.dto.ApiResonse;
 import com.wuming.novel.domain.dto.CreateJobRequest;
-import com.wuming.novel.pipeline.PipelineService;
+import com.wuming.novel.pipeline.run.JobSubmitStatus;
+import com.wuming.novel.pipeline.run.PipelineJobRunner;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
 import com.wuming.novel.sse.JobProgress;
@@ -26,13 +27,18 @@ public class NovelController {
 
     private final INovelService novelService;
     private final IJobService jobService;
-    private final PipelineService pipelineService;
+    private final PipelineJobRunner pipelineJobRunner;
     private final JobProgressService jobProgressService;
 
-    public NovelController(INovelService novelService, IJobService jobService, PipelineService pipelineService, JobProgressService jobProgressService) {
+    public NovelController(
+            INovelService novelService,
+            IJobService jobService,
+            PipelineJobRunner pipelineJobRunner,
+            JobProgressService jobProgressService
+    ) {
         this.novelService = novelService;
         this.jobService = jobService;
-        this.pipelineService = pipelineService;
+        this.pipelineJobRunner = pipelineJobRunner;
         this.jobProgressService = jobProgressService;
     }
 
@@ -48,25 +54,35 @@ public class NovelController {
         return ApiResonse.success(jobId);
     }
 
+    /**
+     * 异步提交小说处理流程；如果同一 job 正在运行，则直接返回 running。
+     */
     @PostMapping("/process/{jobId}")
     public ApiResonse<String> processJob(@PathVariable("jobId") Long jobId) {
-        boolean success = pipelineService.handleNovel(jobId);
-        String message = success ? "success" : "fail";
-        return ApiResonse.success(message);
+        JobSubmitStatus status = pipelineJobRunner.submit(jobId);
+        return ApiResonse.success(status.responseValue());
     }
 
+    /**
+     * 仅在任务失败时异步重启流程；任务运行中则直接返回 running。
+     */
     @PostMapping("/redo/{jobId}")
     public ApiResonse<String> redoJob(@PathVariable("jobId") Long jobId) {
-        boolean success = pipelineService.handleNovel(jobId);
-        String message = success ? "success" : "fail";
-        return ApiResonse.success(message);
+        JobSubmitStatus status = pipelineJobRunner.redo(jobId);
+        return ApiResonse.success(status.responseValue());
     }
 
+    /**
+     * 查询当前任务进度；本地没有进度时会尝试从 Redis 恢复。
+     */
     @GetMapping("/progress/{jobId}")
     public ApiResonse<JobProgress> getProgress(@PathVariable("jobId") Long jobId) {
         return ApiResonse.success(jobProgressService.getOrInitProgress(jobId));
     }
 
+    /**
+     * 建立 SSE 订阅，并立即推送一次当前任务进度。
+     */
     @GetMapping(value = "/progress/{jobId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribeProgress(@PathVariable("jobId") Long jobId) {
         return jobProgressService.subscribe(jobId);
