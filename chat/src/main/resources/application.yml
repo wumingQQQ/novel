@@ -12,6 +12,12 @@ spring:
     openai:
       api-key: ${DS_API_KEY:}
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PWD:}
+
 llm:
   default-provider: deepseek
   temperature: 0.6
@@ -42,3 +48,4 @@ mybatis-plus:
 
 chat:
   history-limit: 20
+  message-cache-ttl: 3d
