@@ -1,0 +1,41 @@
+package com.wuming.chat.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.wuming.chat.domain.entity.CharacterProfile;
+import com.wuming.chat.domain.entity.InteractionProfile;
+import com.wuming.chat.domain.entity.Job;
+import com.wuming.chat.domain.model.RoleProfileContext;
+import com.wuming.chat.mapper.CharacterProfileMapper;
+import com.wuming.chat.mapper.InteractionProfileMapper;
+import com.wuming.chat.mapper.JobMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class ProfileContextService {
+    private final JobMapper jobMapper;
+    private final CharacterProfileMapper characterProfileMapper;
+    private final InteractionProfileMapper interactionProfileMapper;
+
+    public RoleProfileContext getProfileContext(Long jobId) {
+        Job job = jobMapper.selectById(jobId);
+        if (job == null) {
+            throw new IllegalArgumentException("任务不存在: " + jobId);
+        }
+
+        CharacterProfile characterProfile = characterProfileMapper.selectOne(
+                new LambdaQueryWrapper<CharacterProfile>()
+                        .eq(CharacterProfile::getJobId, jobId)
+        );
+        InteractionProfile interactionProfile = interactionProfileMapper.selectOne(
+                new LambdaQueryWrapper<InteractionProfile>()
+                        .eq(InteractionProfile::getJobId, jobId)
+        );
+        if (characterProfile == null || interactionProfile == null) {
+            throw new IllegalStateException("任务画像尚未生成完整，无法创建聊天会话");
+        }
+
+        return new RoleProfileContext(job, characterProfile, interactionProfile);
+    }
+}
