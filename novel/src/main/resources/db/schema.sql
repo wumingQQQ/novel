@@ -101,7 +101,7 @@ create table if not exists interaction_profiles(
     job_id bigint not null comment '任务主键',
     character_id bigint not null comment '角色画像主键',
     protagonist_name varchar(50) comment '主角名称',
-    tone varchar(100) comment '互动基调',
+    tone text comment '互动基调',
     key_events json comment '关键事件',
     conversation_samples json comment '对话示例',
     create_time datetime default current_timestamp comment '创建时间',
