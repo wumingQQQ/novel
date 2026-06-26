@@ -19,10 +19,19 @@ public class JobProgressService {
     private final Map<Long, JobProgress> jobProgressMap = new ConcurrentHashMap<>();
     // 订阅关系, 暂时只做单对单
     private final Map<Long, SseEmitter> subscribers = new ConcurrentHashMap<>();
+    private final JobProgressStore jobProgressStore;
 
+    public JobProgressService(JobProgressStore jobProgressStore) {
+        this.jobProgressStore = jobProgressStore;
+    }
+
+    /**
+     * 初始化任务进度，并立即写入本地缓存、Redis 和当前 SSE 订阅。
+     */
     public void initJob(Long jobId) {
         JobProgress progress = JobProgress.initJob(jobId);
         jobProgressMap.put(jobId, progress);
+        jobProgressStore.save(progress);
         pushUpdate(jobId, progress);
     }
 
@@ -30,8 +39,11 @@ public class JobProgressService {
         updateAndPush(jobId, JobProgress::startJob);
     }
 
+    /**
+     * 设置计数阶段的子任务总数，并重置该阶段的成功和失败计数。
+     */
     public void setStageTotalItems(Long jobId, JobStage stage, int totalItems) {
-        updateAndPush(jobId, progress -> progress.getStage(stage).setTotalItems(totalItems));
+        updateAndPush(jobId, progress -> progress.getStage(stage).resetTotalItems(totalItems));
     }
 
     public void startStage(Long jobId, JobStage stage, String message) {
@@ -46,6 +58,9 @@ public class JobProgressService {
         updateAndPush(jobId, progress -> progress.failStage(stage, message));
     }
 
+    /**
+     * 记录计数阶段的子任务成功，并在全部子任务结束时自动完成阶段。
+     */
     public void recordItemSuccess(Long jobId, JobStage stage) {
         updateAndPush(jobId, progress -> {
             StageProgress stageProgress = progress.getStage(stage);
@@ -55,6 +70,9 @@ public class JobProgressService {
         });
     }
 
+    /**
+     * 记录计数阶段的子任务失败，并在全部子任务结束时自动结束阶段。
+     */
     public void recordItemFailure(Long jobId, JobStage stage) {
         updateAndPush(jobId, progress -> {
             StageProgress stageProgress = progress.getStage(stage);
@@ -64,7 +82,9 @@ public class JobProgressService {
         });
     }
 
-    // 带计数阶段的完成
+    /**
+     * 显式结束计数阶段；存在失败子任务时阶段失败，否则阶段成功。
+     */
     public void finishCountedStage(Long jobId, JobStage stage, String successMessage, String failedMessage) {
         updateAndPush(jobId, progress -> {
             StageProgress stageProgress = progress.getStage(stage);
@@ -88,18 +108,45 @@ public class JobProgressService {
         closeSubscriber(jobId);
     }
 
+    /**
+     * 优先读取本地缓存；本地没有时从 Redis 恢复，避免进程重启后丢失进度。
+     */
     public JobProgress getProgress(Long jobId) {
-        return jobProgressMap.get(jobId);
+        JobProgress progress = jobProgressMap.get(jobId);
+        if (progress != null) {
+            return progress;
+        }
+
+        progress = jobProgressStore.get(jobId);
+        if (progress != null) {
+            jobProgressMap.put(jobId, progress);
+            return progress;
+        }
+        return null;
     }
 
+    /**
+     * 获取已有进度；如果本地和 Redis 都没有，则创建一份初始进度。
+     */
     public JobProgress getOrInitProgress(Long jobId) {
-        return jobProgressMap.computeIfAbsent(jobId, JobProgress::initJob);
+        JobProgress progress = getProgress(jobId);
+        if (progress != null) {
+            return progress;
+        }
+        progress = JobProgress.initJob(jobId);
+        jobProgressMap.put(jobId, progress);
+        jobProgressStore.save(progress);
+        return progress;
     }
 
+    /**
+     * 清理任务进度、SSE 订阅和 Redis 持久化数据。
+     */
     public void clear(Long jobId) {
         closeSubscriber(jobId);
         subscribers.remove(jobId);
         jobProgressMap.remove(jobId);
+        jobProgressStore.delete(jobId);
     }
 
     public void heartbeat(Long jobId) {
@@ -109,6 +156,9 @@ public class JobProgressService {
         }
     }
 
+    /**
+     * 建立单 job 的 SSE 订阅；新订阅会替换旧订阅。
+     */
     public SseEmitter subscribe(Long jobId){
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MILLIS);
         replaceSubscriber(jobId, emitter);
@@ -119,6 +169,9 @@ public class JobProgressService {
         return emitter;
     }
 
+    /**
+     * 计数阶段全部子任务结束后，根据失败数决定阶段成功或失败。
+     */
     private void completeCountedStageIfReady(StageProgress stage) {
         if(!stage.isAllItemsFinished()){
             return;
@@ -136,6 +189,9 @@ public class JobProgressService {
         }
     }
 
+    /**
+     * 对本地进度执行变更，并同步保存 Redis 与推送 SSE。
+     */
     private void updateAndPush(Long jobId, Consumer<JobProgress> updater) {
         JobProgress progress = jobProgressMap.get(jobId);
         if(progress == null){
@@ -143,9 +199,13 @@ public class JobProgressService {
             return;
         }
         updater.accept(progress);
+        jobProgressStore.save(progress);
         pushUpdate(jobId, progress);
     }
 
+    /**
+     * 如果当前 job 存在 SSE 订阅，则推送最新进度。
+     */
     private void pushUpdate(Long jobId, JobProgress progress){
         SseEmitter emitter = subscribers.get(jobId);
         if(emitter != null){
@@ -153,6 +213,9 @@ public class JobProgressService {
         }
     }
 
+    /**
+     * 替换当前 job 的 SSE 订阅，并注册连接关闭后的清理逻辑。
+     */
     private void replaceSubscriber(Long jobId, SseEmitter emitter) {
         SseEmitter oldEmitter = subscribers.put(jobId, emitter);
         if(oldEmitter != null){
@@ -166,6 +229,9 @@ public class JobProgressService {
         });
     }
 
+    /**
+     * 向 SSE 客户端发送一次 progress 事件；发送失败时移除订阅。
+     */
     private void send(Long jobId, SseEmitter emitter, JobProgress progress) {
         try{
             emitter.send(SseEmitter.event().name("progress").data(progress));
@@ -175,6 +241,9 @@ public class JobProgressService {
         }
     }
 
+    /**
+     * 任务结束时关闭 SSE 连接，并移除订阅关系。
+     */
     private void closeSubscriber(Long jobId){
         SseEmitter emitter = subscribers.get(jobId);
         if(emitter != null){
