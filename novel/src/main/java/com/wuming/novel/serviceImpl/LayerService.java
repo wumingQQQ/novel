@@ -11,7 +11,7 @@ import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.LayerSplitResponse;
 import com.wuming.novel.domain.llmresponse.LayerSplitResponseWrapper;
-import com.wuming.novel.llm.LlmJsonResponseParser;
+import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.LayerSplitResponseChecker;
 import com.wuming.novel.mapper.LayerMapper;
 import com.wuming.novel.service.IChapterService;

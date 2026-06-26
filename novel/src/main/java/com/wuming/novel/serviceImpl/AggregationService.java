@@ -12,7 +12,7 @@ import com.wuming.novel.domain.entity.Layer;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.AggregationResponse;
-import com.wuming.novel.llm.LlmJsonResponseParser;
+import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.AggregationResponseChecker;
 import com.wuming.novel.service.IEvidenceService;
 import com.wuming.novel.service.IJobService;

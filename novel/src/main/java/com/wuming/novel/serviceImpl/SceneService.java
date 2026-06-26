@@ -8,7 +8,7 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
-import com.wuming.novel.llm.LlmJsonResponseParser;
+import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.SceneSplitResponseChecker;
 import com.wuming.novel.mapper.SceneMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;

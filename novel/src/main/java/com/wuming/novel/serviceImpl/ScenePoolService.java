@@ -10,7 +10,7 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponse;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponseWrapper;
-import com.wuming.novel.llm.LlmJsonResponseParser;
+import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.ScenePoolResponseChecker;
 import com.wuming.novel.mapper.ScenePoolMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;

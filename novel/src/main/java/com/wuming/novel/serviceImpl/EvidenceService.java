@@ -12,7 +12,7 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.PoolType;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponse;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponseWrapper;
-import com.wuming.novel.llm.LlmJsonResponseParser;
+import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.EvidenceExtractResponseChecker;
 import com.wuming.novel.mapper.EvidenceMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
