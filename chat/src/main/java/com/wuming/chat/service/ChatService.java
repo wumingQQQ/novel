@@ -5,11 +5,11 @@ import com.wuming.chat.config.llm.LlmClientFactory;
 import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.entity.ChatMessage;
 import com.wuming.chat.domain.entity.ChatSession;
+import com.wuming.chat.domain.model.ChatHistoryMessage;
 import com.wuming.chat.domain.model.RoleProfileContext;
 import com.wuming.chat.mapper.ChatMessageMapper;
 import com.wuming.chat.mapper.ChatSessionMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +26,7 @@ public class ChatService {
 
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
+    private final ChatMessageCacheService chatMessageCacheService;
     private final ProfileContextService profileContextService;
     private final RoleChatPromptBuilder promptBuilder;
     private final LlmClientFactory llmClientFactory;
@@ -78,6 +79,7 @@ public class ChatService {
         message.setRole(role);
         message.setContent(content);
         chatMessageMapper.insert(message);
+        chatMessageCacheService.append(message);
         return message;
     }
 
@@ -118,9 +120,14 @@ public class ChatService {
     }
 
     /**
-     * 读取最近若干条消息，并恢复为正序，作为本轮 LLM 上下文。
+     * 优先从 Redis 读取最近消息，缓存未命中时回源数据库并重建缓存。
      */
-    private List<ChatMessage> recentMessages(Long sessionId) {
+    private List<ChatHistoryMessage> recentMessages(Long sessionId) {
+        List<ChatHistoryMessage> cachedMessages = chatMessageCacheService.recentMessages(sessionId);
+        if (!cachedMessages.isEmpty()) {
+            return cachedMessages;
+        }
+
         List<ChatMessage> messages = chatMessageMapper.selectList(
                 new LambdaQueryWrapper<ChatMessage>()
                         .eq(ChatMessage::getSessionId, sessionId)
@@ -128,13 +135,16 @@ public class ChatService {
                         .last("limit " + Math.max(1, historyLimit))
         );
         Collections.reverse(messages);
-        return messages;
+        chatMessageCacheService.refresh(sessionId, messages);
+        return messages.stream()
+                .map(message -> new ChatHistoryMessage(message.getRole(), message.getContent()))
+                .toList();
     }
 
     /**
      * 使用角色系统提示词和最近对话文本请求 LLM 生成角色回复。
      */
-    private String requestAssistantReply(String systemPrompt, List<ChatMessage> messages) {
+    private String requestAssistantReply(String systemPrompt, List<ChatHistoryMessage> messages) {
         return llmClientFactory
                 .taskClient(LlmClientFactory.TASK_ROLE_CHAT)
                 .prompt()
@@ -147,14 +157,14 @@ public class ChatService {
     /**
      * 将历史消息折叠成普通文本，兼容当前 ChatClient API。
      */
-    private String formatConversation(List<ChatMessage> messages) {
+    private String formatConversation(List<ChatHistoryMessage> messages) {
         StringBuilder builder = new StringBuilder();
         builder.append("【最近对话】\n");
-        for (ChatMessage message : messages) {
-            if (ROLE_USER.equals(message.getRole())) {
-                builder.append("用户：").append(message.getContent()).append('\n');
-            } else if (ROLE_ASSISTANT.equals(message.getRole())) {
-                builder.append("你：").append(message.getContent()).append('\n');
+        for (ChatHistoryMessage message : messages) {
+            if (ROLE_USER.equals(message.role())) {
+                builder.append("用户：").append(message.content()).append('\n');
+            } else if (ROLE_ASSISTANT.equals(message.role())) {
+                builder.append("你：").append(message.content()).append('\n');
             }
         }
         builder.append("\n请继续回复最后一条用户消息，只输出角色本人的回复。");
