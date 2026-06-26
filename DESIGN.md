@@ -7,7 +7,7 @@
 **核心流程**：
 
 ```
-上传小说 → 创建任务 → 章节切分 → 剧情分层 → 场景切分 → 场景分池 → 证据提取 → 画像聚合
+上传小说 → 创建任务 → 章节切分 → 剧情分层 → 场景切分 → 场景分池 → 证据提取 → 画像聚合 → 画像细节增强
 ```
 
 **不做**：别名推断、联网搜索、多用户权限、集群部署、复杂可视化。
@@ -21,6 +21,7 @@
 | 框架 | Spring Boot 3.5.x |
 | ORM | MyBatis Plus |
 | 数据库 | MySQL |
+| 缓存/任务状态 | Redis |
 | LLM | DeepSeek API（通过 Spring AI OpenAI starter 对接） |
 | Java | 17 |
 
@@ -31,8 +32,9 @@
 ```
 com.wuming.novel
 ├── config/
-│   ├── AsyncConfig.java             # 三个线程池：sceneSplit / poolClassify / evidenceExtract
+│   ├── AsyncConfig.java             # 流程提交线程池 + 阶段内部并发线程池
 │   ├── FileUploadProperties.java
+│   ├── llm/                         # 多 LLM provider 配置与 ChatClient 工厂
 │   ├── MybatisPlusConfig.java
 │   └── PromptConfig.java            # 所有 LLM Prompt 模板
 ├── controller/
@@ -55,7 +57,7 @@ com.wuming.novel
 │   │   ├── InteractionProfile.java
 │   │   └── rel/ScenePool.java       # 场景-池关联（sceneId, jobId, poolType, confidence）
 │   ├── enums/
-│   │   ├── JobStage.java            # 8 个阶段，@EnumValue int code
+│   │   ├── JobStage.java            # 9 个阶段，@EnumValue int code
 │   │   └── PoolType.java
 │   └── llmresponse/                 # LLM 返回 record
 │       ├── SceneSplitResponse.java
@@ -66,10 +68,27 @@ com.wuming.novel
 ├── exception/
 │   ├── LLMResponseEmptyException.java
 │   └── GlobalExceptionHandler.java
+├── llm/
+│   ├── checker/                     # LLM 输出业务校验
+│   └── parser/                      # LLM JSON 解析与简单格式修复
 ├── mapper/
+├── pipeline/
+│   ├── PipelineService.java         # 同步核心流水线，按 PipelineStep 顺序推进
+│   ├── PipelineStep.java            # 阶段执行接口
+│   ├── *Step.java                   # 各阶段适配器
+│   ├── StageRetryExecutor.java      # 阶段失败项重试
+│   ├── RedisStageFailureStore.java  # 阶段失败项 Redis 列表
+│   └── run/
+│       ├── PipelineJobRunner.java   # /process 与 /redo 的异步提交入口
+│       ├── JobRunLock.java          # Redis 运行锁，防止重复提交
+│       └── JobSubmitStatus.java     # started/running/not_restartable
+├── sse/
+│   ├── JobProgress.java             # 任务进度聚合对象
+│   ├── StageProgress.java           # 单阶段进度
+│   ├── JobProgressService.java      # 本地缓存、Redis 持久化、SSE 推送协调
+│   └── JobProgressStore.java        # Redis JSON 持久化
 ├── service/
 └── serviceImpl/
-    ├── PipelineService.java         # 流水线总调度（switch fall-through 驱动阶段推进）
     ├── JobService.java              # createJob / advanceStage
     ├── NovelService.java
     ├── ChapterService.java
@@ -78,7 +97,8 @@ com.wuming.novel
     ├── ScenePoolService.java
     ├── RecallService.java           # 按层按池召回已分类场景
     ├── EvidenceService.java
-    └── AggregationService.java
+    ├── AggregationService.java
+    └── ProfileDetailEnhanceService.java
 ```
 
 ---
@@ -112,7 +132,8 @@ com.wuming.novel
 | 4 | POOL_CLASSIFY | 场景分池完成 |
 | 5 | EVIDENCE_EXTRACT | 证据提取完成 |
 | 6 | PROFILE_AGGREGATION | 画像聚合完成 |
-| 7 | COMPLETE | 全部完成 |
+| 7 | PROFILE_DETAIL_ENHANCE | 画像细节增强完成 |
+| 8 | COMPLETE | 全部完成 |
 
 ### 4.3 PoolType 定义
 
@@ -130,16 +151,18 @@ com.wuming.novel
 
 ### 5.1 PipelineService 调度机制
 
-`handleNovel(jobId)` 使用 switch fall-through，从 job 当前 stage 开始顺序执行：
+`handleNovel(jobId)` 是同步核心流程。它读取所有 `PipelineStep`，按 `JobStage.code` 排序后顺序执行：
 
 ```
 PENDING → CHAPTER_SPLIT → LAYER_SPLIT → SCENE_SPLIT
-        → POOL_CLASSIFY → EVIDENCE_EXTRACT → PROFILE_AGGREGATION → COMPLETE
+        → POOL_CLASSIFY → EVIDENCE_EXTRACT → PROFILE_AGGREGATION
+        → PROFILE_DETAIL_ENHANCE → COMPLETE
 ```
 
 - 每个阶段成功后调用 `jobService.advanceStage()` 推进 stage
-- 任意阶段返回 false 则立即 return false，不推进 stage
-- `/process/{jobId}` 和 `/redo/{jobId}` 均调用同一方法，由 stage guard 决定从哪里续跑
+- 如果 `step.stage().code <= job.stage.code`，说明该阶段已经完成，只同步补齐进度状态并跳过
+- 阶段执行由 `StageRetryExecutor` 包装，存在失败项时按阶段重试
+- 任意阶段抛出异常时，`JobProgressService.failJob()` 标记任务失败，并向上抛出异常
 
 ### 5.2 幂等设计
 
@@ -147,24 +170,55 @@ PENDING → CHAPTER_SPLIT → LAYER_SPLIT → SCENE_SPLIT
 |------|------|
 | ChapterService | 清除旧数据重跑（cheap，全量操作） |
 | LayerService | 清除旧数据重跑（cheap，单次 LLM） |
-| SceneService | 粒度幂等：查已处理 chapter_id，跳过已完成章节 |
-| ScenePoolService | 粒度幂等：查 `(novel_id, job_id)` 已完成 scene_id |
-| EvidenceService | 粒度幂等：查 `(layer_id, job_id, pool_type)` count > 0 则跳过 |
+| SceneService | 粒度幂等：失败章节记录在 Redis，重试时优先消费失败项 |
+| ScenePoolService | 粒度幂等：失败 scene 记录在 Redis，重试时优先消费失败项 |
+| EvidenceService | 粒度幂等：失败的 layer-pool 任务记录在 Redis，重试时优先消费失败项 |
 | AggregationService | 清除旧画像重跑（clean by jobId） |
+| ProfileDetailEnhanceService | 基于聚合画像和高分场景做细节补充 |
 
-### 5.3 异步设计
+### 5.3 流程提交与运行锁
 
-所有异步方法通过 `@Lazy @Autowired private XxxService self` 自注入，确保经过 Spring AOP 代理（否则 `@Async` / `@Transactional` 失效）。
+`/process/{jobId}` 不直接阻塞执行流水线，而是交给 `PipelineJobRunner` 异步提交：
+
+1. `JobRunLock` 使用 Redis `SET NX EX` 获取 `job:{jobId}:running` 锁。
+2. 获取锁成功，提交到 `pipelineExecutor` 后立即返回 `started`。
+3. 获取锁失败，说明同一 job 已在运行，返回 `running`。
+4. 后台执行 `PipelineService.handleNovel(jobId)`，finally 中按 `runId` 比对释放锁，避免误删后续任务的锁。
+
+`/redo/{jobId}` 先读取 `JobProgress` 状态：
+
+| 状态 | 行为 |
+|------|------|
+| `FAILED` | 尝试获取运行锁并异步重启，成功返回 `started` |
+| `RUNNING` | 不重复提交，返回 `running` |
+| 其他或无进度 | 不重启，返回 `not_restartable` |
+
+### 5.4 任务进度与 SSE
+
+任务进度由 `JobProgressService` 统一维护：
+
+- 本地 `ConcurrentHashMap` 保存当前实例内的实时进度对象
+- 每次进度更新后写入 Redis：`job:{jobId}:progress`，当前 TTL 为 3 天
+- 查询进度时优先读本地缓存，本地没有时从 Redis JSON 恢复
+- SSE 订阅仍为单实例内存订阅；新订阅会替换同 job 的旧订阅
+- 任务完成或失败时关闭对应 SSE 连接
+
+当前没有引入 Redis Pub/Sub，因此多实例部署时只能恢复进度数据，不能跨实例推送 SSE 事件。
+
+### 5.5 阶段内部异步设计
+
+阶段内部的并发任务使用显式 `Executor` 和 `CompletableFuture` 编排，阶段仍然需要等待内部子任务完成后才能推进到下一阶段。
 
 ```
+pipelineExecutor:      core=2, max=4,  queue=100
 sceneSplitExecutor:     core=5, max=10, queue=1000
 poolClassifyExecutor:   core=5, max=10, queue=5000
 evidenceExtractExecutor: core=5, max=10, queue=500
 ```
 
-拒绝策略均为 `CallerRunsPolicy`（天然背压）。
+阶段内部线程池拒绝策略为 `CallerRunsPolicy`，流程提交线程池 `pipelineExecutor` 使用 `AbortPolicy`，提交失败时释放运行锁并向上抛出异常。
 
-### 5.4 各阶段详细设计
+### 5.6 各阶段详细设计
 
 #### 章节切分（CHAPTER_SPLIT）
 
@@ -180,7 +234,6 @@ evidenceExtractExecutor: core=5, max=10, queue=500
 ```yaml
 novel.layer.min-chapter-per-layer: 15
 novel.layer.max-chapter-per-layer: 35
-novel.layer.min-layer-size: 8
 novel.layer.max-layer-size: 30
 ```
 
@@ -191,7 +244,7 @@ novel.layer.max-layer-size: 30
 
 #### 场景分池（POOL_CLASSIFY）
 
-每场景调一次 LLM，返回 `ScenePoolResponse[]`（code, confidence），写入 `scene_pool`。
+每场景调一次 LLM，返回池分类结果（poolType, confidence），写入 `scene_pool`。
 - `protagonistName` / `targetName` 在异步方法内从 Job 实体读取（线程安全）。
 
 #### 证据提取（EVIDENCE_EXTRACT）
@@ -205,9 +258,13 @@ layer 范围 → chapter.sequence → scenes → scene_pool 过滤 → 按 confi
 
 #### 画像聚合（PROFILE_AGGREGATION）
 
-清除旧画像 → 按 layer × poolType 遍历证据 → 每 20 条一批调 LLM → 累积更新 `FullPortraitDto` → 写入 `character_profiles` + `interaction_profiles`。
+清除旧画像 → 按 layer × poolType 遍历证据 → 分批调 LLM → 累积更新画像 DTO → 写入 `character_profiles` + `interaction_profiles`。
 
 LLM 每批接收：当前累积画像（JSON） + 新一批证据（格式化文本），返回更新后的完整画像。
+
+#### 画像细节增强（PROFILE_DETAIL_ENHANCE）
+
+在画像聚合完成后，再按池召回部分高分完整场景，对已有画像做细节补充。该阶段不是重新生成画像，而是在已有画像基础上补齐更具体的行为、语言、互动和关键事件细节。
 
 ---
 
@@ -217,8 +274,10 @@ LLM 每批接收：当前累积画像（JSON） + 新一批证据（格式化文
 |------|------|------|
 | `POST` | `/novel` | 上传 TXT 小说，返回 novelId |
 | `POST` | `/novel/createJob` | 创建分析任务，返回 jobId |
-| `POST` | `/novel/process/{jobId}` | 执行/续跑流水线 |
-| `POST` | `/novel/redo/{jobId}` | 重跑（同 process，stage guard 决定续点） |
+| `POST` | `/novel/process/{jobId}` | 异步提交执行/续跑流水线，返回 `started` 或 `running` |
+| `POST` | `/novel/redo/{jobId}` | 仅失败任务可异步重启，返回 `started`、`running` 或 `not_restartable` |
+| `GET` | `/novel/progress/{jobId}` | 查询任务进度，本地没有时从 Redis 恢复 |
+| `GET` | `/novel/progress/{jobId}/stream` | SSE 订阅任务进度 |
 
 统一响应：
 ```json
@@ -234,8 +293,27 @@ spring:
   ai:
     openai:
       api-key: ${DS_API_KEY}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PWD}
+
+llm:
+  default-provider: deepseek
+  temperature: 0.0
+  task-temperature:
+    scene-split: 0.0
+    scene-pool: 0.0
+    layer-split: 0.3
+    evidence-extract: 0.3
+    aggregation: 0.4
+    profile-detail-enhance: 0.4
+  providers:
+    deepseek:
       base-url: https://api.deepseek.com
-      chat.options.model: deepseek-v3
+      api-key: ${DS_API_KEY}
+      model: deepseek-v4-flash
 
 novel:
   upload:
@@ -244,10 +322,13 @@ novel:
   layer:
     min-chapter-per-layer: 15
     max-chapter-per-layer: 35
-    min-layer-size: 8
     max-layer-size: 30
   analysis:
-    batch-size: 20   # 证据提取每批场景数
+    batch-size: 10
+  profile-enhance:
+    threshold: 0.7
+    default-top-k: 10
+    batch-size: 5
 ```
 
 ---
@@ -260,9 +341,11 @@ novel:
 
 **FullPortraitDto 与 Entity 分离**：DTO 不含 id/createTime，`@JsonIgnore` 防止这些字段注入给 LLM，避免干扰生成结果；MyBatis Plus 读写 Entity 不受影响。
 
-**异步线程池而非消息队列**：MVP 阶段简单直接，`CallerRunsPolicy` 天然背压，后续可按需迁移。
+**异步线程池 + Redis 运行锁，而非消息队列**：当前只需要避免 HTTP 长时间阻塞和重复提交，使用线程池成本低；Redis 锁解决同 job 重复运行问题。后续如果需要跨进程调度、失败恢复和消费确认，再迁移消息队列。
 
-**stage guard 实现幂等续跑**：每个服务入口检查 `job.stage.code >= 本阶段.code`，已完成则直接返回 true，不重复执行。
+**PipelineStep 顺序执行实现续跑**：`PipelineService` 以数据库中的 `job.stage` 为准，跳过已完成阶段，从未完成阶段继续执行。
+
+**进度状态与数据库阶段分离**：`jobs.stage` 表示持久化业务阶段；`JobProgress` 表示前端展示用运行状态、阶段状态和子任务计数。两者职责不同，进度可以从 Redis 恢复，但业务续跑仍以数据库阶段为准。
 
 ---
 
@@ -271,5 +354,6 @@ novel:
 - 多角色同时分析（当前每个 Job 只分析一个 targetName）
 - 别名自动推断
 - 跨层证据对比 → 角色弧光（成长轨迹）
-- 任务进度查询接口
+- 多实例 SSE 推送（Redis Pub/Sub 或消息总线）
+- 任务调度迁移到消息队列
 - 邮件/通知提醒任务完成
