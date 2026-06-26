@@ -1,8 +1,6 @@
 package com.wuming.chat.controller;
 
 import com.wuming.chat.domain.dto.ApiResponse;
-import com.wuming.chat.domain.dto.CreateChatSessionRequest;
-import com.wuming.chat.domain.dto.CreateChatSessionResponse;
 import com.wuming.chat.domain.dto.SendChatMessageRequest;
 import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.entity.ChatMessage;
@@ -23,12 +21,10 @@ import java.util.List;
 public class ChatController {
     private final ChatService chatService;
 
-    @PostMapping("/sessions")
-    public ApiResponse<CreateChatSessionResponse> createSession(
-            @RequestBody CreateChatSessionRequest request
-    ) {
-        Long sessionId = chatService.createSession(request.getJobId());
-        return ApiResponse.success(new CreateChatSessionResponse(sessionId));
+    @PostMapping("/sessions/{jobId}")
+    public ApiResponse<Long> createSession(@PathVariable Long jobId) {
+        Long sessionId = chatService.createSession(jobId);
+        return ApiResponse.success(sessionId);
     }
 
     @PostMapping("/sessions/{sessionId}/messages")
