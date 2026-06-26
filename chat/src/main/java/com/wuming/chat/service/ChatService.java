@@ -9,6 +9,8 @@ import com.wuming.chat.domain.model.ChatHistoryMessage;
 import com.wuming.chat.domain.model.RoleProfileContext;
 import com.wuming.chat.mapper.ChatMessageMapper;
 import com.wuming.chat.mapper.ChatSessionMapper;
+import com.wuming.chat.service.cache.ChatMessageCacheService;
+import com.wuming.chat.service.cache.ProfilePromptCacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ public class ChatService {
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
     private final ChatMessageCacheService chatMessageCacheService;
+    private final ProfilePromptCacheService profilePromptCacheService;
     private final ProfileContextService profileContextService;
     private final RoleChatPromptBuilder promptBuilder;
     private final LlmClientFactory llmClientFactory;
@@ -57,12 +60,11 @@ public class ChatService {
     public SendChatMessageResponse sendMessage(Long sessionId, String content) {
         ChatSession session = requireSession(sessionId);
         String userContent = requireContent(content);
-        RoleProfileContext profileContext = profileContextService.getProfileContext(session.getJobId());
 
         saveMessage(sessionId, ROLE_USER, userContent);
 
         String assistantContent = requestAssistantReply(
-                promptBuilder.buildSystemPrompt(profileContext),
+                systemPrompt(session.getJobId()),
                 recentMessages(sessionId)
         );
 
@@ -139,6 +141,21 @@ public class ChatService {
         return messages.stream()
                 .map(message -> new ChatHistoryMessage(message.getRole(), message.getContent()))
                 .toList();
+    }
+
+    /**
+     * 优先读取角色系统提示词缓存，缓存未命中时回源画像表并写入缓存。
+     */
+    private String systemPrompt(Long jobId) {
+        String cachedPrompt = profilePromptCacheService.get(jobId);
+        if (cachedPrompt != null && !cachedPrompt.isBlank()) {
+            return cachedPrompt;
+        }
+
+        RoleProfileContext profileContext = profileContextService.getProfileContext(jobId);
+        String systemPrompt = promptBuilder.buildSystemPrompt(profileContext);
+        profilePromptCacheService.put(jobId, systemPrompt);
+        return systemPrompt;
     }
 
     /**
