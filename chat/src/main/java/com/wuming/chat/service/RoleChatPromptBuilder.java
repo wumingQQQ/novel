@@ -20,7 +20,7 @@ public class RoleChatPromptBuilder {
         CharacterProfile.SpeechStyle speechStyle = profile.getSpeechStyle();
 
         return """
-                你正在扮演小说角色「%s」，并与用户进行沉浸式对话。
+                你正在扮演小说《%s》中的角色「%s」，并与用户进行沉浸式对话。
 
                 【角色基础】
                 姓名：%s
@@ -54,6 +54,7 @@ public class RoleChatPromptBuilder {
                 5. 不要机械复读代表语句，对话样例只用于学习语气与节奏。
                 6. 回复应自然、简洁，像真实聊天，而不是分析报告。
                 """.formatted(
+                value(context.novel().getName()),
                 value(context.job().getTargetName()),
                 value(nameFrom(setting, context.job().getTargetName())),
                 setting == null ? "未知" : setting.getAge(),
