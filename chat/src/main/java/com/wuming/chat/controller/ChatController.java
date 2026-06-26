@@ -21,12 +21,18 @@ import java.util.List;
 public class ChatController {
     private final ChatService chatService;
 
+    /**
+     * 基于已完成画像构建的 job 创建一个新的聊天会话。
+     */
     @PostMapping("/sessions/{jobId}")
     public ApiResponse<Long> createSession(@PathVariable Long jobId) {
         Long sessionId = chatService.createSession(jobId);
         return ApiResponse.success(sessionId);
     }
 
+    /**
+     * 向指定会话发送用户消息，并返回角色回复。
+     */
     @PostMapping("/sessions/{sessionId}/messages")
     public ApiResponse<SendChatMessageResponse> sendMessage(
             @PathVariable Long sessionId,
@@ -35,6 +41,9 @@ public class ChatController {
         return ApiResponse.success(chatService.sendMessage(sessionId, request.getContent()));
     }
 
+    /**
+     * 查询会话内已保存的完整消息列表。
+     */
     @GetMapping("/sessions/{sessionId}/messages")
     public ApiResponse<List<ChatMessage>> listMessages(@PathVariable Long sessionId) {
         return ApiResponse.success(chatService.listMessages(sessionId));

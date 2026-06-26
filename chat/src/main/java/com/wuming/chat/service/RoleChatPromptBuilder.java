@@ -10,6 +10,9 @@ import java.util.StringJoiner;
 
 @Component
 public class RoleChatPromptBuilder {
+    /**
+     * 将结构化画像转换为角色聊天使用的系统提示词。
+     */
     public String buildSystemPrompt(RoleProfileContext context) {
         CharacterProfile profile = context.characterProfile();
         InteractionProfile interaction = context.interactionProfile();
@@ -72,6 +75,9 @@ public class RoleChatPromptBuilder {
         );
     }
 
+    /**
+     * 优先使用画像中的角色名，画像缺失时回退到任务目标角色名。
+     */
     private String nameFrom(CharacterProfile.BasicSetting setting, String fallback) {
         if (setting == null || setting.getCharacterName() == null || setting.getCharacterName().isBlank()) {
             return fallback;
@@ -79,10 +85,16 @@ public class RoleChatPromptBuilder {
         return setting.getCharacterName();
     }
 
+    /**
+     * 将空文本统一展示为“未知”，避免提示词中出现 null 或空白字段。
+     */
     private String value(String value) {
         return value == null || value.isBlank() ? "未知" : value;
     }
 
+    /**
+     * 将画像中的多值字段压缩为适合注入提示词的单行文本。
+     */
     private String list(List<String> values) {
         if (values == null || values.isEmpty()) {
             return "无";

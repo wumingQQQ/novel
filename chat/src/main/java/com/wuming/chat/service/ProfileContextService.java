@@ -18,6 +18,9 @@ public class ProfileContextService {
     private final CharacterProfileMapper characterProfileMapper;
     private final InteractionProfileMapper interactionProfileMapper;
 
+    /**
+     * 读取角色聊天所需的任务、角色画像和互动画像。
+     */
     public RoleProfileContext getProfileContext(Long jobId) {
         Job job = jobMapper.selectById(jobId);
         if (job == null) {

@@ -15,10 +15,16 @@ public class LlmClientFactory {
     private final LlmConfig llmConfig;
     private final Map<String, ChatClient> cache = new ConcurrentHashMap<>();
 
+    /**
+     * 按任务类型获取对应温度配置的聊天客户端。
+     */
     public ChatClient taskClient(String taskKey) {
         return client(null, taskKey);
     }
 
+    /**
+     * 根据模型供应商和任务类型创建或复用 ChatClient。
+     */
     public ChatClient client(String providerName, String taskKey) {
         String resolvedName = llmConfig.resolveProviderName(providerName);
         Double temperature = llmConfig.resolveTemperature(taskKey);

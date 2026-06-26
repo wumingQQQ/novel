@@ -14,6 +14,9 @@ public class LlmProvider {
     private String model;
     private String apiKey;
 
+    /**
+     * 创建普通文本聊天模型；角色聊天不强制 JSON 响应格式。
+     */
     public ChatModel chatModel(Double temperature) {
         if (baseUrl == null || model == null || apiKey == null) {
             throw new IllegalStateException("baseUrl or model or apiKey 为空，模型无法正确配置");

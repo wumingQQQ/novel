@@ -33,6 +33,9 @@ public class ChatService {
     @Value("${chat.history-limit:20}")
     private int historyLimit;
 
+    /**
+     * 创建聊天会话前先确认对应任务已经生成完整画像。
+     */
     @Transactional
     public Long createSession(Long jobId) {
         if (jobId == null) {
@@ -47,6 +50,9 @@ public class ChatService {
         return session.getId();
     }
 
+    /**
+     * 保存用户消息，携带画像和最近历史请求 LLM，再保存角色回复。
+     */
     public SendChatMessageResponse sendMessage(Long sessionId, String content) {
         ChatSession session = requireSession(sessionId);
         String userContent = requireContent(content);
@@ -63,6 +69,9 @@ public class ChatService {
         return new SendChatMessageResponse(assistantMessage.getId(), assistantContent);
     }
 
+    /**
+     * 保存单条消息；这里不包裹长事务，避免 LLM 调用占用数据库连接。
+     */
     private ChatMessage saveMessage(Long sessionId, String role, String content) {
         ChatMessage message = new ChatMessage();
         message.setSessionId(sessionId);
@@ -72,6 +81,9 @@ public class ChatService {
         return message;
     }
 
+    /**
+     * 按插入顺序返回会话内的全部消息。
+     */
     public List<ChatMessage> listMessages(Long sessionId) {
         requireSession(sessionId);
         return chatMessageMapper.selectList(
@@ -81,6 +93,9 @@ public class ChatService {
         );
     }
 
+    /**
+     * 校验会话存在且处于可用状态。
+     */
     private ChatSession requireSession(Long sessionId) {
         if (sessionId == null) {
             throw new IllegalArgumentException("sessionId不能为空");
@@ -92,6 +107,9 @@ public class ChatService {
         return session;
     }
 
+    /**
+     * 校验并规整用户输入，避免空消息进入上下文。
+     */
     private String requireContent(String content) {
         if (content == null || content.isBlank()) {
             throw new IllegalArgumentException("消息内容不能为空");
@@ -99,6 +117,9 @@ public class ChatService {
         return content.trim();
     }
 
+    /**
+     * 读取最近若干条消息，并恢复为正序，作为本轮 LLM 上下文。
+     */
     private List<ChatMessage> recentMessages(Long sessionId) {
         List<ChatMessage> messages = chatMessageMapper.selectList(
                 new LambdaQueryWrapper<ChatMessage>()
@@ -110,6 +131,9 @@ public class ChatService {
         return messages;
     }
 
+    /**
+     * 使用角色系统提示词和最近对话文本请求 LLM 生成角色回复。
+     */
     private String requestAssistantReply(String systemPrompt, List<ChatMessage> messages) {
         return llmClientFactory
                 .taskClient(LlmClientFactory.TASK_ROLE_CHAT)
@@ -120,6 +144,9 @@ public class ChatService {
                 .content();
     }
 
+    /**
+     * 将历史消息折叠成普通文本，兼容当前 ChatClient API。
+     */
     private String formatConversation(List<ChatMessage> messages) {
         StringBuilder builder = new StringBuilder();
         builder.append("【最近对话】\n");
