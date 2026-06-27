@@ -11,6 +11,8 @@ import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
 import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.SceneSplitResponseChecker;
 import com.wuming.novel.mapper.SceneMapper;
+import com.wuming.novel.message.EventPublisher;
+import com.wuming.novel.message.scenesplit.ChapterSceneSplitCompleteEvent;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
@@ -43,6 +45,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
     private final NovelTextNormalizer textNormalizer;
     private final TextAnchorMatcher textAnchorMatcher;
     private final LlmJsonResponseParser llmJsonResponseParser;
+    private final EventPublisher<ChapterSceneSplitCompleteEvent> eventPublisher;
 
     public SceneService(
             IChapterService chapterService,
@@ -54,8 +57,9 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             SceneSplitResponseChecker sceneSplitResponseChecker,
             NovelTextNormalizer textNormalizer,
             TextAnchorMatcher textAnchorMatcher,
-            LlmJsonResponseParser llmJsonResponseParser
-    ) {
+            LlmJsonResponseParser llmJsonResponseParser,
+            EventPublisher<ChapterSceneSplitCompleteEvent> eventPublisher
+            ) {
         this.chapterService = chapterService;
         this.promptConfig = promptConfig;
         this.jobService = jobService;
@@ -66,11 +70,17 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
         this.textNormalizer = textNormalizer;
         this.textAnchorMatcher = textAnchorMatcher;
         this.llmJsonResponseParser = llmJsonResponseParser;
+        this.eventPublisher = eventPublisher;
     }
 
     @Lazy
     @Autowired
     private SceneService self;
+
+    /**
+     * 章节切分环节的入口
+     * @param jobId 画像任务的id
+     */
     @Override
     public void splitScene(Long jobId) {
         Job job = jobService.getById(jobId);
@@ -117,6 +127,10 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
         return chapterService.listByIds(chapterIds);
     }
 
+    /**
+     * 单章切分的异步任务完成之后的收尾工作：记录异步任务是否成功
+     * @return 异步任务CompletableFuture，便于主方法进行同步
+     */
     private CompletableFuture<Void> submitChapterSplit(Chapter chapter, Long jobId) {
         // 使用代理调用，否则异步注解不会生效
         return self.splitOneChapter(chapter, jobId)
@@ -130,6 +144,10 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
                 });
     }
 
+    /**
+     * 异步切分单章的核心方法
+     * @return 任务顺利完成则返回，异常结束则将异常章节保存到redis，等待后续重试，同时抛出异常
+     */
     @Async("sceneSplitExecutor")
     protected CompletableFuture<Void> splitOneChapter(Chapter chapter, Long jobId) {
         try {
@@ -148,6 +166,15 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
                     chapter.getId(),
                     scenes.size()
             );
+
+            // 必须在保存场景后发布事件
+            ChapterSceneSplitCompleteEvent event = new ChapterSceneSplitCompleteEvent();
+            event.setJobId(jobId);
+            event.setNovelId(chapter.getNovelId());
+            event.setChapterId(chapter.getId());
+            event.setChapterSequence(chapter.getSequence());
+            event.setSceneCount(scenes.size());
+            eventPublisher.publish(event);
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             redisStageFailureStore.recordFailure(
@@ -160,7 +187,12 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
         }
     }
 
-    // 调用llm拆分章节
+    /**
+     * 调用llm进行实际切分
+     * @param chapter   负责给提示词模板注入元信息
+     * @param normalizedContent   使用NovelTextNormalizer规范化后的章节内容，便于llm返回准确的内容
+     * @return  针对字符串数组的包装类，内部为切分锚点的数组
+     */
     private SceneSplitResponseWrapper requestSceneSplit(
             Chapter chapter,
             String normalizedContent
