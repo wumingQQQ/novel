@@ -18,7 +18,9 @@
 
     <modules>
         <module>novel-api</module>
+        <module>user-api</module>
         <module>novel</module>
+        <module>user</module>
         <module>chat</module>
     </modules>
 

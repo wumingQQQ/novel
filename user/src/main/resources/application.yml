@@ -1,0 +1,21 @@
+server:
+  port: 8082
+
+spring:
+  profiles:
+    active: dev
+
+mybatis-plus:
+  type-aliases-package: com.wuming.user.domain
+  configuration:
+    map-underscore-to-camel-case: true
+
+dubbo:
+  application:
+    name: user
+    qos-enable: false
+  protocol:
+    name: tri
+    port: 50052
+  registry:
+    address: N/A
