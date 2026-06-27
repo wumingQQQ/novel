@@ -10,7 +10,8 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ProfileContextService {
 
-    @DubboReference(url = "tri://127.0.0.1:50051")
+    // TODO 后期考虑优化耗时，或缓存角色画像数据
+    @DubboReference(url = "tri://127.0.0.1:50051", timeout = 10000)
     private RoleContextFacade roleContextFacade;
 
     /**
