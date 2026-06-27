@@ -10,9 +10,9 @@ import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
 import com.wuming.novel.serviceImpl.FullPortraitPersistenceService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
+import org.apache.dubbo.config.annotation.DubboService;
 
-@Component
+@DubboService
 @RequiredArgsConstructor
 public class RoleContextFacadeImpl implements RoleContextFacade {
     private final IJobService jobService;
