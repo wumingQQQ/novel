@@ -16,8 +16,9 @@ mybatis-plus:
 dubbo:
   application:
     name: novel
+    qos-enable: false
   protocol:
-    name: triple
+    name: tri
     port: 50051
   registry:
     address: N/A

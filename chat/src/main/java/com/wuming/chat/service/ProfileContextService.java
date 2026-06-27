@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ProfileContextService {
 
-    @DubboReference(url = "triple://127.0.0.1:50051")
+    @DubboReference(url = "tri://127.0.0.1:50051")
     private RoleContextFacade roleContextFacade;
 
     /**

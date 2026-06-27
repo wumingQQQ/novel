@@ -13,8 +13,10 @@ mybatis-plus:
 dubbo:
   application:
     name: chat
+    qos-enable: false
   registry:
     address: N/A
+
 
 chat:
   history-limit: 20
