@@ -46,6 +46,12 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
 
+dubbo:
+  application:
+    name: novel
+  registry:
+    address: N/A
+
 chat:
   history-limit: 20
   message-cache-ttl: 3d

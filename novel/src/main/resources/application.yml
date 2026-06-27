@@ -61,6 +61,14 @@ mybatis-plus:
     default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
   mapper-locations: classpath*:/mapper/**/*.xml
 
+dubbo:
+  application:
+    name: novel
+  protocol:
+    name: triple
+    port: 50051
+  registry:
+    address: N/A
 
 novel:
   upload:
