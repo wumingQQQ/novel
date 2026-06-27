@@ -1,12 +1,12 @@
 package com.wuming.chat.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.wuming.api.profile.dto.RoleContextDto;
 import com.wuming.chat.config.llm.LlmClientFactory;
 import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.entity.ChatMessage;
 import com.wuming.chat.domain.entity.ChatSession;
 import com.wuming.chat.domain.model.ChatHistoryMessage;
-import com.wuming.chat.domain.model.RoleProfileContext;
 import com.wuming.chat.mapper.ChatMessageMapper;
 import com.wuming.chat.mapper.ChatSessionMapper;
 import com.wuming.chat.service.cache.ChatMessageCacheService;
@@ -152,7 +152,7 @@ public class ChatService {
             return cachedPrompt;
         }
 
-        RoleProfileContext profileContext = profileContextService.getProfileContext(jobId);
+        RoleContextDto profileContext = profileContextService.getProfileContext(jobId);
         String systemPrompt = promptBuilder.buildSystemPrompt(profileContext);
         profilePromptCacheService.put(jobId, systemPrompt);
         return systemPrompt;

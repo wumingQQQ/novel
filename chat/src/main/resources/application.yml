@@ -48,7 +48,7 @@ mybatis-plus:
 
 dubbo:
   application:
-    name: novel
+    name: chat
   registry:
     address: N/A
 

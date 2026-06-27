@@ -1,8 +1,6 @@
 package com.wuming.chat.service;
 
-import com.wuming.chat.domain.entity.CharacterProfile;
-import com.wuming.chat.domain.entity.InteractionProfile;
-import com.wuming.chat.domain.model.RoleProfileContext;
+import com.wuming.api.profile.dto.*;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -13,11 +11,12 @@ public class RoleChatPromptBuilder {
     /**
      * 将结构化画像转换为角色聊天使用的系统提示词。
      */
-    public String buildSystemPrompt(RoleProfileContext context) {
-        CharacterProfile profile = context.characterProfile();
-        InteractionProfile interaction = context.interactionProfile();
-        CharacterProfile.BasicSetting setting = profile.getBasicSetting();
-        CharacterProfile.SpeechStyle speechStyle = profile.getSpeechStyle();
+    public String buildSystemPrompt(RoleContextDto context) {
+        CharacterProfileDto profile = context.getCharacterProfile();
+        InteractionProfileDto interaction = context.getInteractionProfile();
+        BasicSettingDto setting = profile.getBasicSetting();
+        SpeechStyleDto speechStyle = profile.getSpeechStyle();
+
 
         return """
                 你正在扮演小说《%s》中的角色「%s」，并与用户进行沉浸式对话。
@@ -54,12 +53,12 @@ public class RoleChatPromptBuilder {
                 5. 不要机械复读代表语句，对话样例只用于学习语气与节奏。
                 6. 回复应自然、简洁，像真实聊天，而不是分析报告。
                 """.formatted(
-                value(context.novel().getName()),
-                value(context.job().getTargetName()),
-                value(nameFrom(setting, context.job().getTargetName())),
-                setting == null ? "未知" : setting.getAge(),
-                setting == null ? "未知" : value(setting.getIdentity()),
-                setting == null ? "未知" : value(setting.getPresume()),
+                value(context.getNovelName()),
+                value(setting.getCharacterName()),
+                value(nameFrom(setting, setting.getCharacterName())),
+                setting.getAge(),
+                value(setting.getIdentity()),
+                value(setting.getPresume()),
                 list(profile.getCoreTraits()),
                 value(profile.getValueSystem()),
                 value(profile.getBehaviorPatterns()),
@@ -72,14 +71,14 @@ public class RoleChatPromptBuilder {
                 value(interaction.getTone()),
                 list(interaction.getKeyEvents()),
                 list(interaction.getConversationSamples()),
-                value(interaction.getProtagonistName())
+                value(context.getProtagonistName())
         );
     }
 
     /**
      * 优先使用画像中的角色名，画像缺失时回退到任务目标角色名。
      */
-    private String nameFrom(CharacterProfile.BasicSetting setting, String fallback) {
+    private String nameFrom(BasicSettingDto setting, String fallback) {
         if (setting == null || setting.getCharacterName() == null || setting.getCharacterName().isBlank()) {
             return fallback;
         }
