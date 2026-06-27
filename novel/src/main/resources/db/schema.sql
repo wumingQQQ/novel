@@ -1,6 +1,3 @@
-create database if not exists novel_dev;
-use novel_dev;
-
 create table if not exists novels(
     id bigint primary key auto_increment comment '小说主键',
     name varchar(50) not null comment '小说名称',
