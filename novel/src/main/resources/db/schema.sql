@@ -1,5 +1,5 @@
-create database if not exists novel;
-use novel;
+create database if not exists novel_dev;
+use novel_dev;
 
 create table if not exists novels(
     id bigint primary key auto_increment comment '小说主键',

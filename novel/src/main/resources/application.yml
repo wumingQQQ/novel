@@ -1,58 +1,10 @@
 spring:
-  datasource:
-    url: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/novel?useSSL=false&serverTimezone=UTC&characterEncoding=utf8
-    username: root
-    password: ${MYSQL_PASSWORD:}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+  profiles:
+    active: dev
 
   servlet:
     multipart:
       max-file-size: 50MB
-
-  ai:
-    openai:
-      api-key: ${DS_API_KEY}
-
-  data:
-    redis:
-      host: 118.190.199.42
-      port: 9379
-      lettuce:
-        pool:
-          min-idle: 1
-          max-idle: 6
-          max-active: 6
-          time-between-eviction-runs: 10s
-      password: ${REDIS_PWD}
-
-
-llm:
-  default-provider: deepseek
-  temperature: 0.0
-  task-temperature:
-    scene-split: 0.0
-    scene-pool: 0.0
-    layer-split: 0.3
-    evidence-extract: 0.3
-    aggregation: 0.4
-    profile-detail-enhance: 0.4
-  providers:
-    deepseek:
-      base-url: https://api.deepseek.com
-      api-key: ${DS_API_KEY}
-      model: deepseek-v4-flash
-    mimo:
-      base-url: https://api.xiaomimimo.com
-      api-key: ${MIMO_API_KEY:}
-      model: mimo-v2.5-pro
-    agnes:
-      base-url: https://apihub.agnes-ai.com
-      api-key: ${AGNES_API_KEY:}
-      model: agnes-2.0-flash
-    qwen:
-      base-url: ${ALI_BASE_URL:}
-      api-key: ${ALI_API_KEY:}
-      model: qwen3.5-flash
 
 mybatis-plus:
   type-aliases-package: com.wuming.novel.domain

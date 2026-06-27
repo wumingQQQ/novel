@@ -1,5 +1,5 @@
-create database if not exists novel;
-use novel;
+create database if not exists novel_dev;
+use novel_dev;
 
 create table if not exists chat_sessions(
     id bigint primary key auto_increment comment '聊天会话主键',
