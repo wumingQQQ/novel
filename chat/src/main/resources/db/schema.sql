@@ -1,9 +1,11 @@
 create table if not exists chat_sessions(
     id bigint primary key auto_increment comment '聊天会话主键',
+    user_id bigint comment '用户主键',
     job_id bigint not null comment '画像构建任务主键',
     status varchar(20) not null default 'ACTIVE' comment '会话状态',
     create_time datetime default current_timestamp comment '创建时间',
     update_time datetime default current_timestamp on update current_timestamp comment '更新时间',
+    key idx_chat_sessions_user_id (user_id),
     key idx_chat_sessions_job_id (job_id)
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
 

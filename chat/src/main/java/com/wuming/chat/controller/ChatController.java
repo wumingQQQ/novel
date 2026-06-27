@@ -22,11 +22,14 @@ public class ChatController {
     private final ChatService chatService;
 
     /**
-     * 基于已完成画像构建的 job 创建一个新的聊天会话。
+     * 基于可用用户和已完成画像构建的 job 创建一个新的聊天会话。
      */
-    @PostMapping("/sessions/{jobId}")
-    public ApiResponse<Long> createSession(@PathVariable Long jobId) {
-        Long sessionId = chatService.createSession(jobId);
+    @PostMapping("/users/{userId}/sessions/{jobId}")
+    public ApiResponse<Long> createSession(
+            @PathVariable Long userId,
+            @PathVariable Long jobId
+    ) {
+        Long sessionId = chatService.createSession(userId, jobId);
         return ApiResponse.success(sessionId);
     }
 

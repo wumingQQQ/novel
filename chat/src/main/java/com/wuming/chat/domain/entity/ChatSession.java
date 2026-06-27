@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 public class ChatSession {
     @TableId(type = IdType.AUTO)
     private Long id;
+    private Long userId;
     private Long jobId;
     private String status;
     @TableField(fill = FieldFill.INSERT)

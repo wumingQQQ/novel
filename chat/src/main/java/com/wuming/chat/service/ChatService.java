@@ -31,6 +31,7 @@ public class ChatService {
     private final ChatMessageCacheService chatMessageCacheService;
     private final ProfilePromptCacheService profilePromptCacheService;
     private final ProfileContextService profileContextService;
+    private final UserContextService userContextService;
     private final RoleChatPromptBuilder promptBuilder;
     private final LlmClientFactory llmClientFactory;
 
@@ -38,16 +39,21 @@ public class ChatService {
     private int historyLimit;
 
     /**
-     * 创建聊天会话前先确认对应任务已经生成完整画像。
+     * 创建聊天会话前先确认用户可用且对应任务已经生成完整画像。
      */
     @Transactional
-    public Long createSession(Long jobId) {
+    public Long createSession(Long userId, Long jobId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId不能为空");
+        }
         if (jobId == null) {
             throw new IllegalArgumentException("jobId不能为空");
         }
+        userContextService.getRequiredUser(userId);
         profileContextService.getProfileContext(jobId);
 
         ChatSession session = new ChatSession();
+        session.setUserId(userId);
         session.setJobId(jobId);
         session.setStatus(SESSION_ACTIVE);
         chatSessionMapper.insert(session);
