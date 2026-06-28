@@ -6,13 +6,14 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-public class JobCompleteEventPublisher implements EventPublisher<JobFinishEvent> {
+public class JobFinishEventPublisher implements EventPublisher<JobFinishEvent> {
     @Override
     public void publish(JobFinishEvent event) {
         log.info(
-                "任务已{}，jobId: {}, novelId: {}",
+                "任务已{}，jobId: {}, userId: {}, novelId: {}",
                 event.getStatus(),
                 event.getJobId(),
+                event.getUserId(),
                 event.getNovelId()
         );
     }

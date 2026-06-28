@@ -78,12 +78,13 @@ public class PipelineService {
         Job job =  jobService.getById(jobId);
         JobFinishEvent event = new JobFinishEvent();
         event.setJobId(jobId);
+        event.setUserId(job.getUserId());
         event.setNovelId(job.getNovelId());
         JobFinishEvent.JobFinishStatus status = job.getStage()==JobStage.COMPLETE
                 ? JobFinishEvent.JobFinishStatus.SUCCESS
                 : JobFinishEvent.JobFinishStatus.FAILED;
         event.setStatus(status);
-        event.setMessage(failReason);
+        event.setFailReason(failReason);
         eventPublisher.publish(event);
     }
 

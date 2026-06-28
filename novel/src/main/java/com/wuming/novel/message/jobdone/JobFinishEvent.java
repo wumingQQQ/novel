@@ -10,8 +10,9 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class JobFinishEvent extends CompleteEvent {
+    private Long userId;
+    private String failReason;
     private JobFinishStatus status;
-    private String message;
 
 
      public enum JobFinishStatus{
