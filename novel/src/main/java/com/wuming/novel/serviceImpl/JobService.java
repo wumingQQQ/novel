@@ -31,7 +31,7 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
         if(novelService.getById(novelId) == null){
             throw new IllegalArgumentException("您指定的小说不存在");
         }
-        userContextService.getUserDto(userId);
+        userContextService.requireUser(userId);
         Job job = new Job();
         job.setNovelId(novelId);
         job.setUserId(userId);

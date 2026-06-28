@@ -11,7 +11,10 @@ public class UserContextService {
     @DubboReference(url = "tri://127.0.0.1:50052", timeout = 5000)
     private UserFacade userFacade;
 
-    public void getUserDto(Long userId){
+    /**
+     * 判断user是否存在或者处于active状态
+     */
+    public void requireUser(Long userId){
         if (userId == null) {
             throw new IllegalArgumentException("用户不能为空");
         }

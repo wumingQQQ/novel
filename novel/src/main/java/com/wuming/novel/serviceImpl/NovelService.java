@@ -37,7 +37,7 @@ public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INo
             throw new FileNotSupportException("文件不能为空");
         }
         // 内部存在校验
-        userContextService.getUserDto(userId);
+        userContextService.requireUser(userId);
 
         if(file.getSize() > fileUploadProperties.getMaxFileSize().toBytes()){
             throw new FileTooLargeException("文件过大，请确保小于10MB");
