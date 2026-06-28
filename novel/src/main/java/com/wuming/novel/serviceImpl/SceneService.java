@@ -168,13 +168,7 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             );
 
             // 必须在保存场景后发布事件
-            ChapterSceneSplitCompleteEvent event = new ChapterSceneSplitCompleteEvent();
-            event.setJobId(jobId);
-            event.setNovelId(chapter.getNovelId());
-            event.setChapterId(chapter.getId());
-            event.setChapterSequence(chapter.getSequence());
-            event.setSceneCount(scenes.size());
-            eventPublisher.publish(event);
+            publishSceneSplitCompleteEvent(jobId, scenes.size(), chapter);
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             redisStageFailureStore.recordFailure(
@@ -244,5 +238,24 @@ public class SceneService extends ServiceImpl<SceneMapper, Scene> implements ISc
             scenes.add(scene);
         }
         return scenes;
+    }
+
+    /**
+     * 发布单章切分完毕事件
+     */
+    private void publishSceneSplitCompleteEvent(Long jobId, int sceneSize, Chapter chapter){
+        ChapterSceneSplitCompleteEvent event = new ChapterSceneSplitCompleteEvent();
+        event.setJobId(jobId);
+        event.setNovelId(chapter.getNovelId());
+        event.setChapterId(chapter.getId());
+        event.setChapterSequence(chapter.getSequence());
+        event.setSceneCount(sceneSize);
+        try {
+            eventPublisher.publish(event);
+        }
+        catch (RuntimeException e) {
+            log.warn("job章节切分完毕事件发布失败，jobId: {}, chapterId: {}", jobId, chapter.getId(), e);
+        }
+
     }
 }

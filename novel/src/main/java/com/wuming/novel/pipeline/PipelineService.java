@@ -85,7 +85,12 @@ public class PipelineService {
                 : JobFinishEvent.JobFinishStatus.FAILED;
         event.setStatus(status);
         event.setFailReason(failReason);
-        eventPublisher.publish(event);
+        try{
+            eventPublisher.publish(event);
+        }
+        catch (RuntimeException e){
+            log.warn("job完成事件发布失败，jobId: {}", jobId, e);
+        }
     }
 
 }
