@@ -18,6 +18,7 @@ public class Novel implements Serializable {
     private Long id;
     private String name;
     private String filePath;
+    private Long uploaderId;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

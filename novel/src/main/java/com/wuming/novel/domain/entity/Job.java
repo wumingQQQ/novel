@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 public class Job implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
+    private Long userId;
     private Long novelId;
     private String protagonistName;      // 用户将会扮演的角色
     private String targetName;      // llm将会扮演的角色

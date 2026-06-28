@@ -2,6 +2,7 @@ create table if not exists novels(
     id bigint primary key auto_increment comment '小说主键',
     name varchar(50) not null comment '小说名称',
     file_path varchar(100) not null comment '小说保存路径',
+    uploader_id bigint not null comment '上传者id',
     create_time datetime default current_timestamp comment '创建时间'
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
 
@@ -19,6 +20,7 @@ create table if not exists chapters(
 create table if not exists jobs(
     id bigint primary key auto_increment comment '任务主键',
     novel_id bigint not null comment '小说主键',
+    user_id bigint not null comment '创建者id',
     protagonist_name varchar(50) not null comment '用户扮演角色',
     target_name varchar(50) not null comment 'LLM扮演角色',
     stage tinyint not null default 0 comment '任务阶段',
