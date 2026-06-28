@@ -2,6 +2,8 @@ package com.wuming.novel.pipeline;
 
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
+import com.wuming.novel.message.EventPublisher;
+import com.wuming.novel.message.jobdone.JobFinishEvent;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.sse.JobProgressService;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ public class PipelineService {
     private final List<PipelineStep> pipelineSteps;
     private final StageRetryExecutor stageRetryExecutor;
     private final JobProgressService jobProgressService;
+    private final EventPublisher<JobFinishEvent> eventPublisher;
 
 
     public boolean handleNovel(Long jobId) {
@@ -31,6 +34,7 @@ public class PipelineService {
         jobProgressService.initJob(jobId);
         jobProgressService.startJob(jobId);
 
+        String failReason = null;
         try {
             for (PipelineStep step : orderedSteps()) {
                 if (step.stage().getCode() <= job.getStage().getCode()) {
@@ -48,8 +52,21 @@ public class PipelineService {
             jobProgressService.completeJob(jobId);
             return true;
         } catch (RuntimeException e) {
+            failReason = e.getMessage();
             jobProgressService.failJob(jobId, e.getMessage());
             throw e;
+        }
+        finally {
+            job =  jobService.getById(jobId);
+            JobFinishEvent event = new JobFinishEvent();
+            event.setJobId(jobId);
+            event.setNovelId(job.getNovelId());
+            JobFinishEvent.JobFinishStatus status = job.getStage()==JobStage.COMPLETE
+                    ? JobFinishEvent.JobFinishStatus.SUCCESS
+                    : JobFinishEvent.JobFinishStatus.FAILED;
+            event.setStatus(status);
+            event.setMessage(failReason);
+            eventPublisher.publish(event);
         }
     }
 
