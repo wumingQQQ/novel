@@ -53,3 +53,18 @@ llm:
       base-url: ${ALI_BASE_URL:}
       api-key: ${ALI_API_KEY:}
       model: qwen3.5-flash
+
+rocketmq:
+  name-server: localhost:9876
+  producer:
+    group: novel-producer-group
+    send-message-timeout: 3000
+
+novel:
+  mq:
+    enabled: true
+    topic: novel
+    tags:
+      job-finished: job_finished
+      single-chapter-split-completed: scene_split_completed
+
