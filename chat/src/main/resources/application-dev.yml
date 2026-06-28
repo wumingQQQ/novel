@@ -42,3 +42,14 @@ llm:
       base-url: ${ALI_BASE_URL:}
       api-key: ${ALI_API_KEY:}
       model: qwen3.5-flash
+
+rocketmq:
+  name-server: localhost:9876
+  consumer:
+    group: chat-scene-consumer-group
+
+chat:
+  mq:
+    topic: novel
+    tags:
+      single-chapter-split-complete: scene_split_completed
