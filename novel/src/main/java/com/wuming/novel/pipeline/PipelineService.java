@@ -24,6 +24,9 @@ public class PipelineService {
     private final EventPublisher<JobFinishEvent> eventPublisher;
 
 
+    /**
+     * 任务正式开始
+     */
     public boolean handleNovel(Long jobId) {
         Job job = jobService.getById(jobId);
         if (job == null) {
@@ -57,16 +60,7 @@ public class PipelineService {
             throw e;
         }
         finally {
-            job =  jobService.getById(jobId);
-            JobFinishEvent event = new JobFinishEvent();
-            event.setJobId(jobId);
-            event.setNovelId(job.getNovelId());
-            JobFinishEvent.JobFinishStatus status = job.getStage()==JobStage.COMPLETE
-                    ? JobFinishEvent.JobFinishStatus.SUCCESS
-                    : JobFinishEvent.JobFinishStatus.FAILED;
-            event.setStatus(status);
-            event.setMessage(failReason);
-            eventPublisher.publish(event);
+            publishJobFinishEvent(jobId, failReason);
         }
     }
 
@@ -74,6 +68,23 @@ public class PipelineService {
         return pipelineSteps.stream()
                 .sorted(Comparator.comparingInt(step -> step.stage().getCode()))
                 .toList();
+    }
+
+    /**
+     * 发布任务失败或完成的事件，便于下游发邮件通知用户
+     * @param failReason 失败原因
+     */
+    private void publishJobFinishEvent(Long jobId, String failReason) {
+        Job job =  jobService.getById(jobId);
+        JobFinishEvent event = new JobFinishEvent();
+        event.setJobId(jobId);
+        event.setNovelId(job.getNovelId());
+        JobFinishEvent.JobFinishStatus status = job.getStage()==JobStage.COMPLETE
+                ? JobFinishEvent.JobFinishStatus.SUCCESS
+                : JobFinishEvent.JobFinishStatus.FAILED;
+        event.setStatus(status);
+        event.setMessage(failReason);
+        eventPublisher.publish(event);
     }
 
 }
