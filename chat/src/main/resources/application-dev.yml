@@ -10,11 +10,15 @@ spring:
       mode: never
       schema-locations: classpath:db/schema.sql
 
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:9379}
       password: ${REDIS_PWD:}
+  ai:
+    openai:
+      api-key: ${DS_API_KEY:}
 
 llm:
   default-provider: deepseek
@@ -60,3 +64,5 @@ rag:
     api-key: ${RERANKER_API_KEY:}
     base-url: https://api.botcf.com
     model: BAAI/bge-reranker-v2-m3
+    path: /v1/rerank
+    top-n: 10
