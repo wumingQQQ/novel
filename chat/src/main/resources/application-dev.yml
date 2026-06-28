@@ -10,10 +10,6 @@ spring:
       mode: never
       schema-locations: classpath:db/schema.sql
 
-  ai:
-    openai:
-      api-key: ${DS_API_KEY:}
-
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -53,3 +49,14 @@ chat:
     topic: novel
     tags:
       single-chapter-split-complete: scene_split_completed
+
+rag:
+  embedding:
+    api-key: ${EMBEDDING_API_KEY:}
+    base-url: https://api.botcf.com
+    model: BAAI/bge-m3
+    dimensions: 1024
+  reranker:
+    api-key: ${RERANKER_API_KEY:}
+    base-url: https://api.botcf.com
+    model: BAAI/bge-reranker-v2-m3
