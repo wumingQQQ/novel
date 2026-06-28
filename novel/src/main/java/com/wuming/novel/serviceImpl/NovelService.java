@@ -6,7 +6,9 @@ import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.exception.FileNotSupportException;
 import com.wuming.novel.exception.FileTooLargeException;
 import com.wuming.novel.mapper.NovelMapper;
+import com.wuming.novel.rpc.user.UserContextService;
 import com.wuming.novel.service.INovelService;
+import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,13 +20,12 @@ import java.nio.file.Paths;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INovelService {
 
     private final FileUploadProperties fileUploadProperties;
+    private final UserContextService userContextService;
 
-    public NovelService(FileUploadProperties fileUploadProperties) {
-        this.fileUploadProperties = fileUploadProperties;
-    }
 
     /**
      * 上传小说
@@ -35,10 +36,9 @@ public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INo
         if(file.isEmpty()) {
             throw new FileNotSupportException("文件不能为空");
         }
-        // TODO 查询用户是否存在
-        if(userId == null) {
-            throw new IllegalArgumentException("用户不能为空");
-        }
+        // 内部存在校验
+        userContextService.getUserDto(userId);
+
         if(file.getSize() > fileUploadProperties.getMaxFileSize().toBytes()){
             throw new FileTooLargeException("文件过大，请确保小于10MB");
         }

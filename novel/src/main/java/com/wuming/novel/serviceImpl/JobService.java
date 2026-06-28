@@ -5,19 +5,19 @@ import com.wuming.novel.domain.dto.CreateJobRequest;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.mapper.JobMapper;
+import com.wuming.novel.rpc.user.UserContextService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class JobService extends ServiceImpl<JobMapper, Job> implements IJobService {
     private final INovelService novelService;
-
-    public JobService(INovelService novelService) {
-        this.novelService = novelService;
-    }
+    private final UserContextService userContextService;
 
     /**
      * 创建job
@@ -27,13 +27,14 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
     @Override
     public Long createJob(CreateJobRequest request) {
         Long novelId = request.getNovelId();
+        Long userId = request.getUserId();
         if(novelService.getById(novelId) == null){
             throw new IllegalArgumentException("您指定的小说不存在");
         }
-        // TODO 查询用户是否存在
+        userContextService.getUserDto(userId);
         Job job = new Job();
         job.setNovelId(novelId);
-        job.setUserId(request.getUserId());
+        job.setUserId(userId);
         job.setTargetName(request.getTargetName());
         job.setProtagonistName(request.getProtagonistName());
         job.setStage(JobStage.PENDING);
