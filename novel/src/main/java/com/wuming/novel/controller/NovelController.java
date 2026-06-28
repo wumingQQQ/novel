@@ -43,8 +43,8 @@ public class NovelController {
     }
 
     @PostMapping
-    public ApiResonse<Long> uploadNovel(@NotNull MultipartFile file) throws IOException {
-        Long novelId = novelService.saveNovel(file);
+    public ApiResonse<Long> uploadNovel(@NotNull MultipartFile file, Long userId) throws IOException {
+        Long novelId = novelService.saveNovel(file, userId);
         return ApiResonse.success(novelId);
     }
 

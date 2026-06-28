@@ -7,5 +7,5 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 
 public interface INovelService extends IService<Novel> {
-    Long saveNovel(MultipartFile file) throws IOException;
+    Long saveNovel(MultipartFile file, Long userId) throws IOException;
 }

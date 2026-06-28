@@ -26,10 +26,18 @@ public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INo
         this.fileUploadProperties = fileUploadProperties;
     }
 
+    /**
+     * 上传小说
+     * @return 小说id
+     */
     @Override
-    public Long saveNovel(MultipartFile file) throws IOException {
+    public Long saveNovel(MultipartFile file, Long userId) throws IOException {
         if(file.isEmpty()) {
             throw new FileNotSupportException("文件不能为空");
+        }
+        // TODO 查询用户是否存在
+        if(userId == null) {
+            throw new IllegalArgumentException("用户不能为空");
         }
         if(file.getSize() > fileUploadProperties.getMaxFileSize().toBytes()){
             throw new FileTooLargeException("文件过大，请确保小于10MB");
@@ -59,6 +67,7 @@ public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INo
 
         Novel novel = new Novel();
         novel.setName(baseName);
+        novel.setUploaderId(userId);
         novel.setFilePath(filePath.toString());
 
         save(novel);

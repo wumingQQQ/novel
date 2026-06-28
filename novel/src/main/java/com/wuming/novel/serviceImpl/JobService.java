@@ -19,14 +19,21 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
         this.novelService = novelService;
     }
 
+    /**
+     * 创建job
+     * @param request 包含小说id，用户id，角色名
+     * @return jobId
+     */
     @Override
     public Long createJob(CreateJobRequest request) {
         Long novelId = request.getNovelId();
         if(novelService.getById(novelId) == null){
             throw new IllegalArgumentException("您指定的小说不存在");
         }
+        // TODO 查询用户是否存在
         Job job = new Job();
         job.setNovelId(novelId);
+        job.setUserId(request.getUserId());
         job.setTargetName(request.getTargetName());
         job.setProtagonistName(request.getProtagonistName());
         job.setStage(JobStage.PENDING);
