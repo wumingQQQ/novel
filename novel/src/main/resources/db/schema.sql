@@ -3,7 +3,8 @@ create table if not exists novels(
     name varchar(50) not null comment '小说名称',
     file_path varchar(100) not null comment '小说保存路径',
     uploader_id bigint not null comment '上传者id',
-    create_time datetime default current_timestamp comment '创建时间'
+    create_time datetime default current_timestamp comment '创建时间',
+    key idx_novels_uploader_id(uploader_id)
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
 
 create table if not exists chapters(
@@ -26,7 +27,8 @@ create table if not exists jobs(
     stage tinyint not null default 0 comment '任务阶段',
     create_time datetime default current_timestamp comment '创建时间',
     update_time datetime default current_timestamp on update current_timestamp comment '更新时间',
-    key idx_jobs_novel_id (novel_id)
+    key idx_jobs_novel_id (novel_id),
+    key idx_jobs_user_id(user_id)
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
 
 create table if not exists layers(
