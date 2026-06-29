@@ -66,3 +66,6 @@ rag:
     model: BAAI/bge-reranker-v2-m3
     path: /v1/rerank
     top-n: 10
+  redis:
+    index: "idx:rag:scene"
+    key-prefix: "rag:scene:"
