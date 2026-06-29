@@ -59,7 +59,7 @@ public class HttpRerankService implements RerankService {
                 .map(result -> {
                     RerankDocument source = documents.get(result.index());
                     return new RerankedDocument(
-                            source.chunkId(),
+                            source.documentId(),
                             source.content(),
                             result.score()
                     );
