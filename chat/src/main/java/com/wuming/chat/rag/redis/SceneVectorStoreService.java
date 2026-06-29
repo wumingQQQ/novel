@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -29,8 +28,6 @@ public class SceneVectorStoreService {
      * @param scene
      */
     public void upsertScene(Long jobId, SceneDto scene) {
-        deleteScene(jobId, scene.getSceneId());
-
         Document doc = toDocument(jobId, scene, FIRST_CHUNK_INDEX);
         vectorStore.add(List.of(doc));
 
@@ -39,7 +36,7 @@ public class SceneVectorStoreService {
     }
 
     /**
-     * 删除指定key的内容，用于实现幂等
+     * 删除指定key的内容
      * @param jobId
      * @param sceneId
      */
