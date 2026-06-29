@@ -60,6 +60,11 @@
         </dependency>
 
         <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-redis-store</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.wuming</groupId>
             <artifactId>novel-api</artifactId>
             <version>${project.version}</version>
