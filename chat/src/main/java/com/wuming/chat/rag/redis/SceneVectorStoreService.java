@@ -98,7 +98,7 @@ public class SceneVectorStoreService {
      * @return 向量文档id
      */
     private String documentId(Long jobId, Long sceneId, int chunkIndex){
-        return String.format("scene:%d:%d:%d", jobId, sceneId, chunkIndex);
+        return String.format("%d:%d:%d", jobId, sceneId, chunkIndex);
     }
 
     /**
