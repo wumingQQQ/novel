@@ -27,7 +27,7 @@ public class RagConfig {
                 .build();
         OpenAiEmbeddingOptions options = OpenAiEmbeddingOptions.builder()
                 .model(embedding.getModel())
-                .dimensions(embedding.getDimensions())
+                //.dimensions(embedding.getDimensions())
                 .build();
 
         return new OpenAiEmbeddingModel(api, MetadataMode.NONE, options);
