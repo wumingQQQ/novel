@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <!-- 1. 定义全局变量 -->
-    <property name="LOG_PATH" value="./logs/novel"/>
-    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} traceId=%X{traceId} userId=%X{userId} jobId=%X{jobId} novelId=%X{novelId} chapterId=%X{chapterId} stage=%X{stage} - %msg%n"/>
+    <property name="LOG_PATH" value="./logs/chat"/>
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} traceId=%X{traceId} userId=%X{userId} jobId=%X{jobId} sessionId=%X{sessionId} - %msg%n"/>
 
     <!-- 2. 控制台输出 Appender -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -19,9 +19,7 @@
             <pattern>${LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
         </encoder>
-        <!-- 按时间和大小滚动的策略 -->
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <!-- 归档日志命名格式，%d表示日期，%i表示序号 -->
             <fileNamePattern>${LOG_PATH}/application.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
             <maxFileSize>100MB</maxFileSize>
             <maxHistory>30</maxHistory>
@@ -58,10 +56,10 @@
     </appender>
 
     <!-- 6. 特定包的日志级别控制 -->
-    <logger name="com.wuming.novel.mapper" level="INFO"/>
-    <logger name="org.springframework.ai" level="DEBUG"/>
+    <logger name="com.wuming.chat.mapper" level="INFO"/>
+    <logger name="org.springframework.ai" level="INFO"/>
     <logger name="com.baomidou.mybatisplus" level="WARN"/>
-    <logger name="com.wuming.novel" level="DEBUG"/>
+    <logger name="com.wuming.chat" level="DEBUG"/>
 
     <!-- 7. 全局根配置 -->
     <root level="INFO">
