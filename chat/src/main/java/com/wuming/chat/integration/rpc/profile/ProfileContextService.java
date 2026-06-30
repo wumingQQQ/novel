@@ -1,10 +1,10 @@
-package com.wuming.chat.rpc.profile;
+package com.wuming.chat.integration.rpc.profile;
 
 import com.wuming.api.profile.RoleContextFacade;
 import com.wuming.api.profile.dto.RoleContextDto;
 import com.wuming.api.profile.dto.RoleContextResultDto;
-import com.wuming.chat.observability.TraceContext;
-import com.wuming.chat.service.cache.RpcResultCacheService;
+import com.wuming.chat.infrastructure.observability.TraceContext;
+import com.wuming.chat.infrastructure.cache.RpcResultCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -52,3 +52,4 @@ public class ProfileContextService {
         }
     }
 }
+

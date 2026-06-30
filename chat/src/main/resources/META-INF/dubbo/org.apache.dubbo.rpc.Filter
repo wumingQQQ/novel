@@ -1,1 +1,1 @@
-traceDubboFilter=com.wuming.chat.observability.TraceDubboFilter
+traceDubboFilter=com.wuming.chat.infrastructure.observability.TraceDubboFilter

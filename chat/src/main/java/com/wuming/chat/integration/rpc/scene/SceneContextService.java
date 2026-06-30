@@ -1,8 +1,8 @@
-package com.wuming.chat.rpc.scene;
+package com.wuming.chat.integration.rpc.scene;
 
 import com.wuming.api.scene.SceneFacade;
 import com.wuming.api.scene.dto.SceneDto;
-import com.wuming.chat.observability.TraceContext;
+import com.wuming.chat.infrastructure.observability.TraceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
@@ -33,3 +33,4 @@ public class SceneContextService {
         }
     }
 }
+

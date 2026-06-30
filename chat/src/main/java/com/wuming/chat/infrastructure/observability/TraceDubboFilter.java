@@ -1,4 +1,4 @@
-package com.wuming.chat.observability;
+package com.wuming.chat.infrastructure.observability;
 
 import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.extension.Activate;
@@ -41,3 +41,4 @@ public class TraceDubboFilter implements Filter {
         }
     }
 }
+

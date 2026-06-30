@@ -1,7 +1,7 @@
 package com.wuming.chat.rag.retrieve;
 
 import com.wuming.chat.config.llm.RagProperties;
-import com.wuming.chat.observability.TraceContext;
+import com.wuming.chat.infrastructure.observability.TraceContext;
 import com.wuming.chat.rag.redis.SceneVectorStoreService;
 import com.wuming.chat.rag.rerank.RerankDocument;
 import com.wuming.chat.rag.rerank.RerankService;

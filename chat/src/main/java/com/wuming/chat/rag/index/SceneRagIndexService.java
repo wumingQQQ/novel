@@ -1,10 +1,10 @@
-package com.wuming.chat.rag;
+package com.wuming.chat.rag.index;
 
 import com.wuming.api.scene.dto.SceneDto;
-import com.wuming.chat.message.eventdto.ChapterSceneSplitCompleteMessage;
-import com.wuming.chat.observability.TraceContext;
+import com.wuming.chat.integration.message.dto.ChapterSceneSplitCompleteMessage;
+import com.wuming.chat.infrastructure.observability.TraceContext;
 import com.wuming.chat.rag.redis.SceneVectorStoreService;
-import com.wuming.chat.rpc.scene.SceneContextService;
+import com.wuming.chat.integration.rpc.scene.SceneContextService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -55,3 +55,4 @@ public class SceneRagIndexService {
         }
     }
 }
+

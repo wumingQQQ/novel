@@ -6,7 +6,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @EnableDubbo
-@MapperScan("com.wuming.chat.mapper")
+@MapperScan("com.wuming.chat.infrastructure.mapper")
 @SpringBootApplication
 public class ChatApplication {
 

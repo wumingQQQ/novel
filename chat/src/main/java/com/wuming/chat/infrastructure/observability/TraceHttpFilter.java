@@ -1,4 +1,4 @@
-package com.wuming.chat.observability;
+package com.wuming.chat.infrastructure.observability;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -31,3 +31,4 @@ public class TraceHttpFilter extends OncePerRequestFilter {
         }
     }
 }
+

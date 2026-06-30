@@ -1,4 +1,4 @@
-package com.wuming.chat.service.cache;
+package com.wuming.chat.infrastructure.cache;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,3 +46,4 @@ public class ProfilePromptCacheService {
         return KEY_PREFIX + jobId;
     }
 }
+

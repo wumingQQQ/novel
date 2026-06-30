@@ -1,4 +1,4 @@
-package com.wuming.chat.service.cache;
+package com.wuming.chat.infrastructure.cache;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -103,3 +103,4 @@ public class ChatMessageCacheService {
         return Math.max(1, historyLimit);
     }
 }
+

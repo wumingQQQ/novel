@@ -1,4 +1,4 @@
-package com.wuming.chat.message.eventdto;
+package com.wuming.chat.integration.message.dto;
 
 import lombok.Data;
 
@@ -13,3 +13,4 @@ public class ChapterSceneSplitCompleteMessage {
     private Integer sceneCount;
     private LocalDateTime occurTime;
 }
+

@@ -1,9 +1,9 @@
-package com.wuming.chat.rpc.user;
+package com.wuming.chat.integration.rpc.user;
 
 import com.wuming.api.user.UserFacade;
 import com.wuming.api.user.dto.UserResultDto;
-import com.wuming.chat.observability.TraceContext;
-import com.wuming.chat.service.cache.RpcResultCacheService;
+import com.wuming.chat.infrastructure.observability.TraceContext;
+import com.wuming.chat.infrastructure.cache.RpcResultCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -42,3 +42,4 @@ public class UserContextService {
         }
     }
 }
+

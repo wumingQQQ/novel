@@ -1,4 +1,4 @@
-package com.wuming.chat.observability;
+package com.wuming.chat.infrastructure.observability;
 
 import org.slf4j.MDC;
 
@@ -110,3 +110,4 @@ public final class TraceContext {
         }
     }
 }
+

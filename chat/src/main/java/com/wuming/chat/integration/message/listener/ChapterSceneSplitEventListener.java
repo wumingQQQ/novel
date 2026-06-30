@@ -1,8 +1,8 @@
-package com.wuming.chat.message.listener;
+package com.wuming.chat.integration.message.listener;
 
-import com.wuming.chat.message.eventdto.ChapterSceneSplitCompleteMessage;
-import com.wuming.chat.observability.TraceContext;
-import com.wuming.chat.rag.SceneRagIndexService;
+import com.wuming.chat.integration.message.dto.ChapterSceneSplitCompleteMessage;
+import com.wuming.chat.infrastructure.observability.TraceContext;
+import com.wuming.chat.rag.index.SceneRagIndexService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
@@ -33,3 +33,4 @@ public class ChapterSceneSplitEventListener implements RocketMQListener<ChapterS
         }
     }
 }
+
