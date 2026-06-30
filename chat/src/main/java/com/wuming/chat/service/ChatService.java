@@ -13,6 +13,7 @@ import com.wuming.chat.mapper.ChatSessionMapper;
 import com.wuming.chat.observability.TraceContext;
 import com.wuming.chat.rag.prompt.RagPromptBuilder;
 import com.wuming.chat.rag.retrieve.RagRetrieveService;
+import com.wuming.chat.rpc.profile.ProfileContextService;
 import com.wuming.chat.rpc.user.UserContextService;
 import com.wuming.chat.service.cache.ChatMessageCacheService;
 import com.wuming.chat.service.cache.ProfilePromptCacheService;
