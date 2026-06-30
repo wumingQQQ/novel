@@ -1,4 +1,10 @@
 spring:
+  datasource:
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 10
+      initialization-fail-timeout: 1
+      keepalive-time: 300000
   profiles:
     active: dev
 
@@ -17,6 +23,7 @@ dubbo:
   application:
     name: novel
     qos-enable: false
+    serialize-check-status: WARN
   protocol:
     name: tri
     port: 50051
