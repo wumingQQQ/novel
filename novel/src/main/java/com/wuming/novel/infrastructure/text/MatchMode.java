@@ -1,4 +1,4 @@
-package com.wuming.novel.text;
+package com.wuming.novel.infrastructure.text;
 
 public enum MatchMode {
     EXACT,

@@ -3,8 +3,8 @@ package com.wuming.novel.llm.checker;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
 import com.wuming.novel.exception.LLMResponseEmptyException;
-import com.wuming.novel.text.TextAnchorMatcher;
-import com.wuming.novel.text.TextMatch;
+import com.wuming.novel.infrastructure.text.TextAnchorMatcher;
+import com.wuming.novel.infrastructure.text.TextMatch;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

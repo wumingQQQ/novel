@@ -1,4 +1,4 @@
-package com.wuming.novel.text;
+package com.wuming.novel.infrastructure.text;
 
 import org.springframework.stereotype.Component;
 
