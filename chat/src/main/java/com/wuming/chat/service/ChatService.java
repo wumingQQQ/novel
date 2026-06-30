@@ -2,6 +2,7 @@ package com.wuming.chat.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.api.profile.dto.RoleContextDto;
+import com.wuming.api.user.dto.UserResultDto;
 import com.wuming.chat.config.llm.LlmClientFactory;
 import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.entity.ChatMessage;
@@ -11,6 +12,7 @@ import com.wuming.chat.mapper.ChatMessageMapper;
 import com.wuming.chat.mapper.ChatSessionMapper;
 import com.wuming.chat.rag.prompt.RagPromptBuilder;
 import com.wuming.chat.rag.retrieve.RagRetrieveService;
+import com.wuming.chat.rpc.user.UserContextService;
 import com.wuming.chat.service.cache.ChatMessageCacheService;
 import com.wuming.chat.service.cache.ProfilePromptCacheService;
 import lombok.RequiredArgsConstructor;
@@ -53,7 +55,12 @@ public class ChatService {
         if (jobId == null) {
             throw new IllegalArgumentException("jobId不能为空");
         }
-        userContextService.getRequiredUser(userId);
+
+        UserResultDto result = userContextService.getRequiredUser(userId);
+        if(!result.isSuccess()){
+            throw new IllegalArgumentException(result.getMessage());
+        }
+
         profileContextService.getProfileContext(jobId);
 
         ChatSession session = new ChatSession();
