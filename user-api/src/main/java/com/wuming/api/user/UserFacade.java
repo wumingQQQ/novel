@@ -1,6 +1,6 @@
 package com.wuming.api.user;
 
-import com.wuming.api.user.dto.UserDto;
+import com.wuming.api.user.dto.UserResultDto;
 
 public interface UserFacade {
 
@@ -8,7 +8,7 @@ public interface UserFacade {
      * 获取可用用户；用户不存在或不可用时抛出异常。
      *
      * @param userId 用户id
-     * @return 用户基础信息
+     * @return 用户响应
      */
-    UserDto getRequiredUser(Long userId);
+    UserResultDto getRequiredUser(Long userId);
 }

@@ -1,7 +1,7 @@
 package com.wuming.chat.service;
 
 import com.wuming.api.user.UserFacade;
-import com.wuming.api.user.dto.UserDto;
+import com.wuming.api.user.dto.UserResultDto;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 
@@ -17,7 +17,7 @@ public class UserContextService {
      * @param userId 用户id
      * @return 用户基础信息
      */
-    public UserDto getRequiredUser(Long userId) {
+    public UserResultDto getRequiredUser(Long userId) {
         return userFacade.getRequiredUser(userId);
     }
 }
