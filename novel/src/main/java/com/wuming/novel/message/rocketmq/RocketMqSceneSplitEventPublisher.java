@@ -2,6 +2,7 @@ package com.wuming.novel.message.rocketmq;
 
 import com.wuming.novel.message.EventPublisher;
 import com.wuming.novel.message.scenesplit.ChapterSceneSplitCompleteEvent;
+import com.wuming.novel.observability.TraceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -20,20 +21,22 @@ public class RocketMqSceneSplitEventPublisher implements EventPublisher<ChapterS
     @Value("${novel.mq.topic}")
     private String topic;
 
+    /**
+     * 发送单章节场景切分完成事件，供chat模块拉取场景并建立RAG索引。
+     *
+     * @param event 单章节场景切分完成事件
+     */
     @Override
     public void publish(ChapterSceneSplitCompleteEvent event) {
-        log.info(
-                "章节场景切分完成事件已生成，jobId: {}, novelId: {}, chapterId: {}, chapterSeq: {}, sceneCount: {}",
-                event.getJobId(),
-                event.getNovelId(),
-                event.getChapterId(),
-                event.getChapterSequence(),
-                event.getSceneCount()
-        );
-        String destination = topic + ":" + tagProperties.getSingleChapterSplitCompleted();
-        rocketMQTemplate.convertAndSend(
-                destination,
-                event
-        );
+        try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(event.getJobId());
+             TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId());
+             TraceContext.MdcScope ignoredChapter = TraceContext.putChapterId(event.getChapterId())) {
+            String destination = topic + ":" + tagProperties.getSingleChapterSplitCompleted();
+            log.info("开始发送章节切分完成事件，destination: {}, chapterSeq: {}, sceneCount: {}",
+                    destination, event.getChapterSequence(), event.getSceneCount());
+            rocketMQTemplate.convertAndSend(destination, event);
+            log.info("章节切分完成事件发送成功，destination: {}, chapterSeq: {}, sceneCount: {}",
+                    destination, event.getChapterSequence(), event.getSceneCount());
+        }
     }
 }

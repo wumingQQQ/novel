@@ -2,6 +2,7 @@ package com.wuming.novel.message.rocketmq;
 
 import com.wuming.novel.message.EventPublisher;
 import com.wuming.novel.message.jobdone.JobFinishEvent;
+import com.wuming.novel.observability.TraceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -20,19 +21,22 @@ public class RocketMqJobFinishEventPublisher implements EventPublisher<JobFinish
     @Value("${novel.mq.topic}")
     private String topic;
 
+    /**
+     * 发送任务完成或失败事件，供下游用户通知模块消费。
+     *
+     * @param event 任务完成事件
+     */
     @Override
     public void publish(JobFinishEvent event) {
-        log.info(
-                "任务已{}，jobId: {}, userId: {}, novelId: {}",
-                event.getStatus(),
-                event.getJobId(),
-                event.getUserId(),
-                event.getNovelId()
-        );
-        String destination = topic + ":" + tagProperties.getJobFinished();
-        rocketMQTemplate.convertAndSend(
-                destination,
-                event
-        );
+        try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(event.getJobId());
+             TraceContext.MdcScope ignoredUser = TraceContext.putUserId(event.getUserId());
+             TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId())) {
+            String destination = topic + ":" + tagProperties.getJobFinished();
+            log.info("开始发送任务完成事件，destination: {}, status: {}",
+                    destination, event.getStatus());
+            rocketMQTemplate.convertAndSend(destination, event);
+            log.info("任务完成事件发送成功，destination: {}, status: {}",
+                    destination, event.getStatus());
+        }
     }
 }

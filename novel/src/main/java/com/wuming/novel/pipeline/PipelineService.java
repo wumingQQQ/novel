@@ -4,6 +4,7 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.message.EventPublisher;
 import com.wuming.novel.message.jobdone.JobFinishEvent;
+import com.wuming.novel.observability.TraceContext;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.sse.JobProgressService;
 import lombok.RequiredArgsConstructor;
@@ -23,9 +24,8 @@ public class PipelineService {
     private final JobProgressService jobProgressService;
     private final EventPublisher<JobFinishEvent> eventPublisher;
 
-
     /**
-     * 任务正式开始
+     * 按阶段顺序执行小说画像构建流程，并在最终发布任务完成或失败事件。
      */
     public boolean handleNovel(Long jobId) {
         Job job = jobService.getById(jobId);
@@ -33,37 +33,37 @@ public class PipelineService {
             throw new IllegalArgumentException("该job不存在，请创建后重试");
         }
 
-        log.debug("job: {} 开始处理，当前阶段: {}", jobId, job.getStage());
-        jobProgressService.initJob(jobId);
-        jobProgressService.startJob(jobId);
+        try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId);
+             TraceContext.MdcScope ignoredUser = TraceContext.putUserId(job.getUserId());
+             TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(job.getNovelId())) {
+            long start = System.currentTimeMillis();
+            log.info("任务流程开始，currentStage: {}", job.getStage());
+            jobProgressService.initJob(jobId);
+            jobProgressService.startJob(jobId);
 
-        String failReason = null;
-        try {
-            for (PipelineStep step : orderedSteps()) {
-                if (step.stage().getCode() <= job.getStage().getCode()) {
-                    jobProgressService.completeStage(jobId, step.stage(), step.name() + "已完成");
-                    continue;
+            String failReason = null;
+            try {
+                for (PipelineStep step : orderedSteps()) {
+                    runStepIfNeeded(jobId, job, step);
                 }
-                log.info("job: {} 开始{}阶段", jobId, step.name());
-                jobProgressService.startStage(jobId, step.stage(), step.name());
-                stageRetryExecutor.runWithRetry(jobId, step);
-                jobService.advanceStage(jobId, step.stage());
-                job.setStage(step.stage());
-                jobProgressService.completeStage(jobId, step.stage(), step.name() + "完成");
+                jobService.advanceStage(jobId, JobStage.COMPLETE);
+                jobProgressService.completeJob(jobId);
+                log.info("任务流程完成，costMs: {}", System.currentTimeMillis() - start);
+                return true;
+            } catch (RuntimeException e) {
+                failReason = e.getMessage();
+                jobProgressService.failJob(jobId, e.getMessage());
+                log.warn("任务流程失败，costMs: {}", System.currentTimeMillis() - start, e);
+                throw e;
+            } finally {
+                publishJobFinishEvent(jobId, failReason);
             }
-            jobService.advanceStage(jobId, JobStage.COMPLETE);
-            jobProgressService.completeJob(jobId);
-            return true;
-        } catch (RuntimeException e) {
-            failReason = e.getMessage();
-            jobProgressService.failJob(jobId, e.getMessage());
-            throw e;
-        }
-        finally {
-            publishJobFinishEvent(jobId, failReason);
         }
     }
 
+    /**
+     * 返回按阶段编码排序后的流程步骤。
+     */
     private List<PipelineStep> orderedSteps() {
         return pipelineSteps.stream()
                 .sorted(Comparator.comparingInt(step -> step.stage().getCode()))
@@ -71,26 +71,49 @@ public class PipelineService {
     }
 
     /**
-     * 发布任务失败或完成的事件，便于下游发邮件通知用户
-     * @param failReason 失败原因
+     * 跳过已经完成的阶段，执行未完成阶段并推进任务状态。
+     */
+    private void runStepIfNeeded(Long jobId, Job job, PipelineStep step) {
+        try (TraceContext.MdcScope ignoredStage = TraceContext.putStage(step.stage())) {
+            if (step.stage().getCode() <= job.getStage().getCode()) {
+                jobProgressService.completeStage(jobId, step.stage(), step.name() + "已完成");
+                log.debug("跳过已完成阶段，stageName: {}", step.name());
+                return;
+            }
+
+            long start = System.currentTimeMillis();
+            log.info("任务阶段开始，stageName: {}", step.name());
+            jobProgressService.startStage(jobId, step.stage(), step.name());
+            stageRetryExecutor.runWithRetry(jobId, step);
+            jobService.advanceStage(jobId, step.stage());
+            job.setStage(step.stage());
+            jobProgressService.completeStage(jobId, step.stage(), step.name() + "完成");
+            log.info("任务阶段完成，stageName: {}, costMs: {}",
+                    step.name(), System.currentTimeMillis() - start);
+        }
+    }
+
+    /**
+     * 发布任务失败或完成事件，便于下游发邮件或用户通知。
+     *
+     * @param jobId 任务id
+     * @param failReason 失败原因，成功时为空
      */
     private void publishJobFinishEvent(Long jobId, String failReason) {
-        Job job =  jobService.getById(jobId);
+        Job job = jobService.getById(jobId);
         JobFinishEvent event = new JobFinishEvent();
         event.setJobId(jobId);
         event.setUserId(job.getUserId());
         event.setNovelId(job.getNovelId());
-        JobFinishEvent.JobFinishStatus status = job.getStage()==JobStage.COMPLETE
+        JobFinishEvent.JobFinishStatus status = job.getStage() == JobStage.COMPLETE
                 ? JobFinishEvent.JobFinishStatus.SUCCESS
                 : JobFinishEvent.JobFinishStatus.FAILED;
         event.setStatus(status);
         event.setFailReason(failReason);
-        try{
+        try {
             eventPublisher.publish(event);
-        }
-        catch (RuntimeException e){
-            log.warn("job完成事件发布失败，jobId: {}", jobId, e);
+        } catch (RuntimeException e) {
+            log.warn("job完成事件发布失败，status: {}", status, e);
         }
     }
-
 }
