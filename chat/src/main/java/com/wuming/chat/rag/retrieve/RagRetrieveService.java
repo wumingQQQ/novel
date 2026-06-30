@@ -105,9 +105,6 @@ public class RagRetrieveService {
 
     /**
      * 限制单个场景的最大字数
-     * @param content
-     * @param maxChars
-     * @return
      */
     private String limitText(String content, int maxChars){
         if (content == null) {
@@ -141,7 +138,6 @@ public class RagRetrieveService {
     /**
      * 将Object对象转为long类型
      * * @param value
-     * @return
      */
     private Long longValue(Object value){
         if(value instanceof Number number){
@@ -152,8 +148,6 @@ public class RagRetrieveService {
 
     /**
      * 将Object对象转为int类型
-     * @param value
-     * @return
      */
     private Integer intValue(Object value){
         if(value instanceof Number number){
