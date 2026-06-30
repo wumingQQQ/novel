@@ -17,9 +17,10 @@ public class ProfileContextService {
 
     /**
      * 通过远程调用获取角色画像
+     *
      * @param jobId 与画像关联的job
      */
-    public RoleContextDto getProfileContext(Long jobId){
+    public RoleContextDto getProfileContext(Long jobId) {
         RoleContextResultDto context = roleContextFacade.getRoleContext(jobId);
         if (context == null) {
             throw new IllegalStateException("画像服务返回为空");
@@ -28,4 +29,5 @@ public class ProfileContextService {
             throw new IllegalStateException(context.getMessage());
         }
         return context.getRoleContext();
-    }}
+    }
+}
