@@ -19,6 +19,7 @@ dubbo:
   application:
     name: chat
     qos-enable: false
+    serialize-check-status: WARN
   registry:
     address: N/A
 

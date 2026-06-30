@@ -1,6 +1,7 @@
 package com.wuming.novel.rpc.user;
 
 import com.wuming.api.user.UserFacade;
+import com.wuming.api.user.dto.UserResultDto;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Component;
@@ -19,7 +20,10 @@ public class UserContextService {
             throw new IllegalArgumentException("用户不能为空");
         }
         try {
-            userFacade.getRequiredUser(userId);
+            UserResultDto user = userFacade.getRequiredUser(userId);
+            if(!user.isSuccess()){
+                throw new IllegalArgumentException(user.getMessage());
+            }
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (RuntimeException e) {

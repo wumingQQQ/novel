@@ -20,6 +20,7 @@ dubbo:
   application:
     name: user
     qos-enable: false
+    serialize-check-status: WARN
   protocol:
     name: tri
     port: 50052

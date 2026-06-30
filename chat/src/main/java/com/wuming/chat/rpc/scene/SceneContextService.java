@@ -9,7 +9,7 @@ import java.util.List;
 
 @Service
 public class SceneContextService {
-    @DubboReference(url = "tri://127.0.0.1:50051", timeout = 5000)
+    @DubboReference(url = "tri://127.0.0.1:50051", timeout = 15000)
     private SceneFacade sceneFacade;
 
     /**

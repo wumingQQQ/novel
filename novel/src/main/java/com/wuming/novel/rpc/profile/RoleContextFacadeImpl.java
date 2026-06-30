@@ -2,6 +2,7 @@ package com.wuming.novel.rpc.profile;
 
 import com.wuming.api.profile.RoleContextFacade;
 import com.wuming.api.profile.dto.RoleContextDto;
+import com.wuming.api.profile.dto.RoleContextResultDto;
 import com.wuming.novel.domain.dto.FullPortraitDto;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Novel;
@@ -10,8 +11,10 @@ import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
 import com.wuming.novel.serviceImpl.FullPortraitPersistenceService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;
 
+@Slf4j
 @DubboService
 @RequiredArgsConstructor
 public class RoleContextFacadeImpl implements RoleContextFacade {
@@ -21,7 +24,23 @@ public class RoleContextFacadeImpl implements RoleContextFacade {
     private final RoleContextAssembler roleContextAssembler;
 
     @Override
-    public RoleContextDto getRoleContext(Long jobId) {
+    public RoleContextResultDto getRoleContext(Long jobId) {
+        try {
+            log.info("getRoleContext jobId={}",jobId);
+            RoleContextDto context = doGetRoleContext(jobId);
+            return RoleContextResultDto.success(context);
+        } catch (IllegalArgumentException e) {
+            return RoleContextResultDto.failure("PROFILE_INVALID", e.getMessage());
+        } catch (IllegalStateException e) {
+            return RoleContextResultDto.failure("PROFILE_UNAVAILABLE", e.getMessage());
+        } catch (Exception e) {
+            return RoleContextResultDto.failure("SYSTEM_ERROR", e.getMessage());
+        }
+
+
+    }
+
+    private RoleContextDto doGetRoleContext(Long jobId) {
         if (jobId == null) {
             throw new IllegalArgumentException("jobId不能为空");
         }

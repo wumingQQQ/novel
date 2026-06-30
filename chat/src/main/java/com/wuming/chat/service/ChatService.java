@@ -2,6 +2,7 @@ package com.wuming.chat.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.api.profile.dto.RoleContextDto;
+import com.wuming.api.user.dto.UserResultDto;
 import com.wuming.chat.config.llm.LlmClientFactory;
 import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.entity.ChatMessage;
@@ -9,6 +10,9 @@ import com.wuming.chat.domain.entity.ChatSession;
 import com.wuming.chat.domain.model.ChatHistoryMessage;
 import com.wuming.chat.mapper.ChatMessageMapper;
 import com.wuming.chat.mapper.ChatSessionMapper;
+import com.wuming.chat.rag.prompt.RagPromptBuilder;
+import com.wuming.chat.rag.retrieve.RagRetrieveService;
+import com.wuming.chat.rpc.user.UserContextService;
 import com.wuming.chat.service.cache.ChatMessageCacheService;
 import com.wuming.chat.service.cache.ProfilePromptCacheService;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +38,8 @@ public class ChatService {
     private final UserContextService userContextService;
     private final RoleChatPromptBuilder promptBuilder;
     private final LlmClientFactory llmClientFactory;
+    private final RagPromptBuilder ragPromptBuilder;
+    private final RagRetrieveService retrieveService;
 
     @Value("${chat.history-limit:20}")
     private int historyLimit;
@@ -49,7 +55,12 @@ public class ChatService {
         if (jobId == null) {
             throw new IllegalArgumentException("jobId不能为空");
         }
-        userContextService.getRequiredUser(userId);
+
+        UserResultDto result = userContextService.getRequiredUser(userId);
+        if(!result.isSuccess()){
+            throw new IllegalArgumentException(result.getMessage());
+        }
+
         profileContextService.getProfileContext(jobId);
 
         ChatSession session = new ChatSession();
@@ -62,6 +73,7 @@ public class ChatService {
 
     /**
      * 保存用户消息，携带画像和最近历史请求 LLM，再保存角色回复。
+     * @param content 用户输入
      */
     public SendChatMessageResponse sendMessage(Long sessionId, String content) {
         ChatSession session = requireSession(sessionId);
@@ -69,9 +81,13 @@ public class ChatService {
 
         saveMessage(sessionId, ROLE_USER, userContent);
 
+        String ragPrompt = ragPromptBuilder.buildContextPrompt(
+                retrieveService.retrieve(session.getJobId(), userContent)
+        );
         String assistantContent = requestAssistantReply(
                 systemPrompt(session.getJobId()),
-                recentMessages(sessionId)
+                recentMessages(sessionId),
+                ragPrompt
         );
 
         ChatMessage assistantMessage = saveMessage(sessionId, ROLE_ASSISTANT, assistantContent);
@@ -80,6 +96,8 @@ public class ChatService {
 
     /**
      * 保存单条消息；这里不包裹长事务，避免 LLM 调用占用数据库连接。
+     * @param role 分为USER与ASSISTANT
+     * @param content 经过规整(requireContent)后的用户输入
      */
     private ChatMessage saveMessage(Long sessionId, String role, String content) {
         ChatMessage message = new ChatMessage();
@@ -119,6 +137,7 @@ public class ChatService {
 
     /**
      * 校验并规整用户输入，避免空消息进入上下文。
+     * @param content 用户输入
      */
     private String requireContent(String content) {
         if (content == null || content.isBlank()) {
@@ -166,13 +185,15 @@ public class ChatService {
 
     /**
      * 使用角色系统提示词和最近对话文本请求 LLM 生成角色回复。
+     * @param messages 该会话对话历史
      */
-    private String requestAssistantReply(String systemPrompt, List<ChatHistoryMessage> messages) {
+    private String requestAssistantReply(String systemPrompt,
+                                         List<ChatHistoryMessage> messages, String ragPrompt) {
         return llmClientFactory
                 .taskClient(LlmClientFactory.TASK_ROLE_CHAT)
                 .prompt()
                 .system(systemPrompt)
-                .user(formatConversation(messages))
+                .user(formatConversation(messages, ragPrompt))
                 .call()
                 .content();
     }
@@ -180,7 +201,7 @@ public class ChatService {
     /**
      * 将历史消息折叠成普通文本，兼容当前 ChatClient API。
      */
-    private String formatConversation(List<ChatHistoryMessage> messages) {
+    private String formatConversation(List<ChatHistoryMessage> messages, String ragPrompt) {
         StringBuilder builder = new StringBuilder();
         builder.append("【最近对话】\n");
         for (ChatHistoryMessage message : messages) {
@@ -189,6 +210,10 @@ public class ChatService {
             } else if (ROLE_ASSISTANT.equals(message.role())) {
                 builder.append("你：").append(message.content()).append('\n');
             }
+        }
+
+        if(ragPrompt != null && !ragPrompt.isBlank()) {
+            builder.append("\n").append(ragPrompt).append("\n");
         }
         builder.append("\n请继续回复最后一条用户消息，只输出角色本人的回复。");
         return builder.toString();

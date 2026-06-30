@@ -22,6 +22,7 @@ dubbo:
   application:
     name: novel
     qos-enable: false
+    serialize-check-status: WARN
   protocol:
     name: tri
     port: 50051
