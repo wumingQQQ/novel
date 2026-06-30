@@ -20,15 +20,12 @@ public class ProfileContextService {
      * @param jobId 与画像关联的job
      */
     public RoleContextDto getProfileContext(Long jobId){
-        try {
-            RoleContextResultDto context = roleContextFacade.getRoleContext(jobId);
-            if(context.isSuccess()){
-                return context.getRoleContext();
-            }
-            throw new IllegalArgumentException(context.getMessage());
+        RoleContextResultDto context = roleContextFacade.getRoleContext(jobId);
+        if (context == null) {
+            throw new IllegalStateException("画像服务返回为空");
         }
-        catch (Exception e){
-            throw new IllegalArgumentException(e.getMessage());
+        if (!context.isSuccess()) {
+            throw new IllegalStateException(context.getMessage());
         }
-    }
-}
+        return context.getRoleContext();
+    }}

@@ -1,4 +1,4 @@
-package com.wuming.chat.service;
+package com.wuming.chat.rpc.user;
 
 import com.wuming.api.user.UserFacade;
 import com.wuming.api.user.dto.UserResultDto;
