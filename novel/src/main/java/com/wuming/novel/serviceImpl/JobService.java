@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuming.novel.domain.dto.CreateJobRequest;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
-import com.wuming.novel.mapper.JobMapper;
+import com.wuming.novel.infrastructure.mapper.JobMapper;
 import com.wuming.novel.rpc.user.UserContextService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;

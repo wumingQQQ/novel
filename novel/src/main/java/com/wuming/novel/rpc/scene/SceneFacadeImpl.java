@@ -5,7 +5,7 @@ import com.wuming.api.scene.dto.SceneDto;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Scene;
-import com.wuming.novel.observability.TraceContext;
+import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ISceneService;

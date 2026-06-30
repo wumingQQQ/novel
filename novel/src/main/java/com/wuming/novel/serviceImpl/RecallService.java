@@ -3,7 +3,7 @@ package com.wuming.novel.serviceImpl;
 import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.entity.rel.ScenePool;
 import com.wuming.novel.domain.enums.PoolType;
-import com.wuming.novel.mapper.RecallMapper;
+import com.wuming.novel.infrastructure.mapper.RecallMapper;
 import com.wuming.novel.service.IScenePoolService;
 import com.wuming.novel.service.ISceneService;
 import org.springframework.beans.factory.annotation.Value;

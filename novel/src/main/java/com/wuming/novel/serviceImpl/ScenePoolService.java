@@ -12,7 +12,7 @@ import com.wuming.novel.domain.llmresponse.ScenePoolResponse;
 import com.wuming.novel.domain.llmresponse.ScenePoolResponseWrapper;
 import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.ScenePoolResponseChecker;
-import com.wuming.novel.mapper.ScenePoolMapper;
+import com.wuming.novel.infrastructure.mapper.ScenePoolMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.IScenePoolService;

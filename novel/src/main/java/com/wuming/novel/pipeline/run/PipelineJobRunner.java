@@ -1,6 +1,6 @@
 package com.wuming.novel.pipeline.run;
 
-import com.wuming.novel.observability.TraceContext;
+import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.pipeline.PipelineService;
 import com.wuming.novel.sse.JobProgress;
 import com.wuming.novel.sse.JobProgressService;

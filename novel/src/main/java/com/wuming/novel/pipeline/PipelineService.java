@@ -4,7 +4,7 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.message.EventPublisher;
 import com.wuming.novel.message.jobdone.JobFinishEvent;
-import com.wuming.novel.observability.TraceContext;
+import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.sse.JobProgressService;
 import lombok.RequiredArgsConstructor;

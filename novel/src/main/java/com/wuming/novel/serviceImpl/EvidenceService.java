@@ -14,7 +14,7 @@ import com.wuming.novel.domain.llmresponse.EvidenceExtractResponse;
 import com.wuming.novel.domain.llmresponse.EvidenceExtractResponseWrapper;
 import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.EvidenceExtractResponseChecker;
-import com.wuming.novel.mapper.EvidenceMapper;
+import com.wuming.novel.infrastructure.mapper.EvidenceMapper;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IEvidenceService;
 import com.wuming.novel.service.IJobService;

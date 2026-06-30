@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableDubbo
 @EnableScheduling
 @SpringBootApplication
-@MapperScan(basePackages = "com.wuming.novel.mapper")
+@MapperScan(basePackages = "com.wuming.novel.infrastructure.mapper")
 public class NovelApplication {
 
     public static void main(String[] args) {

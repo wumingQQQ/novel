@@ -1,1 +1,1 @@
-traceDubboFilter=com.wuming.novel.observability.TraceDubboFilter
+traceDubboFilter=com.wuming.novel.infrastructure.observability.TraceDubboFilter

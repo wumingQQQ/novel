@@ -13,7 +13,7 @@ import com.wuming.novel.domain.llmresponse.LayerSplitResponse;
 import com.wuming.novel.domain.llmresponse.LayerSplitResponseWrapper;
 import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.LayerSplitResponseChecker;
-import com.wuming.novel.mapper.LayerMapper;
+import com.wuming.novel.infrastructure.mapper.LayerMapper;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;

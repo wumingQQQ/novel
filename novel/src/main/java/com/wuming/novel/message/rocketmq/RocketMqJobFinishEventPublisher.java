@@ -2,7 +2,7 @@ package com.wuming.novel.message.rocketmq;
 
 import com.wuming.novel.message.EventPublisher;
 import com.wuming.novel.message.jobdone.JobFinishEvent;
-import com.wuming.novel.observability.TraceContext;
+import com.wuming.novel.infrastructure.observability.TraceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;

@@ -1,4 +1,4 @@
-package com.wuming.novel.mapper;
+package com.wuming.novel.infrastructure.mapper;
 
 import com.wuming.novel.domain.entity.Scene;
 import org.apache.ibatis.annotations.Param;

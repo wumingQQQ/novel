@@ -1,4 +1,4 @@
-package com.wuming.novel.observability;
+package com.wuming.novel.infrastructure.observability;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

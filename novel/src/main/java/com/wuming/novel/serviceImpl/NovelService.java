@@ -5,7 +5,7 @@ import com.wuming.novel.config.FileUploadProperties;
 import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.exception.FileNotSupportException;
 import com.wuming.novel.exception.FileTooLargeException;
-import com.wuming.novel.mapper.NovelMapper;
+import com.wuming.novel.infrastructure.mapper.NovelMapper;
 import com.wuming.novel.rpc.user.UserContextService;
 import com.wuming.novel.service.INovelService;
 import lombok.RequiredArgsConstructor;

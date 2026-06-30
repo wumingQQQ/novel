@@ -6,7 +6,7 @@ import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.enums.JobStage;
-import com.wuming.novel.mapper.ChapterMapper;
+import com.wuming.novel.infrastructure.mapper.ChapterMapper;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;

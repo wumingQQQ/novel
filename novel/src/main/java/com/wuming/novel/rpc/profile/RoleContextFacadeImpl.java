@@ -7,7 +7,7 @@ import com.wuming.novel.domain.dto.FullPortraitDto;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.enums.JobStage;
-import com.wuming.novel.observability.TraceContext;
+import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
 import com.wuming.novel.serviceImpl.FullPortraitPersistenceService;

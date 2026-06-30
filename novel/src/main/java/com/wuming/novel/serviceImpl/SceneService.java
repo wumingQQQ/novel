@@ -10,7 +10,7 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.llmresponse.SceneSplitResponseWrapper;
 import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import com.wuming.novel.llm.checker.SceneSplitResponseChecker;
-import com.wuming.novel.mapper.SceneMapper;
+import com.wuming.novel.infrastructure.mapper.SceneMapper;
 import com.wuming.novel.message.EventPublisher;
 import com.wuming.novel.message.scenesplit.ChapterSceneSplitCompleteEvent;
 import com.wuming.novel.pipeline.RedisStageFailureStore;

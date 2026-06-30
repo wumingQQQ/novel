@@ -2,7 +2,7 @@ package com.wuming.novel.controller;
 
 import com.wuming.novel.domain.dto.ApiResonse;
 import com.wuming.novel.domain.dto.CreateJobRequest;
-import com.wuming.novel.observability.TraceContext;
+import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.pipeline.run.JobSubmitStatus;
 import com.wuming.novel.pipeline.run.PipelineJobRunner;
 import com.wuming.novel.service.IJobService;
