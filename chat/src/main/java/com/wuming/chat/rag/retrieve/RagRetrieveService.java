@@ -32,10 +32,13 @@ public class RagRetrieveService {
     public RagRetrieveResult retrieve(Long jobId, String query){
         RagProperties.Retrieve config = ragProperties.getRetrieve();
 
+        log.info("召回文档...");
         List<Document> documents = vectorStoreService.search(jobId, query, config.getVectorTopK());
         if(documents == null || documents.isEmpty()){
             return RagRetrieveResult.empty(query);
         }
+
+        log.info("召回文档数：{}", documents.size());
 
         Map<String, Document> documentMap = documents.stream()
                 .collect(Collectors.toMap(Document::getId, doc -> doc));
@@ -46,6 +49,8 @@ public class RagRetrieveService {
                         doc.getText()
                 ))
                 .toList();
+
+        log.info("重排序完成");
 
         List<RerankedDocument> rerankedDocuments = rerankService.rerank(query, rerankDocuments);
 
