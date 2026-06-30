@@ -1,4 +1,4 @@
-package com.wuming.novel.serviceImpl;
+package com.wuming.novel.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.common.collect.Lists;
@@ -19,6 +19,7 @@ import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IEvidenceService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.ILayerService;
+import com.wuming.novel.service.support.RecallService;
 import com.wuming.novel.sse.JobProgressService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;

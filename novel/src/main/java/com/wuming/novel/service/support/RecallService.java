@@ -1,4 +1,4 @@
-package com.wuming.novel.serviceImpl;
+package com.wuming.novel.service.support;
 
 import com.wuming.novel.domain.entity.Scene;
 import com.wuming.novel.domain.entity.rel.ScenePool;

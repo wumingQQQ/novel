@@ -10,7 +10,7 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
-import com.wuming.novel.serviceImpl.FullPortraitPersistenceService;
+import com.wuming.novel.service.support.FullPortraitPersistenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;

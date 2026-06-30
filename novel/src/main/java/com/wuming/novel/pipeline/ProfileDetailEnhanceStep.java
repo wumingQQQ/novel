@@ -1,7 +1,7 @@
 package com.wuming.novel.pipeline;
 
 import com.wuming.novel.domain.enums.JobStage;
-import com.wuming.novel.serviceImpl.ProfileDetailEnhanceService;
+import com.wuming.novel.service.support.ProfileDetailEnhanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

@@ -1,4 +1,4 @@
-package com.wuming.novel.serviceImpl;
+package com.wuming.novel.service.support;
 
 import com.wuming.novel.domain.dto.CharacterProfileDto;
 import com.wuming.novel.domain.dto.FullPortraitDto;

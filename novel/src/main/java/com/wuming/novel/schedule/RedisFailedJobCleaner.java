@@ -1,7 +1,7 @@
 package com.wuming.novel.schedule;
 
 import com.wuming.novel.domain.entity.Job;
-import com.wuming.novel.serviceImpl.JobService;
+import com.wuming.novel.service.impl.JobService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.Cursor;
