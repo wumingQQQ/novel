@@ -1,4 +1,9 @@
 spring:
+  datasource:
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 10
+      initialization-fail-timeout: 1
   profiles:
     active: dev
 
