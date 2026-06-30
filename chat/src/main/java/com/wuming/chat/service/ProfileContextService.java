@@ -2,6 +2,7 @@ package com.wuming.chat.service;
 
 import com.wuming.api.profile.RoleContextFacade;
 import com.wuming.api.profile.dto.RoleContextDto;
+import com.wuming.api.profile.dto.RoleContextResultDto;
 import lombok.RequiredArgsConstructor;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,15 @@ public class ProfileContextService {
      * @param jobId 与画像关联的job
      */
     public RoleContextDto getProfileContext(Long jobId){
-        return roleContextFacade.getRoleContext(jobId);
+        try {
+            RoleContextResultDto context = roleContextFacade.getRoleContext(jobId);
+            if(context.isSuccess()){
+                return context.getRoleContext();
+            }
+            throw new IllegalArgumentException(context.getMessage());
+        }
+        catch (Exception e){
+            throw new IllegalArgumentException(e.getMessage());
+        }
     }
 }

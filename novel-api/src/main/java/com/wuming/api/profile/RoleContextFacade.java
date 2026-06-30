@@ -1,6 +1,7 @@
 package com.wuming.api.profile;
 
 import com.wuming.api.profile.dto.RoleContextDto;
+import com.wuming.api.profile.dto.RoleContextResultDto;
 
 public interface RoleContextFacade {
     /**
@@ -12,5 +13,5 @@ public interface RoleContextFacade {
      * @throws IllegalArgumentException 当jobId为空或任务不存在时抛出
      * @throws IllegalStateException 当任务尚未完成时抛出
      */
-    RoleContextDto getRoleContext(Long jobId);
+    RoleContextResultDto getRoleContext(Long jobId);
 }
