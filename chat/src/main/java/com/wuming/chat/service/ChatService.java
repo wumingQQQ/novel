@@ -10,12 +10,14 @@ import com.wuming.chat.domain.entity.ChatSession;
 import com.wuming.chat.domain.model.ChatHistoryMessage;
 import com.wuming.chat.mapper.ChatMessageMapper;
 import com.wuming.chat.mapper.ChatSessionMapper;
+import com.wuming.chat.observability.TraceContext;
 import com.wuming.chat.rag.prompt.RagPromptBuilder;
 import com.wuming.chat.rag.retrieve.RagRetrieveService;
 import com.wuming.chat.rpc.user.UserContextService;
 import com.wuming.chat.service.cache.ChatMessageCacheService;
 import com.wuming.chat.service.cache.ProfilePromptCacheService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collections;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChatService {
@@ -49,6 +52,71 @@ public class ChatService {
      */
     @Transactional
     public Long createSession(Long userId, Long jobId) {
+        try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId);
+             TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId)) {
+            long start = System.currentTimeMillis();
+            log.info("开始创建聊天会话");
+            try {
+                Long sessionId = doCreateSession(userId, jobId);
+                log.info("聊天会话创建完成，sessionId: {}, costMs: {}",
+                        sessionId, System.currentTimeMillis() - start);
+                return sessionId;
+            } catch (RuntimeException e) {
+                log.warn("聊天会话创建失败，costMs: {}",
+                        System.currentTimeMillis() - start, e);
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * 保存用户消息，携带画像、RAG上下文和最近历史请求 LLM，再保存角色回复。
+     *
+     * @param sessionId 聊天会话id
+     * @param content 用户输入
+     * @return 角色回复消息id和内容
+     */
+    public SendChatMessageResponse sendMessage(Long sessionId, String content) {
+        ChatSession session = requireSession(sessionId);
+        try (TraceContext.MdcScope ignoredSession = TraceContext.putSessionId(sessionId);
+             TraceContext.MdcScope ignoredUser = TraceContext.putUserId(session.getUserId());
+             TraceContext.MdcScope ignoredJob = TraceContext.putJobId(session.getJobId())) {
+            long start = System.currentTimeMillis();
+            log.info("开始处理聊天消息");
+            try {
+                String userContent = requireContent(content);
+
+                saveMessage(sessionId, ROLE_USER, userContent);
+
+                String ragPrompt = ragPromptBuilder.buildContextPrompt(
+                        retrieveService.retrieve(session.getJobId(), userContent)
+                );
+                String assistantContent = requestAssistantReply(
+                        systemPrompt(session.getJobId()),
+                        recentMessages(sessionId),
+                        ragPrompt
+                );
+
+                ChatMessage assistantMessage = saveMessage(
+                        sessionId,
+                        ROLE_ASSISTANT,
+                        assistantContent
+                );
+                log.info("聊天消息处理完成，assistantMessageId: {}, costMs: {}",
+                        assistantMessage.getId(), System.currentTimeMillis() - start);
+                return new SendChatMessageResponse(assistantMessage.getId(), assistantContent);
+            } catch (RuntimeException e) {
+                log.warn("聊天消息处理失败，costMs: {}",
+                        System.currentTimeMillis() - start, e);
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * 执行聊天会话创建的核心逻辑，外层负责日志上下文和耗时统计。
+     */
+    private Long doCreateSession(Long userId, Long jobId) {
         if (userId == null) {
             throw new IllegalArgumentException("userId不能为空");
         }
@@ -57,7 +125,7 @@ public class ChatService {
         }
 
         UserResultDto result = userContextService.getRequiredUser(userId);
-        if(!result.isSuccess()){
+        if (!result.isSuccess()) {
             throw new IllegalArgumentException(result.getMessage());
         }
 
@@ -72,32 +140,12 @@ public class ChatService {
     }
 
     /**
-     * 保存用户消息，携带画像和最近历史请求 LLM，再保存角色回复。
-     * @param content 用户输入
-     */
-    public SendChatMessageResponse sendMessage(Long sessionId, String content) {
-        ChatSession session = requireSession(sessionId);
-        String userContent = requireContent(content);
-
-        saveMessage(sessionId, ROLE_USER, userContent);
-
-        String ragPrompt = ragPromptBuilder.buildContextPrompt(
-                retrieveService.retrieve(session.getJobId(), userContent)
-        );
-        String assistantContent = requestAssistantReply(
-                systemPrompt(session.getJobId()),
-                recentMessages(sessionId),
-                ragPrompt
-        );
-
-        ChatMessage assistantMessage = saveMessage(sessionId, ROLE_ASSISTANT, assistantContent);
-        return new SendChatMessageResponse(assistantMessage.getId(), assistantContent);
-    }
-
-    /**
      * 保存单条消息；这里不包裹长事务，避免 LLM 调用占用数据库连接。
+     *
+     * @param sessionId 聊天会话id
      * @param role 分为USER与ASSISTANT
      * @param content 经过规整(requireContent)后的用户输入
+     * @return 已保存的聊天消息
      */
     private ChatMessage saveMessage(Long sessionId, String role, String content) {
         ChatMessage message = new ChatMessage();
@@ -137,7 +185,9 @@ public class ChatService {
 
     /**
      * 校验并规整用户输入，避免空消息进入上下文。
+     *
      * @param content 用户输入
+     * @return 去除首尾空白后的用户输入
      */
     private String requireContent(String content) {
         if (content == null || content.isBlank()) {
@@ -152,9 +202,11 @@ public class ChatService {
     private List<ChatHistoryMessage> recentMessages(Long sessionId) {
         List<ChatHistoryMessage> cachedMessages = chatMessageCacheService.recentMessages(sessionId);
         if (!cachedMessages.isEmpty()) {
+            log.debug("聊天历史缓存命中，messageCount: {}", cachedMessages.size());
             return cachedMessages;
         }
 
+        log.debug("聊天历史缓存未命中，回源数据库");
         List<ChatMessage> messages = chatMessageMapper.selectList(
                 new LambdaQueryWrapper<ChatMessage>()
                         .eq(ChatMessage::getSessionId, sessionId)
@@ -163,6 +215,7 @@ public class ChatService {
         );
         Collections.reverse(messages);
         chatMessageCacheService.refresh(sessionId, messages);
+        log.debug("聊天历史缓存已重建，messageCount: {}", messages.size());
         return messages.stream()
                 .map(message -> new ChatHistoryMessage(message.getRole(), message.getContent()))
                 .toList();
@@ -174,28 +227,48 @@ public class ChatService {
     private String systemPrompt(Long jobId) {
         String cachedPrompt = profilePromptCacheService.get(jobId);
         if (cachedPrompt != null && !cachedPrompt.isBlank()) {
+            log.debug("角色画像提示词缓存命中");
             return cachedPrompt;
         }
 
+        log.debug("角色画像提示词缓存未命中，回源画像服务");
         RoleContextDto profileContext = profileContextService.getProfileContext(jobId);
         String systemPrompt = promptBuilder.buildSystemPrompt(profileContext);
         profilePromptCacheService.put(jobId, systemPrompt);
+        log.debug("角色画像提示词缓存已写入");
         return systemPrompt;
     }
 
     /**
-     * 使用角色系统提示词和最近对话文本请求 LLM 生成角色回复。
+     * 使用角色系统提示词、最近对话和RAG上下文请求 LLM 生成角色回复。
+     *
+     * @param systemPrompt 角色系统提示词
      * @param messages 该会话对话历史
+     * @param ragPrompt RAG召回上下文提示词
+     * @return LLM生成的角色回复
      */
     private String requestAssistantReply(String systemPrompt,
-                                         List<ChatHistoryMessage> messages, String ragPrompt) {
-        return llmClientFactory
-                .taskClient(LlmClientFactory.TASK_ROLE_CHAT)
-                .prompt()
-                .system(systemPrompt)
-                .user(formatConversation(messages, ragPrompt))
-                .call()
-                .content();
+                                         List<ChatHistoryMessage> messages,
+                                         String ragPrompt) {
+        long start = System.currentTimeMillis();
+        try {
+            String content = llmClientFactory
+                    .taskClient(LlmClientFactory.TASK_ROLE_CHAT)
+                    .prompt()
+                    .system(systemPrompt)
+                    .user(formatConversation(messages, ragPrompt))
+                    .call()
+                    .content();
+            log.info("角色聊天LLM调用完成，historyCount: {}, ragEnabled: {}, costMs: {}",
+                    messages.size(), ragPrompt != null && !ragPrompt.isBlank(),
+                    System.currentTimeMillis() - start);
+            return content;
+        } catch (RuntimeException e) {
+            log.warn("角色聊天LLM调用失败，historyCount: {}, ragEnabled: {}, costMs: {}",
+                    messages.size(), ragPrompt != null && !ragPrompt.isBlank(),
+                    System.currentTimeMillis() - start, e);
+            throw e;
+        }
     }
 
     /**
@@ -212,7 +285,7 @@ public class ChatService {
             }
         }
 
-        if(ragPrompt != null && !ragPrompt.isBlank()) {
+        if (ragPrompt != null && !ragPrompt.isBlank()) {
             builder.append("\n").append(ragPrompt).append("\n");
         }
         builder.append("\n请继续回复最后一条用户消息，只输出角色本人的回复。");

@@ -1,6 +1,7 @@
 package com.wuming.chat.message.listener;
 
 import com.wuming.chat.message.eventdto.ChapterSceneSplitCompleteMessage;
+import com.wuming.chat.observability.TraceContext;
 import com.wuming.chat.rag.SceneRagIndexService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,9 +19,17 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ChapterSceneSplitEventListener implements RocketMQListener<ChapterSceneSplitCompleteMessage> {
     private final SceneRagIndexService sceneRagIndexService;
+
+    /**
+     * 消费章节场景切分完成消息，并触发该章节场景向量索引。
+     *
+     * @param message 章节场景切分完成消息
+     */
     @Override
     public void onMessage(ChapterSceneSplitCompleteMessage message) {
-        log.info("message={}", message);
-        sceneRagIndexService.indexChapterScenes(message);
+        try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(message.getJobId())) {
+            log.info("收到章节切分完成消息，chapterId: {}", message.getChapterId());
+            sceneRagIndexService.indexChapterScenes(message);
+        }
     }
 }

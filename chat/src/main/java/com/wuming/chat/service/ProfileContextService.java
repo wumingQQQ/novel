@@ -3,31 +3,43 @@ package com.wuming.chat.service;
 import com.wuming.api.profile.RoleContextFacade;
 import com.wuming.api.profile.dto.RoleContextDto;
 import com.wuming.api.profile.dto.RoleContextResultDto;
+import com.wuming.chat.observability.TraceContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProfileContextService {
 
-    // TODO 后期考虑优化耗时，或缓存角色画像数据
     @DubboReference(url = "tri://127.0.0.1:50051", timeout = 10000)
     private RoleContextFacade roleContextFacade;
 
     /**
-     * 通过远程调用获取角色画像
+     * 通过远程调用获取角色画像，并将远程失败转换为本地业务异常。
      *
      * @param jobId 与画像关联的job
+     * @return 角色画像上下文
      */
     public RoleContextDto getProfileContext(Long jobId) {
-        RoleContextResultDto context = roleContextFacade.getRoleContext(jobId);
-        if (context == null) {
-            throw new IllegalStateException("画像服务返回为空");
+        try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId)) {
+            long start = System.currentTimeMillis();
+            log.debug("开始远程查询角色画像");
+            RoleContextResultDto context = roleContextFacade.getRoleContext(jobId);
+            if (context == null) {
+                log.warn("远程角色画像查询返回空，costMs: {}", System.currentTimeMillis() - start);
+                throw new IllegalStateException("画像服务返回为空");
+            }
+            if (!context.isSuccess()) {
+                log.info("远程角色画像查询未成功，code: {}, costMs: {}, message: {}",
+                        context.getCode(), System.currentTimeMillis() - start,
+                        context.getMessage());
+                throw new IllegalStateException(context.getMessage());
+            }
+            log.debug("远程角色画像查询完成，costMs: {}", System.currentTimeMillis() - start);
+            return context.getRoleContext();
         }
-        if (!context.isSuccess()) {
-            throw new IllegalStateException(context.getMessage());
-        }
-        return context.getRoleContext();
     }
 }
