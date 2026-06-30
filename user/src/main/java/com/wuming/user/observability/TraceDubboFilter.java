@@ -1,5 +1,6 @@
 package com.wuming.user.observability;
 
+import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.extension.Activate;
 import org.apache.dubbo.rpc.Filter;
 import org.apache.dubbo.rpc.Invocation;
@@ -9,7 +10,7 @@ import org.apache.dubbo.rpc.RpcContext;
 import org.apache.dubbo.rpc.RpcException;
 import org.slf4j.MDC;
 
-@Activate
+@Activate(group = {CommonConstants.CONSUMER, CommonConstants.PROVIDER})
 public class TraceDubboFilter implements Filter {
 
     /**
