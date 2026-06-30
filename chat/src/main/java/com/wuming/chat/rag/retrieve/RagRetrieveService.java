@@ -23,6 +23,12 @@ public class RagRetrieveService {
     private final SceneVectorStoreService vectorStoreService;
     private final RerankService rerankService;
 
+    /**
+     * 根据元信息与用户输入构造rag召回结果
+     * @param jobId 元信息，主要用于指示角色
+     * @param query 用户输入
+     * @return rag召回结果
+     */
     public RagRetrieveResult retrieve(Long jobId, String query){
         RagProperties.Retrieve config = ragProperties.getRetrieve();
 
@@ -58,6 +64,13 @@ public class RagRetrieveService {
                 : new RagRetrieveResult(query, contexts);
     }
 
+    /**
+     * 过滤掉分数低于阈值的，选择topN文档
+     * @param rerankedDocuments 重排序后的文档列表
+     * @param documentMap 文档id到文档的映射
+     * @param config 配置类，包含分数阈值、单场景最大字符数、topN
+     * @return 选择完毕的rag上下文
+     */
     private List<RagContext>  selectContexts(
             List<RerankedDocument> rerankedDocuments,
             Map<String, Document> documentMap,
@@ -81,7 +94,7 @@ public class RagRetrieveService {
 
             String content = limitText(
                     document.content(),
-                    config.getMaxContextChars()
+                    config.getMaxContextCharsPerScene()
             );
 
             contexts.add(toContext(doc, content, document.score()));
@@ -90,6 +103,12 @@ public class RagRetrieveService {
         return contexts;
     }
 
+    /**
+     * 限制单个场景的最大字数
+     * @param content
+     * @param maxChars
+     * @return
+     */
     private String limitText(String content, int maxChars){
         if (content == null) {
             return "";
@@ -100,6 +119,13 @@ public class RagRetrieveService {
         return content;
     }
 
+    /**
+     * 利用参数构造RagContext
+     * @param doc 从向量库中检索出来的文档
+     * @param content 限制长度后的文档内容
+     * @param score 重排序后的分数
+     * @return RagContext
+     */
     private RagContext toContext(Document doc, String content, double score){
         Map<String, Object> metadata = doc.getMetadata();
         return new RagContext(
@@ -112,6 +138,11 @@ public class RagRetrieveService {
         );
     }
 
+    /**
+     * 将Object对象转为long类型
+     * * @param value
+     * @return
+     */
     private Long longValue(Object value){
         if(value instanceof Number number){
             return number.longValue();
@@ -119,6 +150,11 @@ public class RagRetrieveService {
         return value == null ? null : Long.valueOf(value.toString());
     }
 
+    /**
+     * 将Object对象转为int类型
+     * @param value
+     * @return
+     */
     private Integer intValue(Object value){
         if(value instanceof Number number){
             return number.intValue();
