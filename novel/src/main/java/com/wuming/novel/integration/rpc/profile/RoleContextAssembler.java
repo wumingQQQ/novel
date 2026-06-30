@@ -1,4 +1,4 @@
-package com.wuming.novel.rpc.profile;
+package com.wuming.novel.integration.rpc.profile;
 
 import com.wuming.api.profile.dto.*;
 import com.wuming.novel.domain.dto.FullPortraitDto;

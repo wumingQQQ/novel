@@ -1,7 +1,7 @@
-package com.wuming.novel.message.rocketmq;
+package com.wuming.novel.integration.message.rocketmq;
 
-import com.wuming.novel.message.EventPublisher;
-import com.wuming.novel.message.scenesplit.ChapterSceneSplitCompleteEvent;
+import com.wuming.novel.integration.message.EventPublisher;
+import com.wuming.novel.integration.message.scenesplit.ChapterSceneSplitCompleteEvent;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

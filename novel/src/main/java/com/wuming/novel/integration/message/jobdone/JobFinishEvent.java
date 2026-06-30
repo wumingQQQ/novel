@@ -1,6 +1,6 @@
-package com.wuming.novel.message.jobdone;
+package com.wuming.novel.integration.message.jobdone;
 
-import com.wuming.novel.message.CompleteEvent;
+import com.wuming.novel.integration.message.CompleteEvent;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

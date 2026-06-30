@@ -1,6 +1,6 @@
-package com.wuming.novel.message.jobdone;
+package com.wuming.novel.integration.message.jobdone;
 
-import com.wuming.novel.message.EventPublisher;
+import com.wuming.novel.integration.message.EventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;

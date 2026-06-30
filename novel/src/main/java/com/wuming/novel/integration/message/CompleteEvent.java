@@ -1,4 +1,4 @@
-package com.wuming.novel.message;
+package com.wuming.novel.integration.message;
 
 import lombok.Data;
 

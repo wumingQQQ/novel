@@ -1,4 +1,4 @@
-package com.wuming.novel.rpc.scene;
+package com.wuming.novel.integration.rpc.scene;
 
 import com.wuming.api.scene.SceneFacade;
 import com.wuming.api.scene.dto.SceneDto;

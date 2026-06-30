@@ -1,4 +1,4 @@
-package com.wuming.novel.rpc.user;
+package com.wuming.novel.integration.rpc.user;
 
 import com.wuming.api.user.UserFacade;
 import com.wuming.api.user.dto.UserResultDto;

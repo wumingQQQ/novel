@@ -1,4 +1,4 @@
-package com.wuming.novel.message.rocketmq;
+package com.wuming.novel.integration.message.rocketmq;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

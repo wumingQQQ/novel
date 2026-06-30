@@ -1,4 +1,4 @@
-package com.wuming.novel.message;
+package com.wuming.novel.integration.message;
 
 public interface EventPublisher<T extends CompleteEvent> {
     /**

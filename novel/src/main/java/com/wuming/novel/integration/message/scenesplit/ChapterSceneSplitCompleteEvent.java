@@ -1,6 +1,6 @@
-package com.wuming.novel.message.scenesplit;
+package com.wuming.novel.integration.message.scenesplit;
 
-import com.wuming.novel.message.CompleteEvent;
+import com.wuming.novel.integration.message.CompleteEvent;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
