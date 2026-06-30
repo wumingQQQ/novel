@@ -1,4 +1,4 @@
-package com.wuming.user.observability;
+package com.wuming.user.infrastructure.observability;
 
 import org.slf4j.MDC;
 
@@ -87,3 +87,4 @@ public final class TraceContext {
         }
     }
 }
+

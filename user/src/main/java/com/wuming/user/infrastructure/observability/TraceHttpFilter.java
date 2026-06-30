@@ -1,4 +1,4 @@
-package com.wuming.user.observability;
+package com.wuming.user.infrastructure.observability;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -31,3 +31,4 @@ public class TraceHttpFilter extends OncePerRequestFilter {
         }
     }
 }
+

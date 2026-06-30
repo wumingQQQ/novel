@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @EnableDubbo
 @SpringBootApplication
-@MapperScan("com.wuming.user.mapper")
+@MapperScan("com.wuming.user.infrastructure.mapper")
 public class UserApplication {
 
     public static void main(String[] args) {

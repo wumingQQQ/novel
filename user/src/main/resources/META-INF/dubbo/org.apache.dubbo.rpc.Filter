@@ -1,1 +1,1 @@
-traceDubboFilter=com.wuming.user.observability.TraceDubboFilter
+traceDubboFilter=com.wuming.user.infrastructure.observability.TraceDubboFilter

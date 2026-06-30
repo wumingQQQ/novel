@@ -3,7 +3,7 @@ package com.wuming.user.controller;
 import com.wuming.api.user.dto.UserDto;
 import com.wuming.user.domain.dto.ApiResponse;
 import com.wuming.user.domain.dto.CreateUserRequest;
-import com.wuming.user.observability.TraceContext;
+import com.wuming.user.infrastructure.observability.TraceContext;
 import com.wuming.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

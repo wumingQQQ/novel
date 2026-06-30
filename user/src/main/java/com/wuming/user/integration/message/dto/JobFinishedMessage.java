@@ -1,4 +1,4 @@
-package com.wuming.user.message.eventdto;
+package com.wuming.user.integration.message.dto;
 
 import lombok.Data;
 
@@ -21,3 +21,5 @@ public class JobFinishedMessage {
         return "FAILED".equals(status);
     }
 }
+
+

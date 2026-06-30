@@ -5,7 +5,7 @@ import com.wuming.api.user.dto.UserDto;
 import com.wuming.user.domain.dto.CreateUserRequest;
 import com.wuming.user.domain.entity.User;
 import com.wuming.user.domain.enums.UserStatus;
-import com.wuming.user.mapper.UserMapper;
+import com.wuming.user.infrastructure.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

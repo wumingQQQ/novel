@@ -58,7 +58,7 @@
     </appender>
 
     <!-- 6. 特定包的日志级别控制 -->
-    <logger name="com.wuming.user.mapper" level="INFO"/>
+    <logger name="com.wuming.user.infrastructure.mapper" level="INFO"/>
     <logger name="com.baomidou.mybatisplus" level="WARN"/>
     <logger name="com.wuming.user" level="DEBUG"/>
 
@@ -69,6 +69,3 @@
         <appender-ref ref="ASYNC_ERROR"/>
     </root>
 </configuration>
-
-
-

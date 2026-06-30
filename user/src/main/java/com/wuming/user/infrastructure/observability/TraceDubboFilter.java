@@ -1,4 +1,4 @@
-package com.wuming.user.observability;
+package com.wuming.user.infrastructure.observability;
 
 import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.extension.Activate;
@@ -41,3 +41,5 @@ public class TraceDubboFilter implements Filter {
         }
     }
 }
+
+

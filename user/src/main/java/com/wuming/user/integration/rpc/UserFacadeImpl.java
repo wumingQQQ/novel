@@ -1,9 +1,9 @@
-package com.wuming.user.rpc;
+package com.wuming.user.integration.rpc;
 
 import com.wuming.api.user.UserFacade;
 import com.wuming.api.user.dto.UserDto;
 import com.wuming.api.user.dto.UserResultDto;
-import com.wuming.user.observability.TraceContext;
+import com.wuming.user.infrastructure.observability.TraceContext;
 import com.wuming.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

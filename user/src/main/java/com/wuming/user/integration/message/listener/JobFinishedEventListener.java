@@ -1,7 +1,7 @@
-package com.wuming.user.message.eventlistener;
+package com.wuming.user.integration.message.listener;
 
-import com.wuming.user.message.eventdto.JobFinishedMessage;
-import com.wuming.user.observability.TraceContext;
+import com.wuming.user.integration.message.dto.JobFinishedMessage;
+import com.wuming.user.infrastructure.observability.TraceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
