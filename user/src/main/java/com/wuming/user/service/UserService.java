@@ -9,6 +9,7 @@ import com.wuming.user.domain.entity.User;
 import com.wuming.user.domain.enums.UserStatus;
 import com.wuming.user.infrastructure.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UserService {
     private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
 
     /**
      * 创建一个可用于开发环境验证的基础用户。
@@ -26,6 +28,12 @@ public class UserService {
                 || request.getUsername().isBlank()) {
             throw new IllegalArgumentException("username不能为空");
         }
+        if(request.getPassword() == null || request.getPassword().isBlank()) {
+            throw new IllegalArgumentException("password不能为空");
+        }
+        if(request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new IllegalArgumentException("email不能为空");
+        }
         boolean exists = userMapper.selectCount(
                 new LambdaQueryWrapper<User>()
                         .eq(User::getUsername, request.getUsername().trim())
@@ -33,10 +41,19 @@ public class UserService {
         if (exists) {
             throw new BusinessException(ErrorCode.CONFLICT, "username已存在");
         }
+        exists = userMapper.selectCount(
+                new LambdaQueryWrapper<User>()
+                        .eq(User::getEmail, request.getEmail().trim())
+        ) > 0;
+        if (exists) {
+            throw new BusinessException(ErrorCode.CONFLICT, "email已存在");
+        }
 
         User user = new User();
         user.setUsername(request.getUsername().trim());
         user.setNickname(normalizeNickname(request.getNickname()));
+        user.setEmail(request.getEmail().trim());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setStatus(UserStatus.ACTIVE.name());
         userMapper.insert(user);
         return user.getId();
