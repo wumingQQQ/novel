@@ -1,0 +1,56 @@
+package com.wuming.common.redis.core;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
+
+@RequiredArgsConstructor
+public class RedisHashOps {
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+
+    /**
+     * 设置或更新key的某个字段
+     * @param key 键
+     * @param field 字段
+     * @param value 值
+     */
+    public <T> void put(String key, String field, T value){
+        redisTemplate.opsForHash().put(key, field, write(value));
+    }
+
+    public <T> T get(String key, String field, Class<T> clazz){
+        Object json = redisTemplate.opsForHash().get(key, field);
+        if(json == null){
+            return null;
+        }
+        return read(json.toString(), clazz);
+    }
+
+    /**
+     * 删除某个key的某些字段
+     * @param fields 需要删除的字段数组
+     * @return 删除的数量
+     */
+    public Long delete(String key, String...fields){
+        return redisTemplate.opsForHash().delete(key, (Object[]) fields);
+    }
+
+    private String write(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Redis Hash序列化失败", e);
+        }
+    }
+
+    private <T> T read(String json, Class<T> type) {
+        try {
+            return objectMapper.readValue(json, type);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Redis Hash反序列化失败", e);
+        }
+    }
+
+}
