@@ -1,7 +1,10 @@
 package com.wuming.novel.exception;
 
-public class FileNotSupportException extends RuntimeException {
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
+
+public class FileNotSupportException extends BusinessException {
     public FileNotSupportException(String message) {
-        super(message);
+        super(ErrorCode.NOVEL_FILE_UNSUPPORTED, message);
     }
 }

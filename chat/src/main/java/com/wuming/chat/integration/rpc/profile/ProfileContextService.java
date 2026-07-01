@@ -3,6 +3,8 @@ package com.wuming.chat.integration.rpc.profile;
 import com.wuming.api.profile.RoleContextFacade;
 import com.wuming.api.profile.dto.RoleContextDto;
 import com.wuming.api.profile.dto.RoleContextResultDto;
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
 import com.wuming.chat.infrastructure.observability.TraceContext;
 import com.wuming.chat.infrastructure.cache.RpcResultCacheService;
 import lombok.RequiredArgsConstructor;
@@ -38,13 +40,13 @@ public class ProfileContextService {
             RoleContextResultDto context = roleContextFacade.getRoleContext(jobId);
             if (context == null) {
                 log.warn("远程角色画像查询返回空，costMs: {}", System.currentTimeMillis() - start);
-                throw new IllegalStateException("画像服务返回为空");
+                throw new BusinessException(ErrorCode.PROFILE_CONTEXT_NOT_FOUND, "画像服务返回为空");
             }
             if (!context.isSuccess()) {
                 log.info("远程角色画像查询未成功，code: {}, costMs: {}, message: {}",
                         context.getCode(), System.currentTimeMillis() - start,
                         context.getMessage());
-                throw new IllegalStateException(context.getMessage());
+                throw new BusinessException(ErrorCode.PROFILE_CONTEXT_NOT_FOUND, context.getMessage());
             }
             log.debug("远程角色画像查询完成，costMs: {}", System.currentTimeMillis() - start);
             rpcResultCacheService.putRoleContext(jobId, context.getRoleContext());

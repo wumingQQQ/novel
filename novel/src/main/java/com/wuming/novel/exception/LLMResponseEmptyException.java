@@ -1,7 +1,10 @@
 package com.wuming.novel.exception;
 
-public class LLMResponseEmptyException extends RuntimeException {
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
+
+public class LLMResponseEmptyException extends BusinessException {
     public LLMResponseEmptyException(String message) {
-        super(message);
+        super(ErrorCode.LLM_EMPTY_RESPONSE, message);
     }
 }

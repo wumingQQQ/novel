@@ -1,5 +1,7 @@
 package com.wuming.novel.service.impl;
 
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuming.novel.config.PromptConfig;
 import com.wuming.novel.config.llm.LlmClientFactory;
@@ -60,7 +62,7 @@ public class ScenePoolService extends ServiceImpl<ScenePoolMapper, ScenePool> im
     public void divideSceneIntoPool(Long jobId) {
         Job job = jobService.getById(jobId);
         if (job == null) {
-            throw new IllegalArgumentException("该job不存在，请创建后重试");
+            throw new BusinessException(ErrorCode.JOB_NOT_FOUND, "该job不存在，请创建后重试");
         }
         // 幂等校验
         if(job.getStage().getCode() >= JobStage.POOL_CLASSIFY.getCode()){

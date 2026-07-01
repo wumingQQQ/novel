@@ -1,6 +1,8 @@
 package com.wuming.user.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
 import com.wuming.api.user.dto.UserDto;
 import com.wuming.user.domain.dto.CreateUserRequest;
 import com.wuming.user.domain.entity.User;
@@ -29,7 +31,7 @@ public class UserService {
                         .eq(User::getUsername, request.getUsername().trim())
         ) > 0;
         if (exists) {
-            throw new IllegalStateException("username已存在");
+            throw new BusinessException(ErrorCode.CONFLICT, "username已存在");
         }
 
         User user = new User();
@@ -49,10 +51,10 @@ public class UserService {
         }
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new IllegalArgumentException("用户不存在: " + userId);
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND, "用户不存在: " + userId);
         }
         if (!UserStatus.ACTIVE.name().equals(user.getStatus())) {
-            throw new IllegalStateException("用户不可用: " + userId);
+            throw new BusinessException(ErrorCode.USER_DISABLED, "用户不可用: " + userId);
         }
         return toDto(user);
     }

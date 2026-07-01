@@ -1,5 +1,7 @@
 package com.wuming.novel.pipeline;
 
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.integration.message.EventPublisher;
@@ -30,7 +32,7 @@ public class PipelineService {
     public boolean handleNovel(Long jobId) {
         Job job = jobService.getById(jobId);
         if (job == null) {
-            throw new IllegalArgumentException("该job不存在，请创建后重试");
+            throw new BusinessException(ErrorCode.JOB_NOT_FOUND, "该job不存在，请创建后重试");
         }
 
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId);

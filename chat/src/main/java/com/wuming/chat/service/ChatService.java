@@ -1,6 +1,8 @@
 package com.wuming.chat.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
 import com.wuming.api.profile.dto.RoleContextDto;
 import com.wuming.api.user.dto.UserResultDto;
 import com.wuming.chat.config.llm.LlmClientFactory;
@@ -127,7 +129,7 @@ public class ChatService {
 
         UserResultDto result = userContextService.getRequiredUser(userId);
         if (!result.isSuccess()) {
-            throw new IllegalArgumentException(result.getMessage());
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND, result.getMessage());
         }
 
         profileContextService.getProfileContext(jobId);
@@ -179,7 +181,7 @@ public class ChatService {
         }
         ChatSession session = chatSessionMapper.selectById(sessionId);
         if (session == null || !SESSION_ACTIVE.equals(session.getStatus())) {
-            throw new IllegalArgumentException("聊天会话不存在或不可用: " + sessionId);
+            throw new BusinessException(ErrorCode.CHAT_SESSION_NOT_FOUND, "聊天会话不存在或不可用: " + sessionId);
         }
         return session;
     }
@@ -192,7 +194,7 @@ public class ChatService {
      */
     private String requireContent(String content) {
         if (content == null || content.isBlank()) {
-            throw new IllegalArgumentException("消息内容不能为空");
+            throw new BusinessException(ErrorCode.CHAT_MESSAGE_EMPTY);
         }
         return content.trim();
     }

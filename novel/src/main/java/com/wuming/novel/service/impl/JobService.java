@@ -1,5 +1,7 @@
 package com.wuming.novel.service.impl;
 
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuming.novel.domain.dto.CreateJobRequest;
 import com.wuming.novel.domain.entity.Job;
@@ -29,7 +31,7 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
         Long novelId = request.getNovelId();
         Long userId = request.getUserId();
         if(novelService.getById(novelId) == null){
-            throw new IllegalArgumentException("您指定的小说不存在");
+            throw new BusinessException(ErrorCode.NOVEL_NOT_FOUND, "您指定的小说不存在");
         }
         userContextService.requireUser(userId);
         Job job = new Job();

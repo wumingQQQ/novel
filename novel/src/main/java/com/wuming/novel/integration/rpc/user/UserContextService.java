@@ -1,5 +1,7 @@
 package com.wuming.novel.integration.rpc.user;
 
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
 import com.wuming.api.user.UserFacade;
 import com.wuming.api.user.dto.UserResultDto;
 import lombok.extern.slf4j.Slf4j;
@@ -17,17 +19,17 @@ public class UserContextService {
      */
     public void requireUser(Long userId){
         if (userId == null) {
-            throw new IllegalArgumentException("用户不能为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "用户不能为空");
         }
         try {
             UserResultDto user = userFacade.getRequiredUser(userId);
             if(!user.isSuccess()){
-                throw new IllegalArgumentException(user.getMessage());
+                throw new BusinessException(ErrorCode.USER_NOT_FOUND, user.getMessage());
             }
-        } catch (IllegalArgumentException e) {
+        } catch (BusinessException e) {
             throw e;
         } catch (RuntimeException e) {
-            throw new IllegalStateException("用户服务暂时不可用", e);
+            throw new BusinessException(ErrorCode.REMOTE_SERVICE_ERROR, "用户服务暂时不可用");
         }
     }
 }

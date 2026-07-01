@@ -1,5 +1,7 @@
 package com.wuming.novel.service.support;
 
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
@@ -74,7 +76,7 @@ public class ProfileDetailEnhanceService {
     public void enhance(Long jobId) {
         Job job = jobService.getById(jobId);
         if (job == null) {
-            throw new IllegalArgumentException("该job不存在，请创建后重试");
+            throw new BusinessException(ErrorCode.JOB_NOT_FOUND, "该job不存在，请创建后重试");
         }
         if (job.getStage().getCode() >= JobStage.PROFILE_DETAIL_ENHANCE.getCode()) {
             log.info("任务{}已经完成了阶段{}", jobId, JobStage.PROFILE_DETAIL_ENHANCE);
@@ -83,7 +85,7 @@ public class ProfileDetailEnhanceService {
 
         FullPortraitDto currentProfile = fullPortraitPersistenceService.getByJobId(jobId);
         if (currentProfile == null) {
-            throw new IllegalStateException("job: " + jobId + " 初版画像不存在，无法进行细节增强");
+            throw new BusinessException(ErrorCode.PROFILE_CONTEXT_NOT_FOUND, "job: " + jobId + " 初版画像不存在，无法进行细节增强");
         }
 
         List<Scene> scenes = recallSupplementScenes(job);
