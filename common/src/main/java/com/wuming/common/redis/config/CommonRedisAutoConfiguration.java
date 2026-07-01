@@ -3,6 +3,7 @@ package com.wuming.common.redis.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuming.common.redis.core.RedisHashOps;
 import com.wuming.common.redis.core.RedisJsonOps;
+import com.wuming.common.redis.core.RedisListOps;
 import com.wuming.common.redis.core.RedisStringOps;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -39,5 +40,13 @@ public class CommonRedisAutoConfiguration {
             StringRedisTemplate redisTemplate
     ){
         return new RedisStringOps(redisTemplate);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public RedisListOps redisListOps(
+            StringRedisTemplate redisTemplate
+    ){
+        return new RedisListOps(redisTemplate);
     }
 }
