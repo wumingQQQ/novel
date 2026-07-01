@@ -1,13 +1,12 @@
 package com.wuming.chat.infrastructure.cache;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuming.api.profile.dto.RoleContextDto;
+import com.wuming.common.redis.core.RedisJsonOps;
+import com.wuming.common.redis.core.RedisKey;
 import com.wuming.api.user.dto.UserResultDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -16,11 +15,10 @@ import java.time.Duration;
 @Service
 @RequiredArgsConstructor
 public class RpcResultCacheService {
-    private static final String USER_KEY_PREFIX = "chat:rpc:user:";
-    private static final String PROFILE_KEY_PREFIX = "chat:rpc:profile:";
+    private static final String USER_KEY_PREFIX = "chat:rpc:user";
+    private static final String PROFILE_KEY_PREFIX = "chat:rpc:profile";
 
-    private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
+    private final RedisJsonOps redisJsonOps;
 
     @Value("${chat.rpc-cache-ttl:2h}")
     private Duration rpcCacheTtl;
@@ -61,16 +59,13 @@ public class RpcResultCacheService {
     private <T> T readValue(String key, Class<T> type, String cacheName,
                             String idName, Long idValue) {
         try {
-            String value = redisTemplate.opsForValue().get(key);
-            if (value == null || value.isBlank()) {
+            T value = redisJsonOps.get(key, type);
+            if (value == null) {
                 log.debug("{}缓存未命中，{}: {}", cacheName, idName, idValue);
                 return null;
             }
             log.debug("{}缓存命中，{}: {}", cacheName, idName, idValue);
-            return objectMapper.readValue(value, type);
-        } catch (JsonProcessingException e) {
-            log.warn("{}缓存解析失败，{}: {}", cacheName, idName, idValue, e);
-            return null;
+            return value;
         } catch (Exception e) {
             log.warn("{}读取Redis缓存失败，{}: {}", cacheName, idName, idValue, e);
             return null;
@@ -86,11 +81,7 @@ public class RpcResultCacheService {
             return;
         }
         try {
-            redisTemplate.opsForValue().set(
-                    key,
-                    objectMapper.writeValueAsString(value),
-                    rpcCacheTtl
-            );
+            redisJsonOps.set(key, value, rpcCacheTtl);
             log.debug("{}缓存写入完成，{}: {}", cacheName, idName, idValue);
         } catch (Exception e) {
             log.warn("{}写入Redis缓存失败，{}: {}", cacheName, idName, idValue, e);
@@ -101,14 +92,14 @@ public class RpcResultCacheService {
      * 构造用户远程校验结果缓存key。
      */
     private String userKey(Long userId) {
-        return USER_KEY_PREFIX + userId;
+        return RedisKey.join(USER_KEY_PREFIX, String.valueOf(userId));
     }
 
     /**
      * 构造角色画像上下文缓存key。
      */
     private String profileKey(Long jobId) {
-        return PROFILE_KEY_PREFIX + jobId;
+        return RedisKey.join(PROFILE_KEY_PREFIX, String.valueOf(jobId));
     }
 }
 

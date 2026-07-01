@@ -1,9 +1,10 @@
 package com.wuming.chat.infrastructure.cache;
 
+import com.wuming.common.redis.core.RedisKey;
+import com.wuming.common.redis.core.RedisStringOps;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -12,9 +13,9 @@ import java.time.Duration;
 @Service
 @RequiredArgsConstructor
 public class ProfilePromptCacheService {
-    private static final String KEY_PREFIX = "chat:profile-prompt:";
+    private static final String KEY_PREFIX = "chat:profile-prompt";
 
-    private final StringRedisTemplate redisTemplate;
+    private final RedisStringOps redisStringOps;
 
     @Value("${chat.profile-prompt-cache-ttl:3d}")
     private Duration profilePromptCacheTtl;
@@ -24,7 +25,7 @@ public class ProfilePromptCacheService {
      */
     public String get(Long jobId) {
         try {
-            return redisTemplate.opsForValue().get(key(jobId));
+            return redisStringOps.get(key(jobId));
         } catch (Exception e) {
             log.warn("job:{} 角色提示词读取Redis缓存失败", jobId, e);
             return null;
@@ -36,14 +37,14 @@ public class ProfilePromptCacheService {
      */
     public void put(Long jobId, String systemPrompt) {
         try {
-            redisTemplate.opsForValue().set(key(jobId), systemPrompt, profilePromptCacheTtl);
+            redisStringOps.set(key(jobId), systemPrompt, profilePromptCacheTtl);
         } catch (Exception e) {
             log.warn("job:{} 角色提示词写入Redis缓存失败", jobId, e);
         }
     }
 
     private String key(Long jobId) {
-        return KEY_PREFIX + jobId;
+        return RedisKey.join(KEY_PREFIX, String.valueOf(jobId));
     }
 }
 
