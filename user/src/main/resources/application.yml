@@ -7,6 +7,10 @@ spring:
       minimum-idle: 5
       maximum-pool-size: 10
       initialization-fail-timeout: 1
+      connection-timeout: 10000
+      validation-timeout: 5000
+      idle-timeout: 600000
+      max-lifetime: 1500000
       keepalive-time: 300000
   profiles:
     active: dev
