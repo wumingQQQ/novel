@@ -3,11 +3,12 @@ package com.wuming.chat.infrastructure.cache;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuming.chat.domain.entity.ChatMessage;
+import com.wuming.common.redis.core.RedisKey;
+import com.wuming.common.redis.core.RedisListOps;
 import com.wuming.chat.domain.model.ChatHistoryMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -19,9 +20,9 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class ChatMessageCacheService {
-    private static final String KEY_PREFIX = "chat:messages:";
+    private static final String KEY_PREFIX = "chat:messages";
 
-    private final StringRedisTemplate redisTemplate;
+    private final RedisListOps redisListOps;
     private final ObjectMapper objectMapper;
 
     @Value("${chat.history-limit:20}")
@@ -39,9 +40,9 @@ public class ChatMessageCacheService {
             String value = objectMapper.writeValueAsString(
                     new ChatHistoryMessage(message.getRole(), message.getContent())
             );
-            redisTemplate.opsForList().rightPush(key, value);
-            redisTemplate.opsForList().trim(key, -limit(), -1);
-            redisTemplate.expire(key, messageCacheTtl);
+            redisListOps.rightPush(key, value);
+            redisListOps.trim(key, -limit(), -1);
+            redisListOps.expire(key, messageCacheTtl);
         } catch (Exception e) {
             log.warn("会话{}消息写入Redis缓存失败", message.getSessionId(), e);
         }
@@ -52,7 +53,7 @@ public class ChatMessageCacheService {
      */
     public List<ChatHistoryMessage> recentMessages(Long sessionId) {
         try {
-            List<String> values = redisTemplate.opsForList().range(key(sessionId), 0, -1);
+            List<String> values = redisListOps.range(key(sessionId), 0, -1);
             if (values == null || values.isEmpty()) {
                 return Collections.emptyList();
             }
@@ -72,15 +73,15 @@ public class ChatMessageCacheService {
     public void refresh(Long sessionId, List<ChatMessage> messages) {
         try {
             String key = key(sessionId);
-            redisTemplate.delete(key);
+            redisListOps.delete(key);
             for (ChatMessage message : messages) {
                 String value = objectMapper.writeValueAsString(
                         new ChatHistoryMessage(message.getRole(), message.getContent())
                 );
-                redisTemplate.opsForList().rightPush(key, value);
+                redisListOps.rightPush(key, value);
             }
-            redisTemplate.opsForList().trim(key, -limit(), -1);
-            redisTemplate.expire(key, messageCacheTtl);
+            redisListOps.trim(key, -limit(), -1);
+            redisListOps.expire(key, messageCacheTtl);
         } catch (Exception e) {
             log.warn("会话{}消息刷新Redis缓存失败", sessionId, e);
         }
@@ -96,7 +97,7 @@ public class ChatMessageCacheService {
     }
 
     private String key(Long sessionId) {
-        return KEY_PREFIX + sessionId;
+        return RedisKey.join(KEY_PREFIX, String.valueOf(sessionId));
     }
 
     private int limit() {
