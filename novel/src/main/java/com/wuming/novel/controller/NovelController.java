@@ -1,6 +1,6 @@
 package com.wuming.novel.controller;
 
-import com.wuming.novel.domain.dto.ApiResonse;
+import com.wuming.common.web.ApiResponse;
 import com.wuming.novel.domain.dto.CreateJobRequest;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.pipeline.run.JobSubmitStatus;
@@ -49,7 +49,7 @@ public class NovelController {
      * 上传小说文件并保存小说元信息。
      */
     @PostMapping
-    public ApiResonse<Long> uploadNovel(@NotNull MultipartFile file, Long userId) throws IOException {
+    public ApiResponse<Long> uploadNovel(@NotNull MultipartFile file, Long userId) throws IOException {
         try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId)) {
             long start = System.currentTimeMillis();
             Long novelId = novelService.saveNovel(file, userId);
@@ -58,7 +58,7 @@ public class NovelController {
                         file.getOriginalFilename(), file.getSize(),
                         System.currentTimeMillis() - start);
             }
-            return ApiResonse.success(novelId);
+            return ApiResponse.success(novelId);
         }
     }
 
@@ -66,7 +66,7 @@ public class NovelController {
      * 基于小说和用户创建画像构建任务。
      */
     @PostMapping("/createJob")
-    public ApiResonse<Long> createJob(@RequestBody CreateJobRequest request) {
+    public ApiResponse<Long> createJob(@RequestBody CreateJobRequest request) {
         try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(request.getUserId());
              TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(request.getNovelId())) {
             long start = System.currentTimeMillis();
@@ -74,7 +74,7 @@ public class NovelController {
             try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId)) {
                 log.info("画像构建任务创建完成，costMs: {}", System.currentTimeMillis() - start);
             }
-            return ApiResonse.success(jobId);
+            return ApiResponse.success(jobId);
         }
     }
 
@@ -82,11 +82,11 @@ public class NovelController {
      * 异步提交小说处理流程；如果同一 job 正在运行，则直接返回 running。
      */
     @PostMapping("/process/{jobId}")
-    public ApiResonse<String> processJob(@PathVariable("jobId") Long jobId) {
+    public ApiResponse<String> processJob(@PathVariable("jobId") Long jobId) {
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId)) {
             JobSubmitStatus status = pipelineJobRunner.submit(jobId);
             log.info("任务处理提交完成，submitStatus: {}", status);
-            return ApiResonse.success(status.responseValue());
+            return ApiResponse.success(status.responseValue());
         }
     }
 
@@ -94,11 +94,11 @@ public class NovelController {
      * 仅在任务失败时异步重启流程；任务运行中则直接返回 running。
      */
     @PostMapping("/redo/{jobId}")
-    public ApiResonse<String> redoJob(@PathVariable("jobId") Long jobId) {
+    public ApiResponse<String> redoJob(@PathVariable("jobId") Long jobId) {
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId)) {
             JobSubmitStatus status = pipelineJobRunner.redo(jobId);
             log.info("任务重跑提交完成，submitStatus: {}", status);
-            return ApiResonse.success(status.responseValue());
+            return ApiResponse.success(status.responseValue());
         }
     }
 
@@ -106,11 +106,11 @@ public class NovelController {
      * 查询当前任务进度；本地没有进度时会尝试从 Redis 恢复。
      */
     @GetMapping("/progress/{jobId}")
-    public ApiResonse<JobProgress> getProgress(@PathVariable("jobId") Long jobId) {
+    public ApiResponse<JobProgress> getProgress(@PathVariable("jobId") Long jobId) {
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId)) {
             JobProgress progress = jobProgressService.getOrInitProgress(jobId);
             log.debug("任务进度查询完成，state: {}", progress.getState());
-            return ApiResonse.success(progress);
+            return ApiResponse.success(progress);
         }
     }
 

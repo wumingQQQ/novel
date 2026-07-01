@@ -1,6 +1,6 @@
 package com.wuming.novel.exception;
 
-import com.wuming.novel.domain.dto.ApiResonse;
+import com.wuming.common.web.ApiResponse;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -8,19 +8,19 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(FileTooLargeException.class)
-    public ApiResonse<Void> handleException(FileTooLargeException ex) {
-        return ApiResonse.error(413, ex.getMessage());
+    public ApiResponse<Void> handleException(FileTooLargeException ex) {
+        return ApiResponse.error(413, ex.getMessage());
     }
 
     @ExceptionHandler(FileNotSupportException.class)
-    public ApiResonse<Void> handleException(FileNotSupportException ex) {
-        return ApiResonse.error(400, ex.getMessage());
+    public ApiResponse<Void> handleException(FileNotSupportException ex) {
+        return ApiResponse.error(400, ex.getMessage());
     }
 
 
     @ExceptionHandler(Exception.class)
-    public ApiResonse<Void> handleException(Exception ex) {
-        return ApiResonse.error(500, ex.getMessage());
+    public ApiResponse<Void> handleException(Exception ex) {
+        return ApiResponse.error(500, ex.getMessage());
     }
 
 }

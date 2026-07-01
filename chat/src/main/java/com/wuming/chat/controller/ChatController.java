@@ -1,6 +1,6 @@
 package com.wuming.chat.controller;
 
-import com.wuming.chat.domain.dto.ApiResponse;
+import com.wuming.common.web.ApiResponse;
 import com.wuming.chat.domain.dto.SendChatMessageRequest;
 import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.entity.ChatMessage;

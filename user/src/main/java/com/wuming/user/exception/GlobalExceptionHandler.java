@@ -1,6 +1,6 @@
 package com.wuming.user.exception;
 
-import com.wuming.user.domain.dto.ApiResponse;
+import com.wuming.common.web.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
