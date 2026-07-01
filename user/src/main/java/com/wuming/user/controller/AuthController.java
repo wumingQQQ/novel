@@ -1,17 +1,17 @@
 package com.wuming.user.controller;
 
+import com.wuming.api.user.dto.UserDto;
 import com.wuming.common.web.ApiResponse;
 import com.wuming.user.domain.dto.LoginRequest;
 import com.wuming.user.domain.dto.LoginResponse;
 import com.wuming.user.domain.dto.RegisterRequest;
 import com.wuming.user.service.AuthService;
+import com.wuming.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthService authService;
+    private final UserService userService;
 
     /**
      * 注册新用户
@@ -34,7 +35,7 @@ public class AuthController {
     /**
      * 用户登录，成功后返回访问令牌
      */
-    @PostMapping
+    @PostMapping("/login")
     public ApiResponse<LoginResponse>  login(@Valid @RequestBody LoginRequest request) {
         long start = System.currentTimeMillis();
         LoginResponse response = authService.login(request);
@@ -42,5 +43,14 @@ public class AuthController {
                 request.getAccount(),
                 System.currentTimeMillis() - start);
         return ApiResponse.success(response);
+    }
+
+    /**
+     * 查询当前登录用户信息
+     */
+    @GetMapping("/me")
+    public ApiResponse<UserDto> me(Authentication authentication) {
+        Long userId = authService.requireUserId(authentication);
+        return ApiResponse.success(userService.getRequiredUser(userId));
     }
 }

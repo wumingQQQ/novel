@@ -14,7 +14,9 @@ import com.wuming.user.infrastructure.mapper.UserMapper;
 import com.wuming.user.security.JwtTokenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -71,5 +73,14 @@ public class AuthService {
         return user;
     }
 
+    /**
+     * 获取当前登录用户id
+     */
+    public Long requireUserId(Authentication authentication) {
+        if(authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)){
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户未登录");
+        }
+        return Long.valueOf(jwt.getSubject());
+    }
 
 }
