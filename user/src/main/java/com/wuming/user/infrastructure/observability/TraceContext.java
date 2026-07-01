@@ -1,12 +1,13 @@
 package com.wuming.user.infrastructure.observability;
 
+import com.wuming.common.trace.TraceConstants;
 import org.slf4j.MDC;
 
 import java.util.UUID;
 
 public final class TraceContext {
-    public static final String TRACE_ID = "traceId";
-    public static final String USER_ID = "userId";
+    public static final String TRACE_ID = TraceConstants.TRACE_ID;
+    public static final String USER_ID = TraceConstants.USER_ID;
     public static final String TRACE_HEADER = "X-Trace-Id";
 
     private TraceContext() {

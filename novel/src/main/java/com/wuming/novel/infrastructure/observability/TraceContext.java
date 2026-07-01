@@ -1,14 +1,15 @@
 package com.wuming.novel.infrastructure.observability;
 
+import com.wuming.common.trace.TraceConstants;
 import org.slf4j.MDC;
 
 import java.util.UUID;
 
 public final class TraceContext {
-    public static final String TRACE_ID = "traceId";
-    public static final String USER_ID = "userId";
-    public static final String JOB_ID = "jobId";
-    public static final String NOVEL_ID = "novelId";
+    public static final String TRACE_ID = TraceConstants.TRACE_ID;
+    public static final String USER_ID = TraceConstants.USER_ID;
+    public static final String JOB_ID = TraceConstants.JOB_ID;
+    public static final String NOVEL_ID = TraceConstants.NOVEL_ID;
     public static final String CHAPTER_ID = "chapterId";
     public static final String STAGE = "stage";
     public static final String TRACE_HEADER = "X-Trace-Id";

@@ -1,14 +1,15 @@
 package com.wuming.chat.infrastructure.observability;
 
+import com.wuming.common.trace.TraceConstants;
 import org.slf4j.MDC;
 
 import java.util.UUID;
 
 public final class TraceContext {
-    public static final String TRACE_ID = "traceId";
-    public static final String USER_ID = "userId";
-    public static final String JOB_ID = "jobId";
-    public static final String SESSION_ID = "sessionId";
+    public static final String TRACE_ID = TraceConstants.TRACE_ID;
+    public static final String USER_ID = TraceConstants.USER_ID;
+    public static final String JOB_ID = TraceConstants.JOB_ID;
+    public static final String SESSION_ID = TraceConstants.SESSION_ID;
     public static final String TRACE_HEADER = "X-Trace-Id";
 
     private TraceContext() {
