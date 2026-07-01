@@ -8,7 +8,7 @@ public enum ErrorCode {
     SUCCESS(0, "OK"),
 
     PARAM_ERROR(40000, "请求参数错误"),
-    UNAUTHORIZED(40100, "未登录"),
+    UNAUTHORIZED(40100, "凭证无效"),
     FORBIDDEN(40300, "无权限"),
     NOT_FOUND(40400, "资源不存在"),
     CONFLICT(40900, "资源状态冲突"),
