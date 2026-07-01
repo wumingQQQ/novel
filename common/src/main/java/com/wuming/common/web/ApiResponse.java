@@ -1,5 +1,7 @@
 package com.wuming.common.web;
 
+import com.wuming.common.exception.ErrorCode;
+
 public record ApiResponse<T>(
         int code,
         String message,
@@ -15,6 +17,14 @@ public record ApiResponse<T>(
 
     public static ApiResponse<Void> error(int code, String message) {
         return new ApiResponse<Void>(code, message, null);
+    }
+
+    public static ApiResponse<Void> error(ErrorCode errorCode) {
+        return new ApiResponse<Void>(errorCode.getCode(), errorCode.getMessage(), null);
+    }
+
+    public static ApiResponse<Void> error(ErrorCode errorCode, String message) {
+        return new ApiResponse<Void>(errorCode.getCode(), message, null);
     }
 
 }
