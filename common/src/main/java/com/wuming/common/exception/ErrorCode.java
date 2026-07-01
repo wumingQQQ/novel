@@ -40,6 +40,7 @@ public enum ErrorCode {
 
     REMOTE_SERVICE_ERROR(50200, "远程服务调用失败"),
     MESSAGE_SEND_ERROR(50300, "消息发送失败"),
+    CACHE_OPERATION_FAILED(50400, "缓存操作失败"),
     SYSTEM_ERROR(50000, "系统内部异常");
 
     private final int code;

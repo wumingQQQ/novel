@@ -2,6 +2,8 @@ package com.wuming.common.redis.core;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wuming.common.exception.BusinessException;
+import com.wuming.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -41,7 +43,7 @@ public class RedisHashOps {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Redis Hash序列化失败", e);
+            throw new BusinessException(ErrorCode.CACHE_OPERATION_FAILED, "Redis json序列化失败");
         }
     }
 
@@ -49,7 +51,7 @@ public class RedisHashOps {
         try {
             return objectMapper.readValue(json, type);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Redis Hash反序列化失败", e);
+            throw new BusinessException(ErrorCode.CACHE_OPERATION_FAILED, "Redis json反序列化失败");
         }
     }
 
