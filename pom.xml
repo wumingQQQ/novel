@@ -22,6 +22,7 @@
         <module>novel</module>
         <module>user</module>
         <module>chat</module>
+        <module>common</module>
     </modules>
 
     <properties>
