@@ -15,8 +15,3 @@ rocketmq:
   consumer:
     group: user-job-consumer-group
 
-user:
-  mq:
-    topic: novel
-    tags:
-      job-finished: job_finished

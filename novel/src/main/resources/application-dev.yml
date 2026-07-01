@@ -63,8 +63,4 @@ rocketmq:
 novel:
   mq:
     enabled: true
-    topic: novel
-    tags:
-      job-finished: job_finished
-      single-chapter-split-completed: scene_split_completed
 

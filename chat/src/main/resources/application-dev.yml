@@ -48,11 +48,6 @@ rocketmq:
   consumer:
     group: chat-scene-consumer-group
 
-chat:
-  mq:
-    topic: novel
-    tags:
-      single-chapter-split-complete: scene_split_completed
 
 rag:
   embedding:

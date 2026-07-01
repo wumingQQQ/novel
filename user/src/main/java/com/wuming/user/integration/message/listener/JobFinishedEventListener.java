@@ -1,5 +1,6 @@
 package com.wuming.user.integration.message.listener;
 
+import com.wuming.common.messaging.MqDestinations;
 import com.wuming.user.integration.message.dto.JobFinishedMessage;
 import com.wuming.user.infrastructure.observability.TraceContext;
 import lombok.extern.slf4j.Slf4j;
@@ -10,8 +11,8 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RocketMQMessageListener(
-        topic = "${user.mq.topic}",
-        selectorExpression = "${user.mq.tags.job-finished}",
+        topic = MqDestinations.NOVEL_EVENTS_TOPIC,
+        selectorExpression = MqDestinations.JOB_ENDED_TAG,
         consumerGroup = "user-job-consumer-group"
 )
 public class JobFinishedEventListener implements RocketMQListener<JobFinishedMessage> {

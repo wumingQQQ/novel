@@ -1,6 +1,7 @@
 package com.wuming.chat.integration.message.listener;
 
 import com.wuming.chat.integration.message.dto.ChapterSceneSplitCompleteMessage;
+import com.wuming.common.messaging.MqDestinations;
 import com.wuming.chat.infrastructure.observability.TraceContext;
 import com.wuming.chat.rag.index.SceneRagIndexService;
 import lombok.RequiredArgsConstructor;
@@ -12,8 +13,8 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RocketMQMessageListener(
-        topic = "${chat.mq.topic}",
-        selectorExpression = "${chat.mq.tags.single-chapter-split-complete}",
+        topic = MqDestinations.NOVEL_EVENTS_TOPIC,
+        selectorExpression = MqDestinations.CHAPTER_SCENE_SPLIT_COMPLETED_TAG,
         consumerGroup = "chat-scene-consumer-group"
 )
 @RequiredArgsConstructor
