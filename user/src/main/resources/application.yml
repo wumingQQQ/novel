@@ -26,3 +26,10 @@ dubbo:
     port: 50052
   registry:
     address: N/A
+
+
+auth:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-key-must-be-long-enough}
+    expires-minutes: 120
+    issuer: novel-latest
