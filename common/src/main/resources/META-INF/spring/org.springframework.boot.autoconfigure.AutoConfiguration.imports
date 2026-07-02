@@ -1,1 +1,2 @@
 com.wuming.common.redis.config.CommonRedisAutoConfiguration
+com.wuming.common.security.JwtResourceServerConfig
