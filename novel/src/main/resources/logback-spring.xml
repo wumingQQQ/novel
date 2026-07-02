@@ -63,6 +63,7 @@
     <logger name="com.wuming.novel.infrastructure.mapper" level="INFO"/>
     <logger name="org.springframework.ai" level="DEBUG"/>
     <logger name="com.baomidou.mybatisplus" level="WARN"/>
+    <logger name="com.wuming.common.mybatis" level="DEBUG"/>
     <logger name="com.wuming.novel" level="DEBUG"/>
 
     <!-- 7. 全局根配置 -->
@@ -72,6 +73,8 @@
         <appender-ref ref="ASYNC_ERROR"/>
     </root>
 </configuration>
+
+
 
 
 
