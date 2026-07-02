@@ -58,3 +58,4 @@ test/
 
 # 专门用于存放不被追踪的文件
 untrack/
+worktrees/
