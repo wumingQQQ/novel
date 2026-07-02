@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 
 @AutoConfiguration
 @EnableConfigurationProperties({JwtProperties.class})
-public class JwtResourceServerConfig {
+public class JwtResourceServerAutoConfiguration {
 
     /**
      * 创建jwt解析器，供各模块校验Bearer Token
