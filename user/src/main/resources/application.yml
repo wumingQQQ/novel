@@ -4,14 +4,14 @@ server:
 spring:
   datasource:
     hikari:
-      minimum-idle: 5
-      maximum-pool-size: 10
+      minimum-idle: 1
+      maximum-pool-size: 5
       initialization-fail-timeout: 1
-      connection-timeout: 10000
-      validation-timeout: 5000
-      idle-timeout: 600000
-      max-lifetime: 1500000
-      keepalive-time: 300000
+      connection-timeout: 30000
+      validation-timeout: 3000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      keepalive-time: 120000
   profiles:
     active: dev
 
@@ -37,3 +37,4 @@ auth:
     secret: ${JWT_SECRET:dev-only-secret-key-must-be-long-enough}
     expires-minutes: 120
     issuer: https://novel-latest.local
+
