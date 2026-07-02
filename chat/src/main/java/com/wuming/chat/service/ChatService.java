@@ -79,8 +79,8 @@ public class ChatService {
      * @param content 用户输入
      * @return 角色回复消息id和内容
      */
-    public SendChatMessageResponse sendMessage(Long sessionId, String content) {
-        ChatSession session = requireSession(sessionId);
+    public SendChatMessageResponse sendMessage(Long userId, Long sessionId, String content) {
+        ChatSession session = requireOwnedSession(sessionId, userId);
         try (TraceContext.MdcScope ignoredSession = TraceContext.putSessionId(sessionId);
              TraceContext.MdcScope ignoredUser = TraceContext.putUserId(session.getUserId());
              TraceContext.MdcScope ignoredJob = TraceContext.putJobId(session.getJobId())) {
@@ -163,8 +163,8 @@ public class ChatService {
     /**
      * 按插入顺序返回会话内的全部消息。
      */
-    public List<ChatMessage> listMessages(Long sessionId) {
-        requireSession(sessionId);
+    public List<ChatMessage> listMessages(Long userId, Long sessionId) {
+        requireOwnedSession(sessionId, userId);
         return chatMessageMapper.selectList(
                 new LambdaQueryWrapper<ChatMessage>()
                         .eq(ChatMessage::getSessionId, sessionId)
@@ -173,19 +173,27 @@ public class ChatService {
     }
 
     /**
-     * 校验会话存在且处于可用状态。
+     * 校验会话存在、处于可用状态，且归属于当前登录用户。
      */
-    private ChatSession requireSession(Long sessionId) {
+    private ChatSession requireOwnedSession(Long sessionId, Long userId) {
         if (sessionId == null) {
             throw new IllegalArgumentException("sessionId不能为空");
         }
+        if (userId == null) {
+            throw new IllegalArgumentException("userId不能为空");
+        }
         ChatSession session = chatSessionMapper.selectById(sessionId);
         if (session == null || !SESSION_ACTIVE.equals(session.getStatus())) {
-            throw new BusinessException(ErrorCode.CHAT_SESSION_NOT_FOUND, "聊天会话不存在或不可用: " + sessionId);
+            throw new BusinessException(
+                    ErrorCode.CHAT_SESSION_NOT_FOUND,
+                    "聊天会话不存在或不可用: " + sessionId
+            );
+        }
+        if (!userId.equals(session.getUserId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "不能访问其他用户的聊天会话");
         }
         return session;
     }
-
     /**
      * 校验并规整用户输入，避免空消息进入上下文。
      *
@@ -295,3 +303,5 @@ public class ChatService {
         return builder.toString();
     }
 }
+
+
