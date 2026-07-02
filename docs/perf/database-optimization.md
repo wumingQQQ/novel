@@ -126,11 +126,72 @@ connectTimeout=10000&socketTimeout=30000&tcpKeepAlive=true
 
 | 指标 | 优化前 | 优化后 |
 | --- | --- | --- |
-| user 首次注册 | 13266ms | 待测 |
-| user 第二次注册 | 2063ms | 待测 |
-| user 登录 | 725ms | 待测 |
-| novel 首次上传 | 13162ms | 待测 |
-| novel 创建任务 | 1635ms | 待测 |
-| chat 首次建池 | 约 11.3s | 待测 |
-| chat 创建会话 | 672ms | 待测 |
-| Hikari stale connection WARN | 存在历史记录 | 待测 |
+| user 首次注册 | 13266ms | 本轮未覆盖 |
+| user 第二次注册 | 2063ms | 本轮未覆盖 |
+| user 登录 | 725ms | 733ms |
+| novel 首次上传 | 13162ms | 4437ms |
+| novel 创建任务 | 1635ms | 2014ms |
+| chat 首次建池 | 约 11.3s，发生在真实请求线程 | 约 14.9s，已提前到启动预热阶段 |
+| chat 创建会话 | 672ms | 658ms |
+| Hikari stale connection WARN | 存在历史记录 | 仍出现一次，chat 首次接口前连接已被关闭 |
+
+## 优化后复测
+
+### 测量时间
+
+- 测量时间段：`2026-07-02 15:42` 到 `2026-07-02 15:48`
+- 日志来源：仍只读取 `logs/user/application.log`、`logs/chat/application.log`、`logs/novel/application.log` 尾部
+- 本轮目标：验证 Hikari 参数调整、JDBC URL 超时参数、启动期 `DataSourceWarmupAutoConfiguration` 是否生效
+
+### 启动预热结果
+
+| 模块 | Hikari 初始化 | 预热结果 |
+| --- | --- | --- |
+| user | 15:42:22 - 15:42:34，约 11.6s | `数据库连接预热完成，costMs: 11790` |
+| novel | 15:43:27 - 15:43:39，约 11.9s | `数据库连接预热完成，costMs: 12248` |
+| chat | 15:43:36 - 15:43:51，约 14.7s | `数据库连接预热完成，costMs: 14919` |
+
+结论：预热生效，首次建池和远程建连成本已从真实接口线程前移到应用启动阶段。
+这没有消除远程 MySQL 建连本身的 11s - 15s 成本，但避免了首个业务请求承担该成本。
+
+### 接口耗时对比
+
+| 场景 | 优化前 | 优化后 | 结论 |
+| --- | --- | --- | --- |
+| user 登录 | 725ms | 733ms | 基本持平 |
+| user 远程校验首次 | 903ms | 2073ms | 本轮首次远程校验更慢，受 Dubbo 反序列化 WARN 或远程查询波动影响 |
+| user 远程校验后续 | 512ms | 509ms | 基本持平 |
+| novel 小说上传 | 13162ms | 4437ms | 明显下降，首个接口不再承担 Hikari 建池成本 |
+| novel 创建任务 | 1635ms | 2014ms | 小幅变慢，可能受远程用户校验或网络波动影响 |
+| novel 角色上下文查询 | 445ms | 529ms / 963ms | 有波动，但仍在 1s 内 |
+| chat 创建未完成 job 会话 | 1334ms | 1744ms / 635ms | 首次有 Hikari stale connection 影响，后续恢复 |
+| chat 创建已完成 job 会话 | 672ms | 658ms | 基本持平 |
+
+### 新发现
+
+1. `chat` 在预热后约 78 秒首次访问数据库时出现一次：
+
+```text
+HikariPool-1 - Failed to validate connection ... No operations allowed after connection closed.
+```
+
+这说明当前远程 MySQL 链路中，空闲连接可能在 2 分钟 `keepalive-time` 之前就被断开。
+本轮配置降低了首请求建池问题，但还没有完全解决空闲连接被提前关闭的问题。
+
+2. 15 点新日志中没有出现新的 `sql summary` 行。迁移到 `common` 后，`SqlSummaryInterceptor`
+仍使用 `DEBUG` 级别输出，但各模块当前日志配置可能没有放开 `com.wuming.common.mybatis`。
+下一步需要补齐日志级别或将 SQL 摘要等级改为可配置。
+
+3. Dubbo `ObjectMapperCodec serialize/deserialize error` 仍然存在，但本轮仍不归入数据库优化。
+
+### 下一步建议
+
+1. 将 Hikari `keepalive-time` 从 `120000` 降到 `30000`，验证是否能减少远程连接提前关闭。
+2. 为 `com.wuming.common.mybatis` 增加 DEBUG 日志配置，或把 SQL 摘要输出改为 INFO/可配置阈值。
+3. 再做一轮相同接口复测，重点观察：
+   - `chat` 是否还在首次接口前出现 stale connection WARN
+   - 三个模块是否都出现 `sql summary`
+   - `novel` 上传是否稳定维持在 4s 左右或更低
+
+
+
