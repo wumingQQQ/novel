@@ -1,2 +1,3 @@
 com.wuming.common.redis.config.CommonRedisAutoConfiguration
 com.wuming.common.security.JwtResourceServerAutoConfiguration
+com.wuming.common.mybatis.MybatisMonitorAutoConfiguration
