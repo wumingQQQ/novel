@@ -39,4 +39,4 @@ auth:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-key-must-be-long-enough}
     expires-minutes: 120
-    issuer: novel-latest
+    issuer: https://novel-latest.local
