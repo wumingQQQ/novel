@@ -57,3 +57,9 @@ novel:
     batch-size: 5
   analysis:
     batch-size: 10
+
+auth:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-key-must-be-long-enough}
+    expires-minutes: 120
+    issuer: novel-latest

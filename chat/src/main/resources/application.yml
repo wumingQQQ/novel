@@ -34,3 +34,9 @@ chat:
   message-cache-ttl: 3d
   profile-prompt-cache-ttl: 3d
   rpc-cache-ttl: 2h
+
+auth:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-key-must-be-long-enough}
+    expires-minutes: 120
+    issuer: novel-latest
