@@ -24,7 +24,7 @@ public class JwtResourceServerConfig {
     public JwtDecoder jwtDecoder(JwtProperties properties) {
         SecretKey secretKey = new SecretKeySpec(
                 properties.getSecret().getBytes(StandardCharsets.UTF_8),
-                "AES"
+                "HmacSHA256"
         );
         return NimbusJwtDecoder.withSecretKey(secretKey)
                 .macAlgorithm(MacAlgorithm.HS256)
