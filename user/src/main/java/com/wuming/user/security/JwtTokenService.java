@@ -1,6 +1,6 @@
 package com.wuming.user.security;
 
-import com.wuming.user.config.AuthJwtProperties;
+import com.wuming.common.security.JwtProperties;
 import com.wuming.user.domain.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -18,7 +18,7 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class JwtTokenService {
     private final JwtEncoder jwtEncoder;
-    private final AuthJwtProperties properties;
+    private final JwtProperties properties;
 
     /**
      * 为用户签发访问令牌

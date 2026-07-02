@@ -3,7 +3,7 @@ package com.wuming.user.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.common.exception.BusinessException;
 import com.wuming.common.exception.ErrorCode;
-import com.wuming.user.config.AuthJwtProperties;
+import com.wuming.common.security.JwtProperties;
 import com.wuming.user.domain.dto.CreateUserRequest;
 import com.wuming.user.domain.dto.LoginRequest;
 import com.wuming.user.domain.dto.LoginResponse;
@@ -27,7 +27,7 @@ public class AuthService {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
-    private final AuthJwtProperties properties;
+    private final JwtProperties properties;
 
     /**
      * 注册新用户

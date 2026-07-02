@@ -1,6 +1,7 @@
 package com.wuming.user.config;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.wuming.common.security.JwtProperties;
 import com.wuming.user.security.AuthMdcFilter;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -26,7 +27,7 @@ import java.nio.charset.StandardCharsets;
  * 用户模块安全配置，负责声明接口访问规则和密码哈希策略
  */
 @Configuration
-@EnableConfigurationProperties(AuthJwtProperties.class)
+@EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 
     /**
@@ -60,7 +61,7 @@ public class SecurityConfig {
      * 基于本地秘钥创建jwt签发器
      */
     @Bean
-    public JwtEncoder jwtEncoder(AuthJwtProperties properties) {
+    public JwtEncoder jwtEncoder(JwtProperties properties) {
         SecretKey secretKey = new SecretKeySpec(
                 properties.getSecret().getBytes(StandardCharsets.UTF_8),
                 "HmacSHA256"
@@ -72,7 +73,7 @@ public class SecurityConfig {
      * 基于本地秘钥创建jwt解析器，用于校验Bearer Token
      */
     @Bean
-    public JwtDecoder jwtDecoder(AuthJwtProperties properties) {
+    public JwtDecoder jwtDecoder(JwtProperties properties) {
         SecretKey secretKey = new SecretKeySpec(
                 properties.getSecret().getBytes(StandardCharsets.UTF_8),
                 "HmacSHA256"
