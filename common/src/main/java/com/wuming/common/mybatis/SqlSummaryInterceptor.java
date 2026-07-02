@@ -11,7 +11,6 @@ import org.apache.ibatis.plugin.Signature;
 import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.RowBounds;
 
-import java.util.Collection;
 
 /**
  * 输出 MyBatis 执行摘要日志。
