@@ -14,32 +14,64 @@ import org.slf4j.MDC;
 public class TraceDubboFilter implements Filter {
 
     /**
-     * consumer侧传递traceId，provider侧接收traceId并写入MDC。
+     * consumer侧传递traceId和userId，provider侧接收后写入MDC。
+     * userId仅用于日志链路追踪，不作为权限判断依据。
      */
     @Override
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
         if (RpcContext.getServiceContext().isConsumerSide()) {
-            RpcContext.getClientAttachment().setAttachment(
-                    TraceContext.TRACE_ID,
-                    TraceContext.ensureTraceId()
-            );
+            attachTraceContext();
             return invoker.invoke(invocation);
         }
 
-        String oldTraceId = TraceContext.currentTraceId();
+        String oldTraceId = MDC.get(TraceContext.TRACE_ID);
+        String oldUserId = MDC.get(TraceContext.USER_ID);
         try {
-            String traceId = RpcContext.getServerAttachment()
-                    .getAttachment(TraceContext.TRACE_ID);
-            TraceContext.useTraceId(traceId);
+            applyServerTraceContext();
             return invoker.invoke(invocation);
         } finally {
-            if (oldTraceId == null) {
-                MDC.remove(TraceContext.TRACE_ID);
-            } else {
-                MDC.put(TraceContext.TRACE_ID, oldTraceId);
-            }
+            restoreMdc(TraceContext.TRACE_ID, oldTraceId);
+            restoreMdc(TraceContext.USER_ID, oldUserId);
+        }
+    }
+
+    /**
+     * 将当前线程的日志上下文写入Dubbo调用附件，传递给远端服务。
+     */
+    private void attachTraceContext() {
+        RpcContext.getClientAttachment().setAttachment(
+                TraceContext.TRACE_ID,
+                TraceContext.ensureTraceId()
+        );
+        String userId = MDC.get(TraceContext.USER_ID);
+        if (userId != null && !userId.isBlank()) {
+            RpcContext.getClientAttachment().setAttachment(TraceContext.USER_ID, userId);
+        }
+    }
+
+    /**
+     * 从Dubbo调用附件恢复日志上下文，便于远端服务日志继续携带链路字段。
+     */
+    private void applyServerTraceContext() {
+        String traceId = RpcContext.getServerAttachment()
+                .getAttachment(TraceContext.TRACE_ID);
+        TraceContext.useTraceId(traceId);
+
+        String userId = RpcContext.getServerAttachment()
+                .getAttachment(TraceContext.USER_ID);
+        if (userId != null && !userId.isBlank()) {
+            MDC.put(TraceContext.USER_ID, userId);
+        }
+    }
+
+    /**
+     * 恢复调用前的MDC字段，避免Dubbo线程复用造成上下文串扰。
+     */
+    private void restoreMdc(String key, String oldValue) {
+        if (oldValue == null) {
+            MDC.remove(key);
+        } else {
+            MDC.put(key, oldValue);
         }
     }
 }
-
-
