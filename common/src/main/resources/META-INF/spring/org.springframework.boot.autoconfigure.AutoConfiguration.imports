@@ -1,5 +1,5 @@
 com.wuming.common.redis.config.CommonRedisAutoConfiguration
+com.wuming.common.redis.config.RedisVectorStoreAutoConfiguration
 com.wuming.common.security.JwtResourceServerAutoConfiguration
 com.wuming.common.mybatis.MybatisMonitorAutoConfiguration
 com.wuming.common.datasource.DataSourceWarmupAutoConfiguration
-
