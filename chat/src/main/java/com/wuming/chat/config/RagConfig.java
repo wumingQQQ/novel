@@ -1,13 +1,13 @@
 package com.wuming.chat.config;
 
 import com.wuming.chat.config.llm.RagProperties;
-import com.wuming.common.redis.vector.RedisVectorStoreFactory;
 import org.springframework.ai.document.MetadataMode;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.redis.RedisVectorStore;
 import org.springframework.ai.vectorstore.redis.RedisVectorStore.MetadataField;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
@@ -51,17 +51,15 @@ public class RagConfig {
     public VectorStore vectorStore(
             JedisPooled jedisPool,
             EmbeddingModel embeddingModel,
-            RagProperties props,
-            RedisVectorStoreFactory vectorStoreFactory
+            RagProperties props
     ) {
         RagProperties.Redis redis = props.getRedis();
-        return vectorStoreFactory.create(
-                jedisPool,
-                embeddingModel,
-                redis.getIndex(),
-                redis.getKeyPrefix(),
-                metadataFields()
-        );
+        return RedisVectorStore.builder(jedisPool, embeddingModel)
+                .indexName(redis.getIndex())
+                .prefix(redis.getKeyPrefix())
+                .metadataFields(metadataFields())
+                .initializeSchema(true)
+                .build();
     }
 
     private List<MetadataField> metadataFields() {
