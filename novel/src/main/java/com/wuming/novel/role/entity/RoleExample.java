@@ -43,7 +43,7 @@ public class RoleExample implements Serializable {
     private Long passageId;
 
     /**
-     * 样本类型：DIALOGUE、CHARACTER_DESCRIPTION
+     * 样本类型：DIALOGUE、ACTION_DESCRIPTION、NARRATION_EVAL
      */
     private String sampleType;
 
@@ -53,9 +53,19 @@ public class RoleExample implements Serializable {
     private String sampleText;
 
     /**
-     * 角色台词，仅 DIALOGUE 类型使用
+     * 对话原文，仅 DIALOGUE 类型使用
      */
     private String dialogueText;
+
+    /**
+     * 动作/神态描写，仅 ACTION_DESCRIPTION 类型使用
+     */
+    private String actionDescription;
+
+    /**
+     * 旁白评价，仅 NARRATION_EVAL 类型使用
+     */
+    private String narrationEval;
 
     /**
      * 样本前文上下文

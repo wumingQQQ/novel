@@ -83,9 +83,11 @@ CREATE TABLE role_examples (
     character_id BIGINT NOT NULL,
     character_name VARCHAR(50) NOT NULL,
     passage_id BIGINT NOT NULL,
-    sample_type VARCHAR(30) NOT NULL COMMENT 'DIALOGUE/CHARACTER_DESCRIPTION',
+    sample_type VARCHAR(30) NOT NULL COMMENT 'DIALOGUE/ACTION_DESCRIPTION/NARRATION_EVAL',
     sample_text TEXT NOT NULL COMMENT '完整样本文本',
-    dialogue_text TEXT COMMENT '对话原文，仅DIALOGUE类型使用',
+    dialogue_text TEXT COMMENT '对话原文（DIALOGUE类型）',
+    action_description TEXT COMMENT '动作/神态描写（ACTION_DESCRIPTION类型）',
+    narration_eval TEXT COMMENT '旁白评价（NARRATION_EVAL类型）',
     context_before TEXT COMMENT '前文',
     context_after TEXT COMMENT '后文',
     confidence DOUBLE COMMENT '0.0-1.0',
@@ -103,17 +105,20 @@ CREATE TABLE role_examples (
 ) COMMENT '角色样本库';
 ```
 
-MVP 只保留两类样本：
+MVP 保留三类样本：
 
 | 类型 | 说明 |
 | --- | --- |
 | `DIALOGUE` | 目标角色的原作台词，以及前后上下文 |
-| `CHARACTER_DESCRIPTION` | 旁白或他人对目标角色的明确描写、评价、状态刻画 |
+| `ACTION_DESCRIPTION` | 目标角色的动作、神态、沉默、回避等可观察表现 |
+| `NARRATION_EVAL` | 旁白或他人对目标角色的明确评价、状态刻画 |
 
 设计说明：
 
 - `sampleText` 用于向量检索和 prompt 注入。
 - `dialogueText` 只在 `DIALOGUE` 类型中保存角色原话。
+- `actionDescription` 只在 `ACTION_DESCRIPTION` 类型中保存动作/神态描写。
+- `narrationEval` 只在 `NARRATION_EVAL` 类型中保存旁白评价。
 - `confidence` 用于控制是否进入 profile 总结和默认召回。
 - Redis VectorStore 文档 ID 使用 `role_example:{exampleId}`。
 
@@ -202,7 +207,7 @@ WHERE novel_id = ?
 
 - 规则阶段追求高召回，不追求最终准确。
 - 模糊对话和描写交给 LLM attribution 精判。
-- 初版只提取 `DIALOGUE` 与 `CHARACTER_DESCRIPTION` 候选。
+- 初版提取 `DIALOGUE`、`ACTION_DESCRIPTION` 与 `NARRATION_EVAL` 候选。
 
 ### 阶段3：RoleExample 抽取与 LLM Attribution
 
@@ -220,12 +225,13 @@ RoleExampleExtractor
 4. 将新样本标记为 `vectorStatus = PENDING`。
 5. 对 role examples 进行向量化。
 
-LLM attribution 只回答三个问题：
+LLM attribution 只回答四个问题：
 
 ```text
 1. 该对话是否真的是目标角色说的？
-2. 该描写是否真的是在刻画目标角色？
-3. 置信度是多少？
+2. 该动作/神态描写是否真的是目标角色的表现？
+3. 该旁白评价是否真的是在刻画目标角色？
+4. 置信度是多少？
 ```
 
 提示词输出建议：
@@ -258,7 +264,7 @@ RoleProfileBuilder
 职责：
 
 1. 查询高置信度 `RoleExample`。
-2. 按类型取样，例如最多 30 条对话、20 条描写。
+2. 按类型取样，例如最多 30 条对话、20 条动作/神态描写和旁白评价。
 3. 调用 LLM 生成简短约束摘要。
 4. 选择代表性样本 ID。
 5. 保存或覆盖 `role_profiles`。
