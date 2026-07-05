@@ -16,7 +16,7 @@ public class SearchHit implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String documentId;
-    private String text;
+    private String content;
     private double score;
     private Map<String, Object> metadata = new LinkedHashMap<>();
 }

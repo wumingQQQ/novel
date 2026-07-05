@@ -15,6 +15,6 @@ public class RagDocument implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String documentId;
-    private String text;
+    private String content;
     private Map<String, Object> metadata;
 }
