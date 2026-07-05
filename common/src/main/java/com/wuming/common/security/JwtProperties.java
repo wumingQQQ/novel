@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Setter
 @ConfigurationProperties(prefix = "auth.jwt")
 public class JwtProperties {
+    private boolean enabled = false;
     private String issuer;
     private String secret;
     private long expiresMinutes;
