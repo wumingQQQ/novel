@@ -29,13 +29,6 @@ spring:
 llm:
   default-provider: deepseek
   temperature: 0.0
-  task-temperature:
-    scene-split: 0.0
-    scene-pool: 0.0
-    layer-split: 0.3
-    evidence-extract: 0.3
-    aggregation: 0.4
-    profile-detail-enhance: 0.4
   providers:
     deepseek:
       base-url: ${DS_BASE_URL:https://api.deepseek.com}

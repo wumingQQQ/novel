@@ -38,23 +38,6 @@ novel:
   upload:
     max-file-size: 10MB
     save-path: data/novel
-  layer:
-    min-chapter-per-layer: 15
-    max-chapter-per-layer: 35
-    max-layer-size: 30
-  recall:
-    threshold: 0.6
-    topK: 40
-  profile-enhance:
-    threshold: 0.7
-    default-top-k: 10
-    top-k:
-      SETTING: 10
-      PERSONALITY: 15
-      SPEECH: 20
-      INTERACTION: 20
-      KEY_EVENT: 15
-    batch-size: 5
   analysis:
     batch-size: 10
 
