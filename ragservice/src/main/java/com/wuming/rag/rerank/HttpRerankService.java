@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.wuming.rag.config.RagProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -25,7 +26,7 @@ public class HttpRerankService implements RerankService {
      * @return 重排序后的topN文档
      */
     @Override
-    public List<RerankedDocument> rerank(String query, List<RerankDocument> documents) {
+    public List<Document> rerank(String query, List<Document> documents) {
         if(documents == null || documents.isEmpty()){
             return List.of();
         }
@@ -34,7 +35,7 @@ public class HttpRerankService implements RerankService {
         RerankRequest request = new RerankRequest(
                 config.getModel(),
                 query,
-                documents.stream().map(RerankDocument::content).toList()
+                documents.stream().map(Document::getText).toList()
         );
 
         RerankResponse response = clientBuilder
@@ -55,14 +56,14 @@ public class HttpRerankService implements RerankService {
                 .filter(result -> result.index() >= 0)
                 .filter(result -> result.index() < documents.size())
                 .sorted(Comparator.comparingDouble(RerankResult::score).reversed())
-                .limit(config.getTopN())
                 .map(result -> {
-                    RerankDocument source = documents.get(result.index());
-                    return new RerankedDocument(
-                            source.documentId(),
-                            source.content(),
-                            result.score()
-                    );
+                    Document source = documents.get(result.index());
+                    return Document.builder()
+                            .id(source.getId())
+                            .text(source.getText())
+                            .metadata(source.getMetadata())
+                            .score(result.score())
+                            .build();
                 })
                 .toList();
     }

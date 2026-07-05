@@ -1,7 +1,9 @@
 package com.wuming.rag.rerank;
 
+import org.springframework.ai.document.Document;
+
 import java.util.List;
 
 public interface RerankService {
-    List<RerankedDocument> rerank(String query, List<RerankDocument> documents);
+    List<Document> rerank(String query, List<Document> documents);
 }
