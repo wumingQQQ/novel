@@ -5,6 +5,7 @@ import com.wuming.api.rag.dto.*;
 import com.wuming.api.rag.dto.spec.PassageSearchRequest;
 import com.wuming.api.rag.dto.spec.ReactionRuleSearchRequest;
 import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
+import com.wuming.rag.rerank.RerankService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;
@@ -23,6 +24,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class RagService implements RagFacade {
     private final RagVectorStoreRegistry registry;
+    private final RerankService rerankService;
 
     @Override
     public int upsertDocuments(UpsertDocumentRequest request) {
@@ -58,6 +60,7 @@ public class RagService implements RagFacade {
                 request.getQuery(),
                 Map.of("novel_id", request.getNovelId()),
                 request.getTopK(),
+                request.isRerank(),
                 request.getTopN()
         );
     }
@@ -69,6 +72,7 @@ public class RagService implements RagFacade {
                 request.getQuery(),
                 Map.of("character_id", request.getCharacterId()),
                 request.getTopK(),
+                request.isRerank(),
                 request.getTopN()
         );
     }
@@ -80,6 +84,7 @@ public class RagService implements RagFacade {
                 request.getQuery(),
                 Map.of("character_id", request.getCharacterId()),
                 request.getTopK(),
+                request.isRerank(),
                 request.getTopN()
         );
     }
@@ -88,10 +93,12 @@ public class RagService implements RagFacade {
                                    String query,
                                    Map<String, Object> filters,
                                    Integer topK,
+                                   boolean isRerank,
                                    Integer topN) {
         VectorStore store = registry.getRequired(indexName);
         int recallCount = topK == null ? 20 : topK;
-        int returnCount = topN == null ? recallCount : topN;
+        int rerankCount = topN == null ? recallCount : topN;
+
         SearchRequest.Builder builder = SearchRequest.builder()
                 .query(query)
                 .topK(recallCount);
@@ -100,8 +107,13 @@ public class RagService implements RagFacade {
             builder.filterExpression(filterExpression);
         }
         SearchRequest searchRequest = builder.build();
-        return store.similaritySearch(searchRequest).stream()
-                .limit(returnCount)
+
+        List<Document> documents = store.similaritySearch(searchRequest);
+        List<Document> finalDocuments = isRerank
+                ? rerankService.rerank(query, documents)
+                : documents;
+        return finalDocuments.stream()
+                .limit(rerankCount)
                 .map(this::toSearchHit)
                 .toList();
     }
@@ -110,13 +122,13 @@ public class RagService implements RagFacade {
         Map<String, Object> metadata = document.getMetadata() == null
                 ? new LinkedHashMap<>()
                 : new LinkedHashMap<>(document.getMetadata());
-        return new Document(document.getDocumentId(), document.getText(), metadata);
+        return new Document(document.getDocumentId(), document.getContent(), metadata);
     }
 
     private SearchHit toSearchHit(Document document) {
         SearchHit hit = new SearchHit();
         hit.setDocumentId(document.getId());
-        hit.setText(document.getText());
+        hit.setContent(document.getText());
         hit.setScore(document.getScore() == null ? 0.0 : document.getScore());
         hit.setMetadata(new LinkedHashMap<>(document.getMetadata()));
         return hit;

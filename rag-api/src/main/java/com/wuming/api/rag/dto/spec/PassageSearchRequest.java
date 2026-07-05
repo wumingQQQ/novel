@@ -17,5 +17,6 @@ public class PassageSearchRequest implements Serializable {
     private Long novelId;
     private String query;
     private Integer topK;       // 向量召回候选数量
+    private boolean rerank = true;  // 是否重排序
     private Integer topN;       // 最终返回数量
 }

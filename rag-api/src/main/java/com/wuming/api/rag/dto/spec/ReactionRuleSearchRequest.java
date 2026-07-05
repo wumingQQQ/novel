@@ -14,5 +14,6 @@ public class ReactionRuleSearchRequest implements Serializable {
     private Long characterId;
     private String query;
     private Integer topK;       // 向量召回候选数量
+    private boolean rerank = true;  // 是否重排序
     private Integer topN;       // 最终返回数量
 }
