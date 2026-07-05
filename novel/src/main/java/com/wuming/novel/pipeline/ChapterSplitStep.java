@@ -1,14 +1,14 @@
 package com.wuming.novel.pipeline;
 
 import com.wuming.novel.domain.enums.JobStage;
-import com.wuming.novel.service.IChapterService;
+import com.wuming.novel.service.impl.RoleRuntimePhaseOneService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
 public class ChapterSplitStep implements PipelineStep {
-    private final IChapterService chapterService;
+    private final RoleRuntimePhaseOneService roleRuntimePhaseOneService;
 
     @Override
     public JobStage stage() {
@@ -17,11 +17,11 @@ public class ChapterSplitStep implements PipelineStep {
 
     @Override
     public String name() {
-        return "章节切分";
+        return "Passage构建与向量化";
     }
 
     @Override
     public void execute(Long jobId) {
-        chapterService.splitChapter(jobId);
+        roleRuntimePhaseOneService.build(jobId);
     }
 }

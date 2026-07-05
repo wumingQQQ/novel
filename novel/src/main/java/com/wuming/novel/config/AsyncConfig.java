@@ -64,4 +64,20 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * 角色运行时构建阶段使用的并发线程池，承载章节分析、人物识别和向量写入。
+     */
+    @Bean("roleRuntimeExecutor")
+    public Executor roleRuntimeExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(1000);
+        executor.setThreadNamePrefix("role-runtime-executor-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }

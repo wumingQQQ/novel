@@ -7,7 +7,7 @@ import lombok.Getter;
 @Getter
 public enum JobStage {
     PENDING(0, "队列中"),
-    CHAPTER_SPLIT(1, "章节切分"),
+    CHAPTER_SPLIT(1, "Passage构建与向量化"),
     COMPLETE(100, "完成");
 
 
