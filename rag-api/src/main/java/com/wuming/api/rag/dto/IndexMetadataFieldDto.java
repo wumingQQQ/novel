@@ -1,17 +1,16 @@
 package com.wuming.api.rag.dto;
 
+import com.wuming.api.rag.enums.MetadataFieldType;
 import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
 
 @Data
-public class PassageSearchRequest implements Serializable {
+public class IndexMetadataFieldDto implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    private String indexName;
-    private Long novelId;
-    private String query;
-    private Integer topK;
+    private String name;
+    private MetadataFieldType type;
 }

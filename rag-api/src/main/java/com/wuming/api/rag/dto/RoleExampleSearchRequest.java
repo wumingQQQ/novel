@@ -10,6 +10,7 @@ public class RoleExampleSearchRequest implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    private String indexName;
     private Long characterId;
     private String query;
     private Integer topK;

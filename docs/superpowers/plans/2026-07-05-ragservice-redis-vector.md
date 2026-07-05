@@ -4,7 +4,7 @@
 
 **Goal:** Add a Dubbo-based `rag-api` contract module and Redis VectorStore-backed `ragservice` module for the new role runtime RAG chain.
 
-**Architecture:** `rag-api` is a dependency-only contract jar with DTOs, enums, and Dubbo facades. `ragservice` is an independent Spring Boot provider that owns embedding, Redis VectorStore, rerank, index metadata validation, and search orchestration. Existing `chat` and `novel` modules are not migrated in this first implementation slice.
+**Architecture:** `rag-api` is a dependency-only contract jar with DTOs, enums, and Dubbo facades. `ragservice` is an independent Spring Boot provider that owns embedding, Redis Search index creation commands, metadata schema validation, rerank, and search orchestration. Existing `chat` and `novel` modules are not migrated in this first implementation slice.
 
 **Tech Stack:** Java 17, Spring Boot 3.5.x, Apache Dubbo Triple, Spring AI OpenAI embedding, Spring AI Redis VectorStore, JUnit 5.
 
@@ -15,15 +15,15 @@
 - Create `rag-api/pom.xml`: Maven jar module for Dubbo contracts.
 - Create `rag-api/src/main/java/com/wuming/api/rag/RagIndexFacade.java`: index lifecycle facade.
 - Create `rag-api/src/main/java/com/wuming/api/rag/RoleRuntimeRagFacade.java`: role runtime search facade.
-- Create `rag-api/src/main/java/com/wuming/api/rag/enums/RagIndexType.java`: logical index enum.
 - Create `rag-api/src/main/java/com/wuming/api/rag/enums/IndexStatus.java`: create-index status enum.
+- Create `rag-api/src/main/java/com/wuming/api/rag/enums/MetadataFieldType.java`: Redis Search metadata field type enum.
 - Create `rag-api/src/main/java/com/wuming/api/rag/dto/*.java`: serializable request/response DTOs.
 - Modify `pom.xml`: add `rag-api` and `ragservice` modules.
 - Create `ragservice/pom.xml`: Spring Boot service module.
 - Create `ragservice/src/main/java/com/wuming/rag/RagServiceApplication.java`: service entrypoint.
 - Create `ragservice/src/main/java/com/wuming/rag/config/RagServiceProperties.java`: configuration binding.
 - Create `ragservice/src/main/java/com/wuming/rag/config/RagVectorConfig.java`: embedding, Redis, and vector store beans.
-- Create `ragservice/src/main/java/com/wuming/rag/index/*`: index definition registry and validation.
+- Create `ragservice/src/main/java/com/wuming/rag/index/*`: dynamic index definition storage and validation.
 - Create `ragservice/src/main/java/com/wuming/rag/vector/redis/*`: Redis VectorStore adapter.
 - Create `ragservice/src/main/java/com/wuming/rag/search/*`: search orchestration.
 - Create `ragservice/src/main/java/com/wuming/rag/rerank/*`: optional HTTP rerank with fallback.
@@ -37,8 +37,8 @@
 - Create: `rag-api/pom.xml`
 - Create: `rag-api/src/main/java/com/wuming/api/rag/RagIndexFacade.java`
 - Create: `rag-api/src/main/java/com/wuming/api/rag/RoleRuntimeRagFacade.java`
-- Create: `rag-api/src/main/java/com/wuming/api/rag/enums/RagIndexType.java`
 - Create: `rag-api/src/main/java/com/wuming/api/rag/enums/IndexStatus.java`
+- Create: `rag-api/src/main/java/com/wuming/api/rag/enums/MetadataFieldType.java`
 - Create: `rag-api/src/main/java/com/wuming/api/rag/dto/*.java`
 - Modify: `pom.xml`
 
@@ -52,7 +52,7 @@ Create a jar module that depends only on Lombok. No Spring AI, Redis, or Dubbo i
 
 - [ ] **Step 3: Define enums and DTOs**
 
-Create serializable DTO classes for create-index, upsert, delete, and search operations. Use Lombok `@Data` and initialize list fields to empty lists where useful.
+Create serializable DTO classes for create-index, upsert, delete, and search operations. `CreateIndexRequest` must carry `indexName`, `keyPrefix`, `vectorDimension`, and `metadataFields`; later upsert/delete/search requests use `indexName`.
 
 - [ ] **Step 4: Define Dubbo facade interfaces**
 
@@ -91,7 +91,7 @@ Create typed properties for embedding, Redis indexes, retrieve defaults, reranke
 
 - [ ] **Step 4: Add vector configuration**
 
-Create beans for `EmbeddingModel`, `JedisPooled`, and one `VectorStore` bean per logical index: `novelPassageVectorStore`, `roleExampleVectorStore`, `roleReactionRuleVectorStore`.
+Create beans for `EmbeddingModel` and `JedisPooled`. Do not predefine one `VectorStore` bean per logical index.
 
 - [ ] **Step 5: Verify service module compiles**
 
@@ -107,15 +107,14 @@ Commit message: `feat: add ragservice spring boot skeleton`
 
 **Files:**
 - Create: `ragservice/src/main/java/com/wuming/rag/index/RagIndexDefinition.java`
-- Create: `ragservice/src/main/java/com/wuming/rag/index/RagIndexDefinitionRegistry.java`
+- Create: `ragservice/src/main/java/com/wuming/rag/index/RedisIndexDefinitionStore.java`
 - Create: `ragservice/src/main/java/com/wuming/rag/index/MetadataValidator.java`
 - Create: `ragservice/src/test/java/com/wuming/rag/index/MetadataValidatorTest.java`
 
 - [ ] **Step 1: Write metadata validation tests**
 
 Cover:
-- valid `ROLE_EXAMPLE` metadata passes.
-- missing required `characterId` fails.
+- metadata declared in create-index schema passes.
 - unknown metadata field fails.
 - blank document text fails.
 
@@ -127,7 +126,7 @@ Expected: fail because validator classes do not exist.
 
 - [ ] **Step 3: Implement registry and validator**
 
-Implement required and optional metadata whitelists for all three `RagIndexType` values.
+Implement metadata validation from the persisted dynamic index definition.
 
 - [ ] **Step 4: Run validator tests**
 
@@ -143,7 +142,6 @@ Commit message: `feat: validate rag document metadata`
 
 **Files:**
 - Create: `ragservice/src/main/java/com/wuming/rag/vector/redis/RedisVectorIndexService.java`
-- Create: `ragservice/src/main/java/com/wuming/rag/vector/redis/VectorStoreRegistry.java`
 - Create: `ragservice/src/main/java/com/wuming/rag/search/RoleRuntimeSearchService.java`
 - Create: `ragservice/src/main/java/com/wuming/rag/rerank/RerankDocument.java`
 - Create: `ragservice/src/main/java/com/wuming/rag/rerank/RerankedDocument.java`
@@ -152,13 +150,13 @@ Commit message: `feat: validate rag document metadata`
 - Create: `ragservice/src/main/java/com/wuming/rag/integration/rpc/RagIndexFacadeImpl.java`
 - Create: `ragservice/src/main/java/com/wuming/rag/integration/rpc/RoleRuntimeRagFacadeImpl.java`
 
-- [ ] **Step 1: Implement vector store registry**
+- [ ] **Step 1: Implement index definition store**
 
-Map `RagIndexType` to the corresponding qualified `VectorStore` bean.
+Persist and load dynamic index definitions in Redis using key `rag:index-definition:{indexName}`.
 
 - [ ] **Step 2: Implement Redis vector index service**
 
-Implement create-index as an idempotent no-op backed by eagerly initialized schemas, document upsert/delete, and similarity search with filter expressions.
+Implement create-index through Redis Search commands, then implement document upsert/delete and similarity search with filter expressions.
 
 - [ ] **Step 3: Implement search service**
 
