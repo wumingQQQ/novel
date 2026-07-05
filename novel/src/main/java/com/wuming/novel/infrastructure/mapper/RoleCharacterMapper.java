@@ -1,7 +1,7 @@
-package com.wuming.novel.infrastructure.mapper.role;
+package com.wuming.novel.infrastructure.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.wuming.novel.role.entity.RoleCharacter;
+import com.wuming.novel.domain.entity.RoleCharacter;
 
 /**
  * 小说角色Mapper。

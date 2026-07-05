@@ -1,9 +1,9 @@
-package com.wuming.novel.role.service.impl;
+package com.wuming.novel.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.wuming.novel.infrastructure.mapper.role.RoleExampleMapper;
-import com.wuming.novel.role.entity.RoleExample;
-import com.wuming.novel.role.service.IRoleExampleService;
+import com.wuming.novel.domain.entity.RoleExample;
+import com.wuming.novel.infrastructure.mapper.RoleExampleMapper;
+import com.wuming.novel.service.IRoleExampleService;
 import org.springframework.stereotype.Service;
 
 /**

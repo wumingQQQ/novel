@@ -1,4 +1,4 @@
-package com.wuming.novel.role.entity;
+package com.wuming.novel.domain.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;

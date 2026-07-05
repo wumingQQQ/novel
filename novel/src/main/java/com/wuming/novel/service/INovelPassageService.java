@@ -1,7 +1,7 @@
-package com.wuming.novel.role.service;
+package com.wuming.novel.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.wuming.novel.role.entity.NovelPassage;
+import com.wuming.novel.domain.entity.NovelPassage;
 
 /**
  * 小说检索文本块基础服务。

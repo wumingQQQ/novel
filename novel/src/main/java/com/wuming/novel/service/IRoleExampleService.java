@@ -1,7 +1,7 @@
-package com.wuming.novel.role.service;
+package com.wuming.novel.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.wuming.novel.role.entity.RoleExample;
+import com.wuming.novel.domain.entity.RoleExample;
 
 /**
  * 角色原作样本基础服务。

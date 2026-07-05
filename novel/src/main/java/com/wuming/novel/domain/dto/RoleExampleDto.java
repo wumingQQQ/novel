@@ -1,4 +1,4 @@
-package com.wuming.novel.role.dto;
+package com.wuming.novel.domain.dto;
 
 import lombok.Data;
 

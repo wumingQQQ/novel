@@ -1,9 +1,9 @@
-package com.wuming.novel.role.service.impl;
+package com.wuming.novel.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.wuming.novel.infrastructure.mapper.role.NovelPassageMapper;
-import com.wuming.novel.role.entity.NovelPassage;
-import com.wuming.novel.role.service.INovelPassageService;
+import com.wuming.novel.domain.entity.NovelPassage;
+import com.wuming.novel.infrastructure.mapper.NovelPassageMapper;
+import com.wuming.novel.service.INovelPassageService;
 import org.springframework.stereotype.Service;
 
 /**
