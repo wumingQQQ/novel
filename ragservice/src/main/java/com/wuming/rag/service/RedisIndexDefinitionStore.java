@@ -26,9 +26,6 @@ public class RedisIndexDefinitionStore {
      */
     void save(RagIndexDefinition definition) throws JsonProcessingException {
         String indexName = definition.getIndexName();
-        if(exists(indexName)){
-            return;
-        }
         String json = objectMapper.writeValueAsString(definition);
         redisTemplate.opsForValue().set(key(indexName), json);
     }
