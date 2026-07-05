@@ -8,13 +8,7 @@ import lombok.Getter;
 public enum JobStage {
     PENDING(0, "队列中"),
     CHAPTER_SPLIT(1, "章节切分"),
-    LAYER_SPLIT(2, "剧情分层"),
-    SCENE_SPLIT(3, "场景切分"),
-    POOL_CLASSIFY(4, "场景分池"),
-    EVIDENCE_EXTRACT(5, "证据提取"),
-    PROFILE_AGGREGATION(6, "聚合画像"),
-    PROFILE_DETAIL_ENHANCE(7, "画像细节增强"),
-    COMPLETE(8, "完成");
+    COMPLETE(100, "完成");
 
 
 

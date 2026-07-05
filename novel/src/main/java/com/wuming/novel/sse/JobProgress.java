@@ -27,13 +27,7 @@ public class JobProgress {
      */
     public static JobProgress initJob(Long jobId){
         List<StageProgress> stages = List.of(
-                StageProgress.simple(JobStage.CHAPTER_SPLIT, "章节切分"),
-                StageProgress.simple(JobStage.LAYER_SPLIT, "层级划分"),
-                StageProgress.counted(JobStage.SCENE_SPLIT, "场景切分"),
-                StageProgress.counted(JobStage.POOL_CLASSIFY, "池化分类"),
-                StageProgress.counted(JobStage.EVIDENCE_EXTRACT, "证据提取"),
-                StageProgress.simple(JobStage.PROFILE_AGGREGATION, "画像聚合"),
-                StageProgress.simple(JobStage.PROFILE_DETAIL_ENHANCE, "画像细节增强")
+                StageProgress.simple(JobStage.CHAPTER_SPLIT, "章节切分")
         );
 
         return JobProgress.builder()
