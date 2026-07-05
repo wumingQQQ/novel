@@ -13,6 +13,7 @@ public class RagProperties {
 
     private Embedding embedding = new Embedding();
     private Reranker reranker = new Reranker();
+    private String definitionPrefix;
 
     @Data
     public static class Embedding {
@@ -29,7 +30,6 @@ public class RagProperties {
         private String apiKey;
         private String model;
         private String path = "/v1/rerank";
-        private Integer topN = 10;
     }
 
 }

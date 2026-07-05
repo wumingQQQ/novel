@@ -32,3 +32,4 @@ rag:
     base-url: https://api.botcf.com
     model: BAAI/bge-reranker-v2-m3
     path: /v1/rerank
+  definition-prefix: "rag:index-definition:"
