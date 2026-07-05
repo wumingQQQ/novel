@@ -57,6 +57,7 @@ public class RagConfig {
                 .metadataFields(
                         MetadataField.numeric("novel_id"),
                         MetadataField.numeric("chapter_id"),
+                        MetadataField.numeric("passage_id"),
                         MetadataField.numeric("passage_sequence")
                 )
                 .build();

@@ -39,9 +39,6 @@ public class NovelPassageVectorIndexService {
         metadata.put("chapter_id", passage.getChapterId());
         metadata.put("passage_id", passage.getId());
         metadata.put("passage_sequence", passage.getSequence());
-        metadata.put("chapter_sequence", passage.getChapterSequence());
-        metadata.put("start_paragraph", passage.getStartParagraph());
-        metadata.put("end_paragraph", passage.getEndParagraph());
         return metadata;
     }
 }
