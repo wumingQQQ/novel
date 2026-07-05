@@ -8,26 +8,26 @@ import com.wuming.api.rag.dto.SearchResult;
 public interface RoleRuntimeRagFacade {
 
     /**
-     * Searches source novel passages by novel id.
+     * 按小说 ID 检索原文片段。
      *
-     * @param request passage search request
-     * @return ranked passage hits
+     * @param request 原文片段检索请求
+     * @return 排序后的原文片段命中结果
      */
     SearchResult searchPassages(PassageSearchRequest request);
 
     /**
-     * Searches role examples by character id.
+     * 按角色 ID 检索角色样例。
      *
-     * @param request role example search request
-     * @return ranked role example hits
+     * @param request 角色样例检索请求
+     * @return 排序后的角色样例命中结果
      */
     SearchResult searchRoleExamples(RoleExampleSearchRequest request);
 
     /**
-     * Searches role reaction rules by character id.
+     * 按角色 ID 检索角色反应规则。
      *
-     * @param request reaction rule search request
-     * @return ranked reaction rule hits
+     * @param request 反应规则检索请求
+     * @return 排序后的反应规则命中结果
      */
     SearchResult searchReactionRules(ReactionRuleSearchRequest request);
 }
