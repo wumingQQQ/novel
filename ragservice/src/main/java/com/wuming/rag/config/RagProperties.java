@@ -9,12 +9,10 @@ import java.util.Map;
 
 @Data
 @ConfigurationProperties(prefix = "rag")
-public class RagServiceProperties {
+public class RagProperties {
 
     private Embedding embedding = new Embedding();
     private Reranker reranker = new Reranker();
-    private Retrieve retrieve = new Retrieve();
-    private Redis redis = new Redis();
 
     @Data
     public static class Embedding {
@@ -26,7 +24,7 @@ public class RagServiceProperties {
 
     @Data
     public static class Reranker {
-        private boolean enabled = false;
+        private boolean enabled = true;
         private String baseUrl;
         private String apiKey;
         private String model;
@@ -34,15 +32,4 @@ public class RagServiceProperties {
         private Integer topN = 10;
     }
 
-    @Data
-    public static class Retrieve {
-        private Integer defaultTopK = 5;
-        private double minScore = 0.0;
-    }
-
-    @Data
-    public static class Redis {
-        private String indexDefinitionKeyPrefix = "rag:index-definition:";
-        private Map<String, MetadataFieldType> reservedVectorFields = new LinkedHashMap<>();
-    }
 }

@@ -12,7 +12,7 @@ spring:
 
 dubbo:
   application:
-    name: ragservice
+    name: rag
     qos-enable: false
     serialize-check-status: WARN
   protocol:
@@ -24,18 +24,11 @@ dubbo:
 rag:
   embedding:
     api-key: ${EMBEDDING_API_KEY:}
-    base-url: ${EMBEDDING_BASE_URL:https://api.botcf.com}
-    model: ${EMBEDDING_MODEL:BAAI/bge-m3}
-    dimensions: ${EMBEDDING_DIMENSIONS:1024}
+    base-url: https://api.botcf.com
+    model: BAAI/bge-m3
+    dimensions: 1024
   reranker:
-    enabled: ${RERANKER_ENABLED:false}
     api-key: ${RERANKER_API_KEY:}
-    base-url: ${RERANKER_BASE_URL:https://api.botcf.com}
-    model: ${RERANKER_MODEL:BAAI/bge-reranker-v2-m3}
-    path: ${RERANKER_PATH:/v1/rerank}
-    top-n: ${RERANKER_TOP_N:10}
-  retrieve:
-    default-top-k: 5
-    min-score: 0.0
-  redis:
-    index-definition-key-prefix: "rag:index-definition:"
+    base-url: https://api.botcf.com
+    model: BAAI/bge-reranker-v2-m3
+    path: /v1/rerank

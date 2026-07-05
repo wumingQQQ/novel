@@ -13,12 +13,12 @@ import org.springframework.web.client.RestClient;
 import redis.clients.jedis.JedisPooled;
 
 @Configuration
-@EnableConfigurationProperties(RagServiceProperties.class)
-public class RagVectorConfig {
+@EnableConfigurationProperties(RagProperties.class)
+public class RagConfig {
 
     @Bean
-    public EmbeddingModel embeddingModel(RagServiceProperties properties) {
-        RagServiceProperties.Embedding embedding = properties.getEmbedding();
+    public EmbeddingModel embeddingModel(RagProperties properties) {
+        RagProperties.Embedding embedding = properties.getEmbedding();
         OpenAiApi api = OpenAiApi.builder()
                 .baseUrl(embedding.getBaseUrl())
                 .apiKey(embedding.getApiKey())
