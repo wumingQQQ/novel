@@ -1,126 +1,142 @@
 package com.wuming.rag.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.wuming.api.rag.RagFacade;
 import com.wuming.api.rag.dto.*;
 import com.wuming.api.rag.dto.spec.PassageSearchRequest;
 import com.wuming.api.rag.dto.spec.ReactionRuleSearchRequest;
 import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
-import com.wuming.rag.model.RagIndexDefinition;
-import com.wuming.rag.rerank.RerankService;
-import com.wuming.rag.util.RedisByteUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;
-import org.springframework.ai.embedding.EmbeddingModel;
-import redis.clients.jedis.JedisPooled;
-import redis.clients.jedis.search.FTCreateParams;
-import redis.clients.jedis.search.IndexDataType;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 
-import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 
 @Slf4j
 @DubboService
 @RequiredArgsConstructor
 public class RagService implements RagFacade {
-    private final RerankService rerankService;
-    private final RedisIndexDefinitionStore definitionStore;
-    private final JedisPooled jedisPool;
-    private final EmbeddingModel embeddingModel;
-
-    @Override
-    public boolean createIndex(CreateIndexRequest request) {
-        String indexName = request.getIndexName();
-        if(definitionStore.exists(indexName)){
-            log.warn("索引已存在");
-            return true;
-        }
-        RagIndexDefinition definition = new RagIndexDefinition(request);
-        try {
-            // 配置存储方式与索引前缀
-            FTCreateParams params = FTCreateParams.createParams()
-                    .on(IndexDataType.HASH)
-                    .addPrefix(definition.getKeyPrefix());
-            // 正式创建向量库
-            jedisPool.ftCreate(indexName, params,
-                    definition.buildFullSchemaFields());
-
-            definitionStore.save(definition);
-            return true;
-        }
-        catch (JsonProcessingException e) {
-            log.error("索引定义序列化失败", e);
-            return false;
-        }
-    }
+    private final RagVectorStoreRegistry registry;
 
     @Override
     public int upsertDocuments(UpsertDocumentRequest request) {
-        int success = 0;
-        try {
-            log.info("开始插入文档");
-            RagIndexDefinition definition = definitionStore.getRequired(request.getIndexName());
-            if(request.getDocuments() == null || request.getDocuments().isEmpty()){
-                return 0;
-            }
-            List<String> texts = request.getDocuments().stream()
-                    .map(RagDocument::getText).toList();
-
-            List<float[]> embeddings = embeddingModel.embed(texts);
-            for(int i = 0; i < request.getDocuments().size(); i++){
-                RagDocument doc = request.getDocuments().get(i);
-                String redisKey = definition.getKeyPrefix() + doc.getDocumentId();
-
-                // 由于需要保存数组，所以参数需为byte[]
-                jedisPool.hset(
-                    redisKey.getBytes(StandardCharsets.UTF_8),
-                    RedisByteUtil.hashFields(doc, embeddings.get(i))
-                );
-                success++;
-            }
+        if (request.getDocuments() == null || request.getDocuments().isEmpty()) {
+            return 0;
         }
-        catch (JsonProcessingException e) {
-            log.error("反序列化索引定义失败", e);
-            log.error("文档插入失败");
+        VectorStore store = registry.getRequired(request.getIndexName());
+        List<Document> documents = request.getDocuments().stream()
+                .filter(Objects::nonNull)
+                .map(this::toSpringDocument)
+                .toList();
+        if (documents.isEmpty()) {
+            return 0;
         }
-        return success;
+        store.add(documents);
+        return documents.size();
     }
 
     @Override
     public int deleteDocuments(DeleteDocumentRequest request) {
-        try {
-            log.info("开始删除文档");
-            RagIndexDefinition definition = definitionStore.getRequired(request.getIndexName());
-            if(request.getDocumentIds() == null || request.getDocumentIds().isEmpty()){
-                return 0;
-            }
-
-            List<String> redisKeys = request.getDocumentIds().stream()
-                    .map(docId -> definition.getKeyPrefix() + docId)
-                    .toList();
-            return (int) jedisPool.del(redisKeys.toArray(new String[0]));
-        }
-        catch (JsonProcessingException e) {
-            log.error("反序列化索引定义时失败", e);
-            log.error("删除操作失败");
+        if (request.getDocumentIds() == null || request.getDocumentIds().isEmpty()) {
             return 0;
         }
+        VectorStore store = registry.getRequired(request.getIndexName());
+        store.delete(request.getDocumentIds());
+        return request.getDocumentIds().size();
     }
 
     @Override
     public List<SearchHit> searchPassages(PassageSearchRequest request) {
-        return List.of();
+        return search(
+                request.getIndexName(),
+                request.getQuery(),
+                Map.of("novel_id", request.getNovelId()),
+                request.getTopK(),
+                request.getTopN()
+        );
     }
 
     @Override
     public List<SearchHit> searchRoleExamples(RoleExampleSearchRequest request) {
-        return List.of();
+        return search(
+                request.getIndexName(),
+                request.getQuery(),
+                Map.of("character_id", request.getCharacterId()),
+                request.getTopK(),
+                request.getTopN()
+        );
     }
 
     @Override
     public List<SearchHit> searchReactionRules(ReactionRuleSearchRequest request) {
-        return List.of();
+        return search(
+                request.getIndexName(),
+                request.getQuery(),
+                Map.of("character_id", request.getCharacterId()),
+                request.getTopK(),
+                request.getTopN()
+        );
+    }
+
+    private List<SearchHit> search(String indexName,
+                                   String query,
+                                   Map<String, Object> filters,
+                                   Integer topK,
+                                   Integer topN) {
+        VectorStore store = registry.getRequired(indexName);
+        int recallCount = topK == null ? 20 : topK;
+        int returnCount = topN == null ? recallCount : topN;
+        SearchRequest.Builder builder = SearchRequest.builder()
+                .query(query)
+                .topK(recallCount);
+        String filterExpression = filterExpression(filters);
+        if (filterExpression != null) {
+            builder.filterExpression(filterExpression);
+        }
+        SearchRequest searchRequest = builder.build();
+        return store.similaritySearch(searchRequest).stream()
+                .limit(returnCount)
+                .map(this::toSearchHit)
+                .toList();
+    }
+
+    private Document toSpringDocument(RagDocument document) {
+        Map<String, Object> metadata = document.getMetadata() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(document.getMetadata());
+        return new Document(document.getDocumentId(), document.getText(), metadata);
+    }
+
+    private SearchHit toSearchHit(Document document) {
+        SearchHit hit = new SearchHit();
+        hit.setDocumentId(document.getId());
+        hit.setText(document.getText());
+        hit.setScore(document.getScore() == null ? 0.0 : document.getScore());
+        hit.setMetadata(new LinkedHashMap<>(document.getMetadata()));
+        return hit;
+    }
+
+    private String filterExpression(Map<String, Object> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return null;
+        }
+        return filters.entrySet().stream()
+                .filter(entry -> entry.getValue() != null)
+                .map(entry -> entry.getKey() + " == " + filterValue(entry.getValue()))
+                .reduce((left, right) -> left + " && " + right)
+                .orElse(null);
+    }
+
+    private String filterValue(Object value) {
+        if (value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+        return "'" + String.valueOf(value).replace("'", "\\'") + "'";
     }
 }
