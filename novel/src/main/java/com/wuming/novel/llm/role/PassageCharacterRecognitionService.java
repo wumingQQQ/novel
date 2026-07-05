@@ -23,7 +23,7 @@ public class PassageCharacterRecognitionService {
         String prompt = promptTemplateRenderer.render(TEMPLATE_PATH, Map.of(
                 "passageContent", passage.getContent() == null ? "" : passage.getContent()
         ));
-        String raw = clientFactory.taskClient("passage-character-recognition")
+        String raw = clientFactory.defaultClient()
                 .prompt()
                 .user(prompt)
                 .call()

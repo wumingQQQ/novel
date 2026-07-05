@@ -4,34 +4,23 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 @Component
 @RequiredArgsConstructor
 public class LlmClientFactory {
     private final LlmConfig llmConfig;
-    private final Map<String, ChatClient> cache = new ConcurrentHashMap<>();
+    private volatile ChatClient defaultClient;
 
     public ChatClient defaultClient() {
-        return client(null, null);
-    }
-
-    public ChatClient client(String providerName) {
-        return client(providerName, null);
-    }
-
-    public ChatClient taskClient(String taskKey) {
-        return client(null, taskKey);
-    }
-
-    public ChatClient client(String providerName, String taskKey) {
-        String resolvedName = llmConfig.resolveProviderName(providerName);
-        Double temperature = llmConfig.resolveTemperature(taskKey);
-        String cacheKey = resolvedName + ":" + temperature;
-        return cache.computeIfAbsent(cacheKey, key -> {
-            LlmProvider provider = llmConfig.getProvider(resolvedName);
-            return ChatClient.builder(provider.chatModel(temperature)).build();
-        });
+        ChatClient client = defaultClient;
+        if (client == null) {
+            synchronized (this) {
+                client = defaultClient;
+                if (client == null) {
+                    client = ChatClient.builder(llmConfig.getDeepseek().chatModel(llmConfig.getTemperature())).build();
+                    defaultClient = client;
+                }
+            }
+        }
+        return client;
     }
 }

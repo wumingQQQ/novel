@@ -14,11 +14,8 @@ novel:
     threshold: 0.1
 
 llm:
-  default-provider: deepseek
   temperature: 0.0
-  task-temperature:
-    scene-split: 0.4
-    scene-pool: 0.0
-    layer-split: 0.5
-    evidence-extract: 0.7
-    aggregation: 0.8
+  deepseek:
+    base-url: ${DS_BASE_URL:https://api.deepseek.com}
+    api-key: ${DS_API_KEY:}
+    model: deepseek-v4-flash

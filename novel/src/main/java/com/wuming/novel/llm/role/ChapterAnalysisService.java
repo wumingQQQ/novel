@@ -27,7 +27,7 @@ public class ChapterAnalysisService {
                 "chapterTitle", safeString(chapter.getTitle()),
                 "chapterContent", abbreviate(chapter.getContent())
         ));
-        String raw = clientFactory.taskClient("chapter-analysis")
+        String raw = clientFactory.defaultClient()
                 .prompt()
                 .user(prompt)
                 .call()
