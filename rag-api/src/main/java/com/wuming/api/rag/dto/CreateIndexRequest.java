@@ -4,9 +4,11 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 创建向量库的请求dto
+ */
 @Data
 public class CreateIndexRequest implements Serializable {
     @Serial
@@ -14,6 +16,5 @@ public class CreateIndexRequest implements Serializable {
 
     private String indexName;
     private String keyPrefix;
-    private Integer vectorDimension;
-    private List<IndexMetadataFieldDto> metadataFields = new ArrayList<>();
+    private List<IndexFieldSpec> metadataFields;
 }

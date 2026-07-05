@@ -6,8 +6,11 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 
+/**
+ * 创建索引库时的metadata field
+ */
 @Data
-public class IndexMetadataFieldDto implements Serializable {
+public class IndexFieldSpec implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 

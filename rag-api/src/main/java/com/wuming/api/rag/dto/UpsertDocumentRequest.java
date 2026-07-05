@@ -4,14 +4,16 @@ import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 批量插入文档的请求dto
+ */
 @Data
-public class DeleteDocumentsRequest implements Serializable {
+public class UpsertDocumentRequest implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
     private String indexName;
-    private List<String> documentIds = new ArrayList<>();
+    private List<RagDocument> documents;
 }

@@ -7,13 +7,16 @@ import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * rag命中响应
+ */
 @Data
-public class RagHitDto implements Serializable {
+public class SearchHit implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
     private String documentId;
-    private double score;
     private String text;
+    private double score;
     private Map<String, Object> metadata = new LinkedHashMap<>();
 }
