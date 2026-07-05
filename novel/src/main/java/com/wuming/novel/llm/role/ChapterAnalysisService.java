@@ -1,12 +1,12 @@
 package com.wuming.novel.llm.role;
 
-import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.dto.ChapterAnalysisResult;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
 import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -18,7 +18,7 @@ public class ChapterAnalysisService {
     private static final int CONTENT_LIMIT = 12000;
     private static final String TEMPLATE_PATH = "prompts/role-runtime/chapter-analysis.st";
 
-    private final LlmClientFactory clientFactory;
+    private final ChatClient chatClient;
     private final LlmJsonResponseParser responseParser;
     private final PromptTemplateRenderer promptTemplateRenderer;
 
@@ -27,7 +27,7 @@ public class ChapterAnalysisService {
                 "chapterTitle", safeString(chapter.getTitle()),
                 "chapterContent", abbreviate(chapter.getContent())
         ));
-        String raw = clientFactory.defaultClient()
+        String raw = chatClient
                 .prompt()
                 .user(prompt)
                 .call()
