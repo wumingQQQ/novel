@@ -10,7 +10,6 @@ public class RagProperties {
 
     private Embedding embedding = new Embedding();
     private Reranker reranker = new Reranker();
-    private String definitionPrefix;
 
     @Data
     public static class Embedding {
