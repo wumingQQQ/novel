@@ -1,4 +1,4 @@
-package com.wuming.novel.domain.service;
+package com.wuming.novel.pipeline.role.support;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

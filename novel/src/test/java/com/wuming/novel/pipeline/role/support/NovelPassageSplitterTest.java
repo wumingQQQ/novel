@@ -1,4 +1,4 @@
-package com.wuming.novel.domain.service;
+package com.wuming.novel.pipeline.role.support;
 
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.NovelPassage;
