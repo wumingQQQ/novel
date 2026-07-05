@@ -16,5 +16,6 @@ public class CreateIndexRequest implements Serializable {
 
     private String indexName;
     private String keyPrefix;
+    private Integer vectorDimension = 1024;
     private List<IndexFieldSpec> metadataFields;
 }
