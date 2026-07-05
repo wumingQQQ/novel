@@ -16,7 +16,7 @@ public interface RagFacade {
      * 幂等创建动态 RAG 向量索引。
      *
      * @param request 索引创建请求
-     * @return true 表示本次创建成功，false 表示索引已存在
+     * @return true 表示本次创建成功，false 表示创建失败
      */
     boolean createIndex(CreateIndexRequest request);
 
