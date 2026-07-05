@@ -60,6 +60,7 @@ novel:
 
 auth:
   jwt:
+    enabled: ${AUTH_JWT_ENABLED:false}
     secret: ${JWT_SECRET:dev-only-secret-key-must-be-long-enough}
     expires-minutes: 120
     issuer: https://novel-latest.local

@@ -3,6 +3,7 @@ package com.wuming.user.config;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.wuming.common.security.JwtProperties;
 import com.wuming.user.security.AuthMdcFilter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -29,6 +30,7 @@ public class SecurityConfig {
      * 配置用户模块HTTP安全规则
      */
     @Bean
+    @ConditionalOnProperty(prefix = "auth.jwt", name = "enabled", havingValue = "true")
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -40,6 +42,18 @@ public class SecurityConfig {
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .addFilterAfter(new AuthMdcFilter(), BearerTokenAuthenticationFilter.class)
+                .build();
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "auth.jwt", name = "enabled", havingValue = "false", matchIfMissing = true)
+    public SecurityFilterChain permitAllSecurityFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(registry -> registry
+                        .anyRequest()
+                        .permitAll()
+                )
                 .build();
     }
 
