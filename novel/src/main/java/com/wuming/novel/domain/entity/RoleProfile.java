@@ -24,30 +24,15 @@ import java.util.List;
 @TableName(value = "role_profiles", autoResultMap = true)
 public class RoleProfile implements Serializable {
 
-    /**
-     * 摘要ID
-     */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    /**
-     * 角色ID
-     */
     private Long characterId;
 
-    /**
-     * 角色名称
-     */
     private String characterName;
 
-    /**
-     * 小说ID
-     */
     private Long novelId;
 
-    /**
-     * 小说名称
-     */
     private String novelName;
 
     /**
@@ -62,9 +47,10 @@ public class RoleProfile implements Serializable {
     private String coreTraits;
 
     /**
-     * 说话风格描述
+     * 说话风格
      */
-    private String speakingStyle;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private SpeakingStyle speakingStyle = new SpeakingStyle();
 
     /**
      * 角色绝不应做的行为
@@ -72,31 +58,13 @@ public class RoleProfile implements Serializable {
     private String forbiddenBehaviors;
 
     /**
-     * 关键关系
-     */
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<KeyRelationship> keyRelationships = new ArrayList<>();
-
-    /**
-     * 代表性样本ID
-     */
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<Long> representativeExamples = new ArrayList<>();
-
-    /**
      * 构建版本
      */
     private String buildVersion;
 
-    /**
-     * 创建时间
-     */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
-    /**
-     * 更新时间
-     */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
@@ -134,25 +102,25 @@ public class RoleProfile implements Serializable {
     }
 
     /**
-     * 角色关键关系。
+     * 角色说话风格。
      */
     @Data
-    public static class KeyRelationship implements Serializable {
+    public static class SpeakingStyle implements Serializable {
 
         /**
-         * 相关角色名称
+         * 一句话概括核心风格
          */
-        private String name;
+        private String signature;
 
         /**
-         * 关系类型
+         * 有辨识度的具体句式或表达模式
          */
-        private String relation;
+        private List<String> distinctivePatterns = new ArrayList<>();
 
         /**
-         * 目标角色对该对象的态度
+         * 明确不会出现的表达模式
          */
-        private String attitude;
+        private List<String> avoidPatterns = new ArrayList<>();
 
         @Serial
         private static final long serialVersionUID = 1L;

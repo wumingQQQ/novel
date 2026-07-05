@@ -21,15 +21,9 @@ import java.time.LocalDateTime;
 @TableName("role_examples")
 public class RoleExample implements Serializable {
 
-    /**
-     * 样本ID
-     */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    /**
-     * 角色ID
-     */
     private Long characterId;
 
     /**
@@ -37,13 +31,10 @@ public class RoleExample implements Serializable {
      */
     private String characterName;
 
-    /**
-     * 来源文本块ID
-     */
     private Long passageId;
 
     /**
-     * 样本类型：DIALOGUE、ACTION_DESCRIPTION、NARRATION_EVAL
+     * 样本类型：INTERACTION、NARRATION_EVAL
      */
     private String sampleType;
 
@@ -53,49 +44,9 @@ public class RoleExample implements Serializable {
     private String sampleText;
 
     /**
-     * 对话原文，仅 DIALOGUE 类型使用
-     */
-    private String dialogueText;
-
-    /**
-     * 动作/神态描写，仅 ACTION_DESCRIPTION 类型使用
-     */
-    private String actionDescription;
-
-    /**
-     * 旁白评价，仅 NARRATION_EVAL 类型使用
-     */
-    private String narrationEval;
-
-    /**
-     * 样本前文上下文
-     */
-    private String contextBefore;
-
-    /**
-     * 样本后文上下文
-     */
-    private String contextAfter;
-
-    /**
      * 归因置信度，取值建议为0.0到1.0
      */
     private Double confidence;
-
-    /**
-     * 提取方式：RULE、LLM、RULE_LLM
-     */
-    private String extractMethod;
-
-    /**
-     * 情绪标签，初版可为空
-     */
-    private String emotionalTag;
-
-    /**
-     * 场景标签，初版可为空
-     */
-    private String situationTag;
 
     /**
      * 向量索引状态：PENDING、INDEXED、FAILED
@@ -112,9 +63,6 @@ public class RoleExample implements Serializable {
      */
     private LocalDateTime indexedTime;
 
-    /**
-     * 创建时间
-     */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

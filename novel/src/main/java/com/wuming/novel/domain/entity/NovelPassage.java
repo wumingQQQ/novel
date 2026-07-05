@@ -20,20 +20,11 @@ import java.time.LocalDateTime;
 @TableName("novel_passages")
 public class NovelPassage implements Serializable {
 
-    /**
-     * 文本块ID
-     */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    /**
-     * 小说ID
-     */
     private Long novelId;
 
-    /**
-     * 来源章节ID
-     */
     private Long chapterId;
 
     /**
@@ -47,9 +38,24 @@ public class NovelPassage implements Serializable {
     private Integer sequence;
 
     /**
+     * 文本块在当前章节内的顺序
+     */
+    private Integer chapterSequence;
+
+    /**
      * 文本字符数，初版按 content.length() 统计即可
      */
     private Integer wordCount;
+
+    /**
+     * 对应章节内起始段落编号
+     */
+    private Integer startParagraph;
+
+    /**
+     * 对应章节内结束段落编号
+     */
+    private Integer endParagraph;
 
     /**
      * 向量索引状态：PENDING、INDEXED、FAILED
@@ -66,9 +72,6 @@ public class NovelPassage implements Serializable {
      */
     private LocalDateTime indexedTime;
 
-    /**
-     * 创建时间
-     */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

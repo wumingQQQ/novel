@@ -15,53 +15,52 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 小说角色唯一标识。
- *
- * 初版按“同一本小说 + 角色名称”唯一定位角色，chat 模块后续通过
- * characterId 关联会话和角色样本。
+ * 角色情境反应规则。
  */
 @Data
-@TableName(value = "role_characters", autoResultMap = true)
-public class RoleCharacter implements Serializable {
+@TableName(value = "role_reaction_rules", autoResultMap = true)
+public class RoleReactionRule implements Serializable {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    private Long novelId;
-
-    /**
-     * 小说名称，用于提示词背景和同名角色消歧
-     */
-    private String novelName;
+    private Long characterId;
 
     private String characterName;
 
     /**
-     * 角色别名，初版可为空
+     * 情境描述
+     */
+    private String situation;
+
+    /**
+     * 归纳出的反应规则
+     */
+    private String rule;
+
+    /**
+     * 支撑证据的 passageId 列表
      */
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<String> aliases = new ArrayList<>();
+    private List<Long> evidencePassageIds = new ArrayList<>();
 
     /**
-     * 构建状态：PENDING、BUILDING、COMPLETED、INCOMPLETE
+     * 向量索引状态：PENDING、INDEXED、FAILED
      */
-    private String buildStatus;
+    private String vectorStatus;
 
     /**
-     * 构建失败或不达标原因
+     * 向量索引失败原因
      */
-    private String buildError;
+    private String vectorError;
 
     /**
-     * 构建完成时间
+     * 向量索引完成时间
      */
-    private LocalDateTime completedTime;
+    private LocalDateTime indexedTime;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
-
-    @TableField(fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updateTime;
 
     @Serial
     private static final long serialVersionUID = 1L;
