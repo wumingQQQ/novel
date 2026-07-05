@@ -38,6 +38,9 @@ public class RedisIndexDefinitionStore {
      */
     RagIndexDefinition getRequired(String indexName) throws JsonProcessingException {
         String json = redisTemplate.opsForValue().get(key(indexName));
+        if(json == null){
+            throw new IllegalArgumentException("索引不存在" + indexName);
+        }
         return objectMapper.readValue(json, RagIndexDefinition.class);
     }
 
