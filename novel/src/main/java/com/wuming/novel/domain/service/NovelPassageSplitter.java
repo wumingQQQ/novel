@@ -1,4 +1,4 @@
-package com.wuming.novel.service.impl;
+package com.wuming.novel.domain.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,7 +12,7 @@ import java.util.List;
 
 @Slf4j
 @Component
-class NovelPassageSplitter {
+public class NovelPassageSplitter {
     private static final int WINDOW_SIZE = 15;
     private static final int OVERLAP_SIZE = 3;
     private static final String ANALYSIS_DONE = "DONE";
@@ -20,7 +20,7 @@ class NovelPassageSplitter {
 
     private final ObjectMapper objectMapper;
 
-    NovelPassageSplitter() {
+    public NovelPassageSplitter() {
         this(new ObjectMapper());
     }
 
@@ -28,7 +28,7 @@ class NovelPassageSplitter {
         this.objectMapper = objectMapper;
     }
 
-    List<NovelPassage> split(Chapter chapter, int startSequence) {
+    public List<NovelPassage> split(Chapter chapter, int startSequence) {
         List<String> paragraphs = paragraphs(chapter.getContent());
         if (paragraphs.isEmpty()) {
             return List.of();

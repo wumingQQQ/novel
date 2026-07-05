@@ -1,4 +1,4 @@
-package com.wuming.novel.service.impl;
+package com.wuming.novel.integration.rpc.rag;
 
 import com.wuming.api.rag.dto.RagDocument;
 import com.wuming.novel.domain.entity.NovelPassage;

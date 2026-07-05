@@ -1,8 +1,7 @@
-package com.wuming.novel.service.impl;
+package com.wuming.novel.integration.rpc.rag;
 
 import com.wuming.api.rag.dto.RagDocument;
 import com.wuming.novel.domain.entity.NovelPassage;
-import com.wuming.novel.integration.rpc.rag.RagIndexService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;

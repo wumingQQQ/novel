@@ -1,7 +1,7 @@
 package com.wuming.novel.pipeline;
 
 import com.wuming.novel.domain.enums.JobStage;
-import com.wuming.novel.service.impl.RoleRuntimePhaseOneService;
+import com.wuming.novel.pipeline.role.RoleRuntimePhaseOneService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

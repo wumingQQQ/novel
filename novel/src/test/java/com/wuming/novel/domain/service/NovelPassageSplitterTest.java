@@ -1,4 +1,4 @@
-package com.wuming.novel.service.impl;
+package com.wuming.novel.domain.service;
 
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.NovelPassage;

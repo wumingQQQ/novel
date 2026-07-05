@@ -1,4 +1,4 @@
-package com.wuming.novel.service.impl;
+package com.wuming.novel.pipeline.role;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -10,7 +10,11 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.domain.entity.PassageCharacter;
 import com.wuming.novel.domain.enums.JobStage;
+import com.wuming.novel.domain.service.NovelPassageSplitter;
 import com.wuming.novel.infrastructure.observability.TraceContext;
+import com.wuming.novel.integration.rpc.rag.NovelPassageVectorIndexService;
+import com.wuming.novel.llm.role.ChapterAnalysisService;
+import com.wuming.novel.llm.role.PassageCharacterRecognitionService;
 import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;

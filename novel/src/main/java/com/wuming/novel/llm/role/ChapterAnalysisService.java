@@ -1,4 +1,4 @@
-package com.wuming.novel.service.impl;
+package com.wuming.novel.llm.role;
 
 import com.wuming.novel.config.llm.LlmClientFactory;
 import com.wuming.novel.domain.dto.ChapterAnalysisResult;
