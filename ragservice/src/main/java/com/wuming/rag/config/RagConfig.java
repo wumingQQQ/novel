@@ -51,7 +51,7 @@ public class RagConfig {
     public VectorStore novel_passage(JedisPooled jedisPool, EmbeddingModel embeddingModel) {
         return RedisVectorStore.builder(jedisPool, embeddingModel)
                 .indexName("idx:novel_passage")
-                .prefix("rag:novel_passage")
+                .prefix("rag:novel_passage:")
                 .initializeSchema(true)
                 .embeddingFieldName("vector")
                 .metadataFields(
@@ -66,7 +66,7 @@ public class RagConfig {
     public VectorStore role_example(JedisPooled jedisPool, EmbeddingModel embeddingModel) {
         return RedisVectorStore.builder(jedisPool, embeddingModel)
                 .indexName("idx:role_example")
-                .prefix("rag:role_example")
+                .prefix("rag:role_example:")
                 .initializeSchema(true)
                 .embeddingFieldName("vector")
                 .metadataFields(
@@ -81,7 +81,7 @@ public class RagConfig {
     public VectorStore reaction_rule(JedisPooled jedisPool, EmbeddingModel embeddingModel) {
         return RedisVectorStore.builder(jedisPool, embeddingModel)
                 .indexName("idx:reaction_rule")
-                .prefix("rag:reaction_rule")
+                .prefix("rag:reaction_rule:")
                 .initializeSchema(true)
                 .embeddingFieldName("vector")
                 .metadataFields(

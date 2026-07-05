@@ -37,7 +37,7 @@ class NovelPassageVectorIndexServiceTest {
         ArgumentCaptor<List<RagDocument>> captor = ArgumentCaptor.forClass(List.class);
         verify(ragIndexService).upsertDocuments(org.mockito.ArgumentMatchers.eq("novel_passage"), captor.capture());
         RagDocument document = captor.getValue().get(0);
-        assertThat(document.getDocumentId()).isEqualTo("novel_passage:10");
+        assertThat(document.getDocumentId()).isEqualTo("10");
         assertThat(document.getContent()).isEqualTo("片段内容");
         assertThat(document.getMetadata())
                 .containsEntry("novel_id", 20L)

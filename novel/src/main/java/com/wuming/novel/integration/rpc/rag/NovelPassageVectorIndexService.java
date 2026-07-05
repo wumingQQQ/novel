@@ -27,7 +27,7 @@ public class NovelPassageVectorIndexService {
 
     private RagDocument toDocument(NovelPassage passage) {
         RagDocument document = new RagDocument();
-        document.setDocumentId("novel_passage:" + passage.getId());
+        document.setDocumentId(String.valueOf(passage.getId()));
         document.setContent(passage.getContent());
         document.setMetadata(metadata(passage));
         return document;
