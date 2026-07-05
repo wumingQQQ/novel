@@ -23,6 +23,7 @@
         <module>novel</module>
         <module>user</module>
         <module>chat</module>
+        <module>ragservice</module>
         <module>common</module>
     </modules>
 

@@ -1,0 +1,41 @@
+server:
+  port: 8083
+
+spring:
+  profiles:
+    active: dev
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:9379}
+      password: ${REDIS_PWD:}
+
+dubbo:
+  application:
+    name: ragservice
+    qos-enable: false
+    serialize-check-status: WARN
+  protocol:
+    name: tri
+    port: 50053
+  registry:
+    address: N/A
+
+rag:
+  embedding:
+    api-key: ${EMBEDDING_API_KEY:}
+    base-url: ${EMBEDDING_BASE_URL:https://api.botcf.com}
+    model: ${EMBEDDING_MODEL:BAAI/bge-m3}
+    dimensions: ${EMBEDDING_DIMENSIONS:1024}
+  reranker:
+    enabled: ${RERANKER_ENABLED:false}
+    api-key: ${RERANKER_API_KEY:}
+    base-url: ${RERANKER_BASE_URL:https://api.botcf.com}
+    model: ${RERANKER_MODEL:BAAI/bge-reranker-v2-m3}
+    path: ${RERANKER_PATH:/v1/rerank}
+    top-n: ${RERANKER_TOP_N:10}
+  retrieve:
+    default-top-k: 5
+    min-score: 0.0
+  redis:
+    index-definition-key-prefix: "rag:index-definition:"
