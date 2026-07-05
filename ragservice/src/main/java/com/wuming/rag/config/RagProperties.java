@@ -1,11 +1,8 @@
 package com.wuming.rag.config;
 
-import com.wuming.api.rag.enums.MetadataFieldType;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 @Data
 @ConfigurationProperties(prefix = "rag")
@@ -30,6 +27,7 @@ public class RagProperties {
         private String apiKey;
         private String model;
         private String path = "/v1/rerank";
+        private int topN;
     }
 
 }
