@@ -26,8 +26,7 @@ CREATE TABLE IF NOT EXISTS novel_passages (
     chapter_id BIGINT NOT NULL,
     content TEXT NOT NULL COMMENT '原文内容',
     sequence INT NOT NULL COMMENT '全书顺序',
-    chapter_sequence INT NOT NULL COMMENT '章节内顺序',
-    main_characters TEXT COMMENT 'Passage出场人物，JSON数组',
+    inner_sequence INT NOT NULL COMMENT '章节内顺序',
     word_count INT NOT NULL,
     start_paragraph INT NOT NULL COMMENT '对应章节内起始段落编号',
     end_paragraph INT NOT NULL COMMENT '对应章节内结束段落编号',
@@ -36,7 +35,7 @@ CREATE TABLE IF NOT EXISTS novel_passages (
     indexed_time DATETIME,
     create_time DATETIME NOT NULL,
     INDEX idx_novel_seq (novel_id, sequence),
-    INDEX idx_chapter (chapter_id, chapter_sequence),
+    INDEX idx_chapter (chapter_id, inner_sequence),
     INDEX idx_vector_status (vector_status)
 ) COMMENT '小说文本块';
 
