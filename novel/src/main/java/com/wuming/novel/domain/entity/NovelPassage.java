@@ -40,12 +40,7 @@ public class NovelPassage implements Serializable {
     /**
      * 文本块在当前章节内的顺序
      */
-    private Integer chapterSequence;
-
-    /**
-     * 文本字符数，初版按 content.length() 统计即可
-     */
-    private Integer wordCount;
+    private Integer innerSequence;
 
     /**
      * 对应章节内起始段落编号

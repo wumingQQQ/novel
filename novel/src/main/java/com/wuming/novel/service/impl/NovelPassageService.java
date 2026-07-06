@@ -23,8 +23,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class NovelPassageService
-        extends ServiceImpl<NovelPassageMapper, NovelPassage>
+public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPassage>
         implements INovelPassageService {
     private static final int WINDOW_SIZE = 15;
     private static final int OVERLAP_SIZE = 3;
@@ -76,6 +75,11 @@ public class NovelPassageService
                 .eq(NovelPassage::getChapterId, chapterId));
     }
 
+    /**
+     * 按照之前章节中提取的边界对文本进行切分
+     * @param chapter 需要切分的章节
+     * @return 切分出来的文本块列表
+     */
     private List<NovelPassage> splitOneChapter(Chapter chapter) {
         List<String> paragraphs = paragraphs(chapter.getContent());
         if (paragraphs.isEmpty()) {
@@ -89,9 +93,8 @@ public class NovelPassageService
             passage.setNovelId(chapter.getNovelId());
             passage.setChapterId(chapter.getId());
             passage.setContent(String.join("\n", paragraphs.subList(range.start() - 1, range.end())));
-            passage.setSequence(chapter.getSequence() * 10000 + i + 1);
-            passage.setChapterSequence(i + 1);
-            passage.setWordCount(passage.getContent().length());
+            passage.setSequence(chapter.getSequence() * 20 + i + 1);   // 简化，以相对大小作为全局位置依据
+            passage.setInnerSequence(i + 1);
             passage.setStartParagraph(range.start());
             passage.setEndParagraph(range.end());
             passage.setVectorStatus(VECTOR_PENDING);
@@ -100,6 +103,10 @@ public class NovelPassageService
         return passages;
     }
 
+    /**
+     * 将章节内容按换行切分并进行trim
+     * @return 段落内容的列表
+     */
     private List<String> paragraphs(String content) {
         if (content == null || content.isBlank()) {
             return List.of();
@@ -114,6 +121,12 @@ public class NovelPassageService
         return paragraphs;
     }
 
+    /**
+     * 将原来的内部边界包装成range
+     * @param paragraphCount 段落数
+     * @param sceneBoundaries 内部边界
+     * @return range列表
+     */
     private List<Range> ranges(int paragraphCount, List<Integer> sceneBoundaries) {
         if (sceneBoundaries == null || sceneBoundaries.isEmpty()) {
             return slidingWindowRanges(paragraphCount);
@@ -128,6 +141,11 @@ public class NovelPassageService
         return toRanges(starts, paragraphCount);
     }
 
+    /**
+     * 降级逻辑，当内部边界为空时使用滑动窗口来做
+     * @param paragraphCount 段落数
+     * @return range列表
+     */
     private List<Range> slidingWindowRanges(int paragraphCount) {
         List<Range> ranges = new ArrayList<>();
         int step = WINDOW_SIZE - OVERLAP_SIZE;
@@ -159,7 +177,11 @@ public class NovelPassageService
         return ranges;
     }
 
-    private void indexPassages(Long jobId, Long chapterId, List<NovelPassage> passages) {
+    /**
+     * 将passage插入索引库
+     */
+    @Transactional(rollbackFor = Exception.class)
+    protected void indexPassages(Long jobId, Long chapterId, List<NovelPassage> passages) {
         try {
             int indexedCount = vectorIndexService.upsert(passages);
             passages.forEach(passage -> {

@@ -53,7 +53,7 @@ public class PassageCharacterService
             return normalizeCharacters(result.characters());
         } catch (RuntimeException e) {
             log.warn("Passage人物识别失败，passageId: {}, chapterId: {}, chapterSequence: {}",
-                    passage.getId(), passage.getChapterId(), passage.getChapterSequence(), e);
+                    passage.getId(), passage.getChapterId(), passage.getInnerSequence(), e);
             return List.of();
         }
     }
