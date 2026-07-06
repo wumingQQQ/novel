@@ -11,7 +11,11 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class UserContextService {
-    @DubboReference(url = "tri://127.0.0.1:50052", timeout = 5000)
+    @DubboReference(
+            url = "tri://127.0.0.1:50052",
+            timeout = 5000,
+            mock = "com.wuming.api.user.UserFacadeMock"
+    )
     private UserFacade userFacade;
 
     /**
