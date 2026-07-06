@@ -63,12 +63,13 @@ public class ChapterAnalysisService {
             }
 
             // 更新章节未完成部分
+            chapter.setSummary(result.summary());
             chapter.setSceneBoundaries(result.sceneBoundaries());
             chapter.setAnalysisStatus("DONE");
             chapter.setAnalyzedTime(LocalDateTime.now());
             chapterService.updateById(chapter);
 
-            // 发布章节切分完成事件
+            // 发布章节分析完成事件
             ChapterAnalysisCompletedEvent event = new ChapterAnalysisCompletedEvent();
             event.setJobId(jobId);
             event.setNovelId(chapter.getNovelId());

@@ -1,6 +1,5 @@
 ALTER TABLE chapters
     ADD COLUMN summary TEXT COMMENT '章节摘要',
-    ADD COLUMN main_characters TEXT COMMENT '章节主要出场人物，逗号分隔',
     ADD COLUMN scene_boundaries TEXT COMMENT '场景切换段落号列表，JSON数组，如[10,23,45]',
     ADD COLUMN analysis_status VARCHAR(20) DEFAULT 'PENDING' COMMENT 'PENDING/DONE/FAILED',
     ADD COLUMN analysis_error TEXT COMMENT '章节分析失败原因',
@@ -28,6 +27,7 @@ CREATE TABLE IF NOT EXISTS novel_passages (
     content TEXT NOT NULL COMMENT '原文内容',
     sequence INT NOT NULL COMMENT '全书顺序',
     chapter_sequence INT NOT NULL COMMENT '章节内顺序',
+    main_characters TEXT COMMENT 'Passage出场人物，JSON数组',
     word_count INT NOT NULL,
     start_paragraph INT NOT NULL COMMENT '对应章节内起始段落编号',
     end_paragraph INT NOT NULL COMMENT '对应章节内结束段落编号',

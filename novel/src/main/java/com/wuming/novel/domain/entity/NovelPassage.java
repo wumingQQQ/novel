@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
  * Passage 是向量索引、候选材料筛选和角色样本抽取的基础文本单元。
  */
 @Data
-@TableName("novel_passages")
+@TableName(value = "novel_passages")
 public class NovelPassage implements Serializable {
 
     @TableId(value = "id", type = IdType.AUTO)
