@@ -1,35 +1,48 @@
 package com.wuming.novel.infrastructure.prompt;
 
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StreamUtils;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class PromptTemplateRenderer {
-    private final Map<String, String> templateCache = new ConcurrentHashMap<>();
+    private final ResourceLoader resourceLoader;
+    private final Map<String, PromptTemplate> templateCache = new ConcurrentHashMap<>();
 
-    public String render(String templatePath, Map<String, ?> variables) {
-        String template = templateCache.computeIfAbsent(templatePath, this::loadTemplate);
-        String rendered = template;
-        for (Map.Entry<String, ?> entry : variables.entrySet()) {
-            String placeholder = "{" + entry.getKey() + "}";
-            String value = entry.getValue() == null ? "" : entry.getValue().toString();
-            rendered = rendered.replace(placeholder, value);
-        }
-        return rendered;
+    public PromptTemplateRenderer() {
+        this(new DefaultResourceLoader());
     }
 
-    private String loadTemplate(String templatePath) {
-        try {
-            ClassPathResource resource = new ClassPathResource(templatePath);
-            return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("提示词模板加载失败: " + templatePath, e);
+    public PromptTemplateRenderer(ResourceLoader resourceLoader) {
+        this.resourceLoader = resourceLoader;
+    }
+
+    public String render(String templatePath, Map<String, ?> variables) {
+        PromptTemplate promptTemplate = templateCache.computeIfAbsent(templatePath, this::loadTemplate);
+        return promptTemplate.render(templateVariables(variables));
+    }
+
+    private PromptTemplate loadTemplate(String templatePath) {
+        Resource resource = resourceLoader.getResource(location(templatePath));
+        return new PromptTemplate(resource);
+    }
+
+    private String location(String templatePath) {
+        if (templatePath.startsWith("classpath:")) {
+            return templatePath;
         }
+        return "classpath:" + templatePath;
+    }
+
+    private Map<String, Object> templateVariables(Map<String, ?> variables) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        variables.forEach((key, value) -> result.put(key, value == null ? "" : value));
+        return result;
     }
 }

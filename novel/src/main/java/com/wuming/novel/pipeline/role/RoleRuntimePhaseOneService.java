@@ -138,9 +138,9 @@ public class RoleRuntimePhaseOneService {
             log.debug("章节分析开始，chapterId: {}, sequence: {}", chapter.getId(), chapter.getSequence());
             try {
                 ChapterAnalysisResult result = chapterAnalysisService.analyze(chapter);
-                chapter.setSummary(result.getSummary());
-                chapter.setMainCharacters(String.join(",", safeList(result.getMainCharacters())));
-                chapter.setSceneBoundaries(toJson(safeList(result.getSceneBoundaries())));
+                chapter.setSummary(result.summary());
+                chapter.setMainCharacters(String.join(",", safeList(result.mainCharacters())));
+                chapter.setSceneBoundaries(toJson(safeList(result.sceneBoundaries())));
                 chapter.setAnalysisStatus(ANALYSIS_DONE);
                 chapter.setAnalysisError(null);
                 chapter.setAnalyzedTime(LocalDateTime.now());
@@ -224,7 +224,7 @@ public class RoleRuntimePhaseOneService {
                     passage.getId(), passage.getSequence());
             try {
                 PassageCharacterResult result = characterRecognitionService.recognize(passage);
-                List<PassageCharacter> characters = safeList(result.getCharacters()).stream()
+                List<PassageCharacter> characters = safeList(result.characters()).stream()
                         .map(String::trim)
                         .filter(name -> !name.isBlank())
                         .distinct()

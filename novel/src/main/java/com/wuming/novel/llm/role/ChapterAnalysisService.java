@@ -3,7 +3,6 @@ package com.wuming.novel.llm.role;
 import com.wuming.novel.domain.dto.ChapterAnalysisResult;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
-import com.wuming.novel.llm.parser.LlmJsonResponseParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -19,7 +18,6 @@ public class ChapterAnalysisService {
     private static final String TEMPLATE_PATH = "prompts/role-runtime/chapter-analysis.st";
 
     private final ChatClient chatClient;
-    private final LlmJsonResponseParser responseParser;
     private final PromptTemplateRenderer promptTemplateRenderer;
 
     public ChapterAnalysisResult analyze(Chapter chapter) {
@@ -27,12 +25,11 @@ public class ChapterAnalysisService {
                 "chapterTitle", safeString(chapter.getTitle()),
                 "chapterContent", abbreviate(chapter.getContent())
         ));
-        String raw = chatClient
+        return chatClient
                 .prompt()
                 .user(prompt)
                 .call()
-                .content();
-        return responseParser.parse(raw, ChapterAnalysisResult.class);
+                .entity(ChapterAnalysisResult.class);
     }
 
     private String abbreviate(String content) {
