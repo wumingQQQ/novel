@@ -3,7 +3,7 @@ package com.wuming.novel.integration.message.rocketmq;
 import com.wuming.common.messaging.MqDestinations;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.integration.message.EventPublisher;
-import com.wuming.novel.integration.message.chaptersplit.ChapterSplitCompletedEvent;
+import com.wuming.novel.integration.message.chaptersplit.ChapterAnalysisCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "novel.mq.enabled", havingValue = "true")
-public class RocketMqChapterSplitCompletedEventPublisher implements EventPublisher<ChapterSplitCompletedEvent> {
+public class RocketMqChapterAnalysisCompletedEventPublisher implements EventPublisher<ChapterAnalysisCompletedEvent> {
     private final RocketMQTemplate rocketMQTemplate;
 
     /**
@@ -23,16 +23,15 @@ public class RocketMqChapterSplitCompletedEventPublisher implements EventPublish
      * @param event 章节切分完成事件
      */
     @Override
-    public void publish(ChapterSplitCompletedEvent event) {
+    public void publish(ChapterAnalysisCompletedEvent event) {
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(event.getJobId());
              TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId())) {
             log.info("开始发送单章切分完成事件，destination: {}, chapterId: {}, chapterSequence: {}",
-                    MqDestinations.CHAPTER_SPLIT_COMPLETED,
+                    MqDestinations.CHAPTER_ANALYSIS_COMPLETED,
                     event.getChapterId(),
                     event.getChapterSequence());
-            rocketMQTemplate.convertAndSend(MqDestinations.CHAPTER_SPLIT_COMPLETED, event);
-            log.info("单章切分完成事件发送成功，destination: {}, chapterId: {}, chapterSequence: {}",
-                    MqDestinations.CHAPTER_SPLIT_COMPLETED,
+            rocketMQTemplate.convertAndSend(MqDestinations.CHAPTER_ANALYSIS_COMPLETED, event);
+            log.info("单章切分完成事件发送成功，chapterId: {}, chapterSequence: {}",
                     event.getChapterId(),
                     event.getChapterSequence());
         }

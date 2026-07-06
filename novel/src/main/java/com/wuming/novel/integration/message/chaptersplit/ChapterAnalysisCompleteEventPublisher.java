@@ -8,10 +8,10 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "novel.mq.enabled", havingValue = "false", matchIfMissing = true)
-public class ChapterSplitCompletedEventPublisher implements EventPublisher<ChapterSplitCompletedEvent> {
+public class ChapterAnalysisCompleteEventPublisher implements EventPublisher<ChapterAnalysisCompletedEvent> {
     @Override
-    public void publish(ChapterSplitCompletedEvent event) {
-        log.info("单章切分完成，jobId: {}, novelId: {}, chapterId: {}, chapterSequence: {}",
+    public void publish(ChapterAnalysisCompletedEvent event) {
+        log.info("收到单章分析完成事件, jobId: {}, novelId: {}, chapterId: {}, chapterSequence: {}",
                 event.getJobId(), event.getNovelId(), event.getChapterId(), event.getChapterSequence());
     }
 }
