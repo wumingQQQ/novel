@@ -5,14 +5,16 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
-@TableName("chapters")
+@TableName(value = "chapters", autoResultMap = true)
 public class Chapter implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
@@ -31,14 +33,10 @@ public class Chapter implements Serializable {
     private String summary;
 
     /**
-     * 章节主要出场人物，初版使用逗号分隔。
+     * 场景切换段落号列表
      */
-    private String mainCharacters;
-
-    /**
-     * 场景切换段落号列表，按 JSON 数组保存。
-     */
-    private String sceneBoundaries;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<Integer> sceneBoundaries;
 
     /**
      * 章节分析状态：PENDING、DONE、FAILED。

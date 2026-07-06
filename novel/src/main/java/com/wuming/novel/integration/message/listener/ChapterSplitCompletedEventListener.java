@@ -2,7 +2,7 @@ package com.wuming.novel.integration.message.listener;
 
 import com.wuming.common.messaging.MqDestinations;
 import com.wuming.novel.infrastructure.observability.TraceContext;
-import com.wuming.novel.integration.message.chaptersplit.ChapterSplitCompletedEvent;
+import com.wuming.novel.integration.message.chaptersplit.ChapterAnalysisCompletedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
@@ -14,28 +14,28 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "novel.mq.enabled", havingValue = "true")
 @RocketMQMessageListener(
         topic = MqDestinations.NOVEL_EVENTS_TOPIC,
-        selectorExpression = MqDestinations.CHAPTER_SPLIT_COMPLETED_TAG,
+        selectorExpression = MqDestinations.CHAPTER_ANALYSIS_COMPLETED_TAG,
         consumerGroup = "novel-chapter-analysis-consumer-group"
 )
-public class ChapterSplitCompletedEventListener implements RocketMQListener<ChapterSplitCompletedEvent> {
+public class ChapterSplitCompletedEventListener implements RocketMQListener<ChapterAnalysisCompletedEvent> {
 
     /**
-     * 消费单章切分完成事件，后续按章节串行接入分析、Passage切分、人物识别和索引。
+     * 消费单章分析完成事件，后续按章节接入Passage切分、人物识别和索引。
      *
-     * @param event 章节切分完成事件
+     * @param event 章节分析完成事件
      */
     @Override
-    public void onMessage(ChapterSplitCompletedEvent event) {
+    public void onMessage(ChapterAnalysisCompletedEvent event) {
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(event.getJobId());
              TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId());
              TraceContext.MdcScope ignoredChapter = TraceContext.putChapterId(event.getChapterId())) {
-            log.info("收到单章切分完成事件，jobId: {}, novelId: {}, chapterId: {}, chapterSequence: {}",
+            log.info("收到单章分析完成事件, jobId: {}, novelId: {}, chapterId: {}, chapterSequence: {}",
                     event.getJobId(), event.getNovelId(), event.getChapterId(), event.getChapterSequence());
             startChapterRuntime(event);
         }
     }
 
-    private void startChapterRuntime(ChapterSplitCompletedEvent event) {
+    private void startChapterRuntime(ChapterAnalysisCompletedEvent event) {
         log.debug("单章运行链路待接入，jobId: {}, novelId: {}, chapterId: {}",
                 event.getJobId(), event.getNovelId(), event.getChapterId());
     }
