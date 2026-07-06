@@ -44,6 +44,9 @@ novel:
     split-strategy: SLIDING_WINDOW
     window-size: 15
     overlap-size: 3
+  role-example:
+    max-candidate-passages: 80
+    min-confidence: 0.6
   rag:
     url: ${RAG_SERVICE_URL:tri://127.0.0.1:50053}
     passage-index-name: novel_passage
