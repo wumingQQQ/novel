@@ -2,6 +2,7 @@ package com.wuming.novel.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.wuming.novel.config.PassageSplitProperties;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.infrastructure.mapper.NovelPassageMapper;
@@ -25,14 +26,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPassage>
         implements INovelPassageService {
-    private static final int WINDOW_SIZE = 15;
-    private static final int OVERLAP_SIZE = 3;
+    private static final int CHAPTER_SEQUENCE_STEP = 100;
     private static final String VECTOR_PENDING = "PENDING";
     private static final String VECTOR_INDEXED = "INDEXED";
     private static final String VECTOR_FAILED = "FAILED";
 
     private final IChapterService chapterService;
     private final NovelPassageVectorIndexService vectorIndexService;
+    private final PassageSplitProperties passageSplitProperties;
 
     /**
      * 按章节分析结果切分单章 Passage，保存 Passage，并写入向量索引。
@@ -75,17 +76,14 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
                 .eq(NovelPassage::getChapterId, chapterId));
     }
 
-    /**
-     * 按照之前章节中提取的边界对文本进行切分
-     * @param chapter 需要切分的章节
-     * @return 切分出来的文本块列表
-     */
     private List<NovelPassage> splitOneChapter(Chapter chapter) {
         List<String> paragraphs = paragraphs(chapter.getContent());
         if (paragraphs.isEmpty()) {
             return List.of();
         }
         List<Range> ranges = ranges(paragraphs.size(), chapter.getSceneBoundaries());
+        log.debug("章节Passage切分完成，chapterId: {}, splitStrategy: {}, paragraphCount: {}, passageCount: {}",
+                chapter.getId(), passageSplitProperties.getSplitStrategy(), paragraphs.size(), ranges.size());
         List<NovelPassage> passages = new ArrayList<>(ranges.size());
         for (int i = 0; i < ranges.size(); i++) {
             Range range = ranges.get(i);
@@ -93,7 +91,7 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
             passage.setNovelId(chapter.getNovelId());
             passage.setChapterId(chapter.getId());
             passage.setContent(String.join("\n", paragraphs.subList(range.start() - 1, range.end())));
-            passage.setSequence(chapter.getSequence() * 20 + i + 1);   // 简化，以相对大小作为全局位置依据
+            passage.setSequence(chapter.getSequence() * CHAPTER_SEQUENCE_STEP + i + 1);
             passage.setInnerSequence(i + 1);
             passage.setStartParagraph(range.start());
             passage.setEndParagraph(range.end());
@@ -121,14 +119,12 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         return paragraphs;
     }
 
-    /**
-     * 将原来的内部边界包装成range
-     * @param paragraphCount 段落数
-     * @param sceneBoundaries 内部边界
-     * @return range列表
-     */
     private List<Range> ranges(int paragraphCount, List<Integer> sceneBoundaries) {
+        if (passageSplitProperties.getSplitStrategy() == PassageSplitProperties.SplitStrategy.SLIDING_WINDOW) {
+            return slidingWindowRanges(paragraphCount);
+        }
         if (sceneBoundaries == null || sceneBoundaries.isEmpty()) {
+            log.debug("章节未提供场景边界，降级使用滑动窗口切分，paragraphCount: {}", paragraphCount);
             return slidingWindowRanges(paragraphCount);
         }
         List<Integer> starts = new ArrayList<>();
@@ -141,16 +137,19 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         return toRanges(starts, paragraphCount);
     }
 
-    /**
-     * 降级逻辑，当内部边界为空时使用滑动窗口来做
-     * @param paragraphCount 段落数
-     * @return range列表
-     */
     private List<Range> slidingWindowRanges(int paragraphCount) {
         List<Range> ranges = new ArrayList<>();
-        int step = WINDOW_SIZE - OVERLAP_SIZE;
+        int windowSize = passageSplitProperties.getWindowSize();
+        int overlapSize = passageSplitProperties.getOverlapSize();
+        if (windowSize <= 0) {
+            throw new IllegalStateException("novel.passage.window-size 必须大于0");
+        }
+        if (overlapSize < 0 || overlapSize >= windowSize) {
+            throw new IllegalStateException("novel.passage.overlap-size 必须大于等于0且小于window-size");
+        }
+        int step = windowSize - overlapSize;
         for (int start = 1; start <= paragraphCount; start += step) {
-            int end = Math.min(start + WINDOW_SIZE - 1, paragraphCount);
+            int end = Math.min(start + windowSize - 1, paragraphCount);
             ranges.add(new Range(start, end));
             if (end == paragraphCount) {
                 break;

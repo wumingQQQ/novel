@@ -40,6 +40,10 @@ novel:
     save-path: data/novel
   analysis:
     batch-size: 10
+  passage:
+    split-strategy: SLIDING_WINDOW
+    window-size: 15
+    overlap-size: 3
   rag:
     url: ${RAG_SERVICE_URL:tri://127.0.0.1:50053}
     passage-index-name: novel_passage
