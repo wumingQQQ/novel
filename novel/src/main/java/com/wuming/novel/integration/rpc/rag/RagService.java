@@ -17,7 +17,12 @@ import java.util.Map;
 @Slf4j
 @Component
 public class RagService {
-    @DubboReference(url = "${novel.rag.url:tri://127.0.0.1:50053}", timeout = 60000, retries = 0)
+    @DubboReference(
+            url = "${novel.rag.url:tri://127.0.0.1:50053}",
+            timeout = 60000,
+            retries = 0,
+            mock = "com.wuming.api.rag.RagFacadeMock"
+    )
     private RagFacade ragFacade;
 
     public int upsertDocuments(String indexName, List<RagDocument> documents) {
