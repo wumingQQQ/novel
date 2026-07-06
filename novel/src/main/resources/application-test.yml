@@ -6,16 +6,35 @@ spring:
     init:
       mode: always
       schema-locations: classpath:test/schema.sql
-
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:9379}
+      password: ${REDIS_PWD:}
+      lettuce:
+        pool:
+          min-idle: 1
+          max-idle: 6
+          max-active: 6
+          time-between-eviction-runs: 10s
 novel:
   upload:
     save-path: data/test
-  recall:
-    threshold: 0.1
+  mq:
+    enabled: false
 
 llm:
-  temperature: 0.0
+  temperature: 1.0
   deepseek:
     base-url: ${DS_BASE_URL:https://api.deepseek.com}
     api-key: ${DS_API_KEY:}
     model: deepseek-v4-flash
+
+auth:
+  jwt:
+    enabled: false
+
+dubbo:
+  consumer:
+    check: false
+    lazy: true

@@ -42,20 +42,3 @@ rocketmq:
 novel:
   mq:
     enabled: true
-
-rag:
-  embedding:
-    api-key: ${EMBEDDING_API_KEY:}
-    base-url: ${EMBEDDING_BASE_URL:https://api.botcf.com}
-    model: BAAI/bge-m3
-    dimensions: 1024
-  reranker:
-    api-key: ${RERANKER_API_KEY:}
-    base-url: ${RERANKER_BASE_URL:https://api.botcf.com}
-    model: BAAI/bge-reranker-v2-m3
-    path: /v1/rerank
-    top-n: 10
-  redis:
-    index: "idx:rag:role"
-    key-prefix: "rag:role:"
-

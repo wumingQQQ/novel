@@ -8,7 +8,6 @@ import com.wuming.api.rag.dto.UpsertDocumentRequest;
 import com.wuming.api.rag.dto.spec.PassageSearchRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
-import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
