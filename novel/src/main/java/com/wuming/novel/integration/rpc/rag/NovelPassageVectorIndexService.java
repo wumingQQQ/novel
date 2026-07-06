@@ -13,7 +13,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class NovelPassageVectorIndexService {
-    private final RagIndexService ragIndexService;
+    private final RagService ragService;
 
     @Value("${novel.rag.passage-index-name:novel_passage}")
     private String passageIndexName;
@@ -22,7 +22,7 @@ public class NovelPassageVectorIndexService {
         List<RagDocument> documents = passages.stream()
                 .map(this::toDocument)
                 .toList();
-        return ragIndexService.upsertDocuments(passageIndexName, documents);
+        return ragService.upsertDocuments(passageIndexName, documents);
     }
 
     private RagDocument toDocument(NovelPassage passage) {
