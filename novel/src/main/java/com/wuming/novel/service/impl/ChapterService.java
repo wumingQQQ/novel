@@ -7,6 +7,9 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.infrastructure.mapper.ChapterMapper;
+import com.wuming.novel.infrastructure.observability.TraceContext;
+import com.wuming.novel.integration.message.EventPublisher;
+import com.wuming.novel.integration.message.chaptersplit.ChapterSplitCompletedEvent;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
@@ -14,6 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.mozilla.universalchardet.UniversalDetector;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -33,16 +38,23 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
     private final ChapterMapper chapterMapper;
     private final INovelService novelService;
     private final IJobService jobService;
+    private final EventPublisher<ChapterSplitCompletedEvent> eventPublisher;
 
     private static final Pattern CHAPTER_PATTERN = Pattern.compile(
             "^第[一二三四五六七八九十百千\\d]+章[^。！？\n]*[。！？]?\\s*$",
             Pattern.MULTILINE
     );
 
-    public ChapterService(ChapterMapper chapterMapper, INovelService novelService, IJobService jobService) {
+    public ChapterService(
+            ChapterMapper chapterMapper,
+            INovelService novelService,
+            IJobService jobService,
+            EventPublisher<ChapterSplitCompletedEvent> eventPublisher
+    ) {
         this.chapterMapper = chapterMapper;
         this.novelService = novelService;
         this.jobService = jobService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -89,11 +101,43 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
 
             if(!chapters.isEmpty()) {
                 saveBatch(chapters);
+                publishChapterSplitCompletedEvents(job, chapters);
             }
             log.debug("job: {} 小说{}章节切分完成，编码: {}, 章节数: {}", jobId, novelId, encoding, chapters.size());
         } catch (Exception e) {
             log.error("job: {}章节切分失败", jobId, e);
             throw new RuntimeException("章节切分失败", e);
+        }
+    }
+
+    private void publishChapterSplitCompletedEvents(Job job, List<Chapter> chapters) {
+        Runnable publishTask = () -> chapters.forEach(chapter -> publishChapterSplitCompletedEvent(job, chapter));
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publishTask.run();
+                }
+            });
+            return;
+        }
+        publishTask.run();
+    }
+
+    private void publishChapterSplitCompletedEvent(Job job, Chapter chapter) {
+        ChapterSplitCompletedEvent event = new ChapterSplitCompletedEvent();
+        event.setJobId(job.getId());
+        event.setNovelId(job.getNovelId());
+        event.setChapterId(chapter.getId());
+        event.setChapterSequence(chapter.getSequence());
+        event.setChapterTitle(chapter.getTitle());
+        try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(job.getId());
+             TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(job.getNovelId());
+             TraceContext.MdcScope ignoredChapter = TraceContext.putChapterId(chapter.getId())) {
+            eventPublisher.publish(event);
+        } catch (RuntimeException e) {
+            log.warn("章节切分完成事件发布失败，jobId: {}, novelId: {}, chapterId: {}",
+                    job.getId(), job.getNovelId(), chapter.getId(), e);
         }
     }
 

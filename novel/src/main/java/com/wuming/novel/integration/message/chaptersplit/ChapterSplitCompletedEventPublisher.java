@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 public class ChapterSplitCompletedEventPublisher implements EventPublisher<ChapterSplitCompletedEvent> {
     @Override
     public void publish(ChapterSplitCompletedEvent event) {
-        log.info("章节切分完成，jobId: {}, novelId: {}, chapterCount: {}",
-                event.getJobId(), event.getNovelId(), event.getChapterCount());
+        log.info("单章切分完成，jobId: {}, novelId: {}, chapterId: {}, chapterSequence: {}",
+                event.getJobId(), event.getNovelId(), event.getChapterId(), event.getChapterSequence());
     }
 }

@@ -18,7 +18,7 @@ public class RocketMqChapterSplitCompletedEventPublisher implements EventPublish
     private final RocketMQTemplate rocketMQTemplate;
 
     /**
-     * 发送章节切分完成事件，触发后续章节分析流程。
+     * 发送单章切分完成事件，触发后续章节分析和Passage流水线。
      *
      * @param event 章节切分完成事件
      */
@@ -26,11 +26,15 @@ public class RocketMqChapterSplitCompletedEventPublisher implements EventPublish
     public void publish(ChapterSplitCompletedEvent event) {
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(event.getJobId());
              TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId())) {
-            log.info("开始发送章节切分完成事件，destination: {}, chapterCount: {}",
-                    MqDestinations.CHAPTER_SPLIT_COMPLETED, event.getChapterCount());
+            log.info("开始发送单章切分完成事件，destination: {}, chapterId: {}, chapterSequence: {}",
+                    MqDestinations.CHAPTER_SPLIT_COMPLETED,
+                    event.getChapterId(),
+                    event.getChapterSequence());
             rocketMQTemplate.convertAndSend(MqDestinations.CHAPTER_SPLIT_COMPLETED, event);
-            log.info("章节切分完成事件发送成功，destination: {}, chapterCount: {}",
-                    MqDestinations.CHAPTER_SPLIT_COMPLETED, event.getChapterCount());
+            log.info("单章切分完成事件发送成功，destination: {}, chapterId: {}, chapterSequence: {}",
+                    MqDestinations.CHAPTER_SPLIT_COMPLETED,
+                    event.getChapterId(),
+                    event.getChapterSequence());
         }
     }
 }

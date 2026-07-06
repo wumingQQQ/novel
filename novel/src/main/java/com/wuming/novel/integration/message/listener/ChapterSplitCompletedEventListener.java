@@ -20,22 +20,23 @@ import org.springframework.stereotype.Component;
 public class ChapterSplitCompletedEventListener implements RocketMQListener<ChapterSplitCompletedEvent> {
 
     /**
-     * 消费章节切分完成事件，后续在这里接入异步章节分析流程。
+     * 消费单章切分完成事件，后续按章节串行接入分析、Passage切分、人物识别和索引。
      *
      * @param event 章节切分完成事件
      */
     @Override
     public void onMessage(ChapterSplitCompletedEvent event) {
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(event.getJobId());
-             TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId())) {
-            log.info("收到章节切分完成事件，jobId: {}, novelId: {}, chapterCount: {}",
-                    event.getJobId(), event.getNovelId(), event.getChapterCount());
-            startChapterAnalysis(event);
+             TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId());
+             TraceContext.MdcScope ignoredChapter = TraceContext.putChapterId(event.getChapterId())) {
+            log.info("收到单章切分完成事件，jobId: {}, novelId: {}, chapterId: {}, chapterSequence: {}",
+                    event.getJobId(), event.getNovelId(), event.getChapterId(), event.getChapterSequence());
+            startChapterRuntime(event);
         }
     }
 
-    private void startChapterAnalysis(ChapterSplitCompletedEvent event) {
-        log.debug("章节分析流程待接入，jobId: {}, novelId: {}",
-                event.getJobId(), event.getNovelId());
+    private void startChapterRuntime(ChapterSplitCompletedEvent event) {
+        log.debug("单章运行链路待接入，jobId: {}, novelId: {}, chapterId: {}",
+                event.getJobId(), event.getNovelId(), event.getChapterId());
     }
 }
