@@ -2,6 +2,8 @@ package com.wuming.novel.integration.rpc.rag;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.api.rag.dto.RagDocument;
+import com.wuming.api.rag.dto.SearchHit;
+import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
 import com.wuming.novel.domain.entity.RoleExample;
 import com.wuming.novel.infrastructure.mapper.RoleExampleMapper;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +48,21 @@ public class RoleExampleVectorIndexService {
                 .map(String::valueOf)
                 .toList();
         return ragService.deleteDocuments(roleExampleIndexName, documentIds);
+    }
+
+    public List<SearchHit> search(Long characterId,
+                                  String query,
+                                  Integer topK,
+                                  boolean rerank,
+                                  Integer topN) {
+        RoleExampleSearchRequest request = new RoleExampleSearchRequest();
+        request.setIndexName(roleExampleIndexName);
+        request.setCharacterId(characterId);
+        request.setQuery(query);
+        request.setTopK(topK);
+        request.setRerank(rerank);
+        request.setTopN(topN);
+        return ragService.search(request);
     }
 
     /**
