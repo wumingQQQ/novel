@@ -27,6 +27,9 @@ public class RedisFailedJobCleaner {
     private final JobService jobService;
     private final StringRedisTemplate stringRedisTemplate;
 
+    /**
+     * 定时清理满足条件的失败任务
+     */
     @Scheduled(fixedDelay = 10 * 60 * 1000)
     public void clean() {
         ScanOptions options = ScanOptions.scanOptions()
@@ -60,6 +63,11 @@ public class RedisFailedJobCleaner {
         }
     }
 
+    /**
+     * 将redis的key转为jobId
+     * @param key redis key
+     * @return jobId
+     */
     private Long parseJobId(String key) {
         String[] parts = key.split(":");
         if (parts.length != 4 || !"job".equals(parts[0]) || !"failed".equals(parts[3])) {
