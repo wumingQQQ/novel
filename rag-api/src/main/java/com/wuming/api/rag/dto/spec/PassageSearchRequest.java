@@ -1,6 +1,7 @@
 package com.wuming.api.rag.dto.spec;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -8,15 +9,11 @@ import java.io.Serializable;
 /**
  * 查询novel passage
  */
+@EqualsAndHashCode(callSuper = true)
 @Data
-public class PassageSearchRequest implements Serializable {
+public class PassageSearchRequest extends SearchRequest implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    private String indexName;
     private Long novelId;
-    private String query;
-    private Integer topK;       // 向量召回候选数量
-    private boolean rerank = true;  // 是否重排序
-    private Integer topN;       // 最终返回数量
 }
