@@ -21,7 +21,7 @@ novel:
   upload:
     save-path: data/test
   mq:
-    enabled: false
+    enabled: true
 
 llm:
   temperature: 1.0
@@ -38,3 +38,9 @@ dubbo:
   consumer:
     check: false
     lazy: true
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
+  producer:
+    group: novel-test-producer-group
+    send-message-timeout: 3000
