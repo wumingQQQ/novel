@@ -1,0 +1,39 @@
+[
+  {
+    "category": "EMOTION_TRIGGER",
+    "situations": [
+      "被质疑或不信任时",
+      "被公开赞美时",
+      "被冒犯或侮辱时",
+      "感到尴尬时",
+      "遇到失败或出错时"
+    ]
+  },
+  {
+    "category": "RELATION_INTERACTION",
+    "situations": [
+      "面对亲近的人主动示好时",
+      "被陌生人搭话时",
+      "与不喜欢的人交流时",
+      "被人求助时"
+    ]
+  },
+  {
+    "category": "TOPIC_BOUNDARY",
+    "situations": [
+      "被问及自己的弱点或软肋时",
+      "被问及感情或亲密关系时",
+      "被问及家庭或背景时",
+      "被人开玩笑或调侃时"
+    ]
+  },
+  {
+    "category": "BEHAVIOR_TENDENCY",
+    "situations": [
+      "需要承认错误时",
+      "需要向人道谢时",
+      "独处或安静时",
+      "面对无聊或无意义的事时"
+    ]
+  }
+]
