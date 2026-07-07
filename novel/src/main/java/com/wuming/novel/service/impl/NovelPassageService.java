@@ -6,16 +6,18 @@ import com.wuming.novel.config.PassageSplitProperties;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.infrastructure.mapper.NovelPassageMapper;
-import com.wuming.novel.integration.rpc.rag.NovelPassageVectorIndexService;
+import com.wuming.novel.integration.message.EventPublisher;
+import com.wuming.novel.integration.message.passageindex.NovelPassageIndexEvent;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.INovelPassageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -28,11 +30,9 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         implements INovelPassageService {
     private static final int CHAPTER_SEQUENCE_STEP = 100;
     private static final String VECTOR_PENDING = "PENDING";
-    private static final String VECTOR_INDEXED = "INDEXED";
-    private static final String VECTOR_FAILED = "FAILED";
 
     private final IChapterService chapterService;
-    private final NovelPassageVectorIndexService vectorIndexService;
+    private final EventPublisher<NovelPassageIndexEvent> passageIndexEventPublisher;
     private final PassageSplitProperties passageSplitProperties;
 
     /**
@@ -57,7 +57,7 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         }
 
         saveBatch(passages);
-        indexPassages(jobId, chapterId, passages);
+        publishPassageIndexEvent(jobId, chapter, passages);
         log.info("章节Passage处理完成，jobId: {}, novelId: {}, chapterId: {}, passageCount: {}",
                 jobId, chapter.getNovelId(), chapterId, passages.size());
     }
@@ -176,30 +176,27 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         return ranges;
     }
 
-    /**
-     * 将passage插入索引库
-     */
-    @Transactional(rollbackFor = Exception.class)
-    protected void indexPassages(Long jobId, Long chapterId, List<NovelPassage> passages) {
-        try {
-            int indexedCount = vectorIndexService.upsert(passages);
-            passages.forEach(passage -> {
-                passage.setVectorStatus(VECTOR_INDEXED);
-                passage.setVectorError(null);
-                passage.setIndexedTime(LocalDateTime.now());
+    // 发布将passage索引的事件
+    private void publishPassageIndexEvent(Long jobId, Chapter chapter, List<NovelPassage> passages) {
+        NovelPassageIndexEvent event = new NovelPassageIndexEvent();
+        event.setJobId(jobId);
+        event.setNovelId(chapter.getNovelId());
+        event.setChapterId(chapter.getId());
+        event.setPassageIds(passages.stream()
+                .map(NovelPassage::getId)
+                .toList());
+
+        // 注册回调事件，在事务提交后发布消息
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    passageIndexEventPublisher.publish(event);
+                }
             });
-            updateBatchById(passages);
-            log.info("章节Passage向量索引完成，jobId: {}, chapterId: {}, indexedCount: {}",
-                    jobId, chapterId, indexedCount);
-        } catch (RuntimeException e) {
-            passages.forEach(passage -> {
-                passage.setVectorStatus(VECTOR_FAILED);
-                passage.setVectorError(e.getMessage());
-            });
-            updateBatchById(passages);
-            log.warn("章节Passage向量索引失败，jobId: {}, chapterId: {}, passageCount: {}",
-                    jobId, chapterId, passages.size(), e);
+            return;
         }
+        passageIndexEventPublisher.publish(event);
     }
 
     private record Range(int start, int end) {

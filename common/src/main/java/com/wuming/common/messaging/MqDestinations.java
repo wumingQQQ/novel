@@ -6,9 +6,11 @@ public final class MqDestinations {
 
     public static final String JOB_ENDED_TAG = "job_ended";
     public static final String CHAPTER_ANALYSIS_COMPLETED_TAG = "chapter_analysis_completed";
+    public static final String NOVEL_PASSAGE_INDEX_TAG = "novel_passage_index";
 
     public static final String JOB_ENDED = destination(NOVEL_EVENTS_TOPIC, JOB_ENDED_TAG);
     public static final String CHAPTER_ANALYSIS_COMPLETED = destination(NOVEL_EVENTS_TOPIC, CHAPTER_ANALYSIS_COMPLETED_TAG);
+    public static final String NOVEL_PASSAGE_INDEX = destination(NOVEL_EVENTS_TOPIC, NOVEL_PASSAGE_INDEX_TAG);
 
     private MqDestinations() {
     }
