@@ -5,49 +5,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
 public class AsyncConfig {
-
-    @Bean("sceneSplitExecutor")
-    public Executor sceneSplitExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(1000);
-        executor.setThreadNamePrefix("scene-split-executor-");
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.initialize();
-        return executor;
-    }
-
-    @Bean("poolClassifyExecutor")
-    public Executor poolClassifyExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(5000);
-        executor.setThreadNamePrefix("pool-classify-executor-");
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.initialize();
-        return executor;
-    }
-
-    @Bean("evidenceExtractExecutor")
-    public Executor evidenceExtractExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(500);
-        executor.setThreadNamePrefix("evidence-extract-executor-");
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.initialize();
-        return executor;
-    }
 
     /**
      * 整体流程提交后的后台执行线程池，只负责承载 PipelineService 的同步流程。
@@ -65,19 +28,14 @@ public class AsyncConfig {
         return executor;
     }
 
+
     /**
-     * 角色运行时构建阶段使用的并发线程池，承载章节分析、人物识别和向量写入。
+     * LLM 调用以阻塞网络 IO 为主，使用虚拟线程承载大量等待中的请求。
      */
-    @Bean("roleRuntimeExecutor")
-    public Executor roleRuntimeExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(1000);
-        executor.setThreadNamePrefix("role-runtime-executor-");
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.initialize();
-        return executor;
+    @Bean(value = "llmExecutor", destroyMethod = "close")
+    public ExecutorService llmExecutor() {
+        return Executors.newThreadPerTaskExecutor(Thread.ofVirtual()
+                .name("llm-vt-", 0)
+                .factory());
     }
 }

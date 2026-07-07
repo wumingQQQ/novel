@@ -40,6 +40,8 @@ novel:
     save-path: data/novel
   analysis:
     batch-size: 10
+  llm:
+    max-concurrency: 2000   #  deepseek-v4-flash 限流2500
   passage:
     split-strategy: SLIDING_WINDOW
     window-size: 15

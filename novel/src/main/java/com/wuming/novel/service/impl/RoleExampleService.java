@@ -12,11 +12,13 @@ import com.wuming.novel.domain.entity.RoleCharacter;
 import com.wuming.novel.domain.entity.RoleExample;
 import com.wuming.novel.infrastructure.mapper.RoleExampleMapper;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
+import com.wuming.novel.llm.LlmConcurrencyLimiter;
 import com.wuming.novel.service.INovelPassageService;
 import com.wuming.novel.service.INovelService;
 import com.wuming.novel.service.IPassageCharacterService;
 import com.wuming.novel.service.IRoleCharacterService;
 import com.wuming.novel.service.IRoleExampleService;
+import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -26,6 +28,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,7 +45,7 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
     private static final String BUILDING = "BUILDING";
     private static final String INCOMPLETE = "INCOMPLETE";
     private static final String VECTOR_PENDING = "PENDING";
-    private static final Set<String> SAMPLE_TYPES = Set.of("INTERACTION", "NARRATION_EVAL");
+    private static final Set<String> SAMPLE_TYPES = Set.of("INTERACTION");
 
     private final IRoleCharacterService roleCharacterService;
     private final INovelService novelService;
@@ -49,9 +53,12 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
     private final IPassageCharacterService passageCharacterService;
     private final ChatClient chatClient;
     private final PromptTemplateRenderer renderer;
+    private final LlmConcurrencyLimiter llmConcurrencyLimiter;
     @Lazy
     @Autowired
     private IRoleExampleService self;
+    @Resource(name = "llmExecutor")
+    private Executor llmExecutor;
 
     @Value("${novel.role-example.max-candidate-passages:80}")
     private int maxCandidatePassages;
@@ -218,8 +225,16 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
      */
     private List<RoleExample> extractExamples(RoleCharacter character, List<NovelPassage> candidates) {
         Set<String> seen = new HashSet<>();
-        return candidates.stream()
-                .flatMap(passage -> extractOnePassage(character, passage).stream())
+        List<CompletableFuture<List<RoleExample>>> futures = candidates.stream()
+                .map(passage -> CompletableFuture.supplyAsync(
+                        () -> llmConcurrencyLimiter.execute(() -> extractOnePassage(character, passage)),
+                        llmExecutor))
+                .toList();
+        return futures.stream()
+                .flatMap(future -> future.exceptionally(e -> {
+                    log.warn("Passage角色样本抽取任务执行失败，characterId: {}", character.getId(), e);
+                    return List.of();
+                }).join().stream())
                 .filter(example -> seen.add(example.getSampleType() + "\n" + example.getSampleText()))
                 .toList();
     }

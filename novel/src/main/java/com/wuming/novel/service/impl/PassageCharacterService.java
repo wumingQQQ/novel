@@ -6,12 +6,16 @@ import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.domain.entity.PassageCharacter;
 import com.wuming.novel.infrastructure.mapper.PassageCharacterMapper;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
+import com.wuming.novel.llm.LlmConcurrencyLimiter;
 import com.wuming.novel.service.IPassageCharacterService;
+import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +32,9 @@ public class PassageCharacterService
 
     private final ChatClient chatClient;
     private final PromptTemplateRenderer renderer;
+    private final LlmConcurrencyLimiter llmConcurrencyLimiter;
+    @Resource(name = "llmExecutor")
+    private Executor llmExecutor;
 
     /**
      * 识别 Passage 中出场人物，并保存 Passage 与人物映射。
@@ -39,8 +46,17 @@ public class PassageCharacterService
         if (passages == null || passages.isEmpty()) {
             return;
         }
-        List<PassageCharacter> passageCharacters = passages.stream()
-                .flatMap(passage -> passageCharacter(passage.getId(), recognizeOnePassage(passage)).stream())
+        List<CompletableFuture<List<PassageCharacter>>> futures = passages.stream()
+                .map(passage -> CompletableFuture.supplyAsync(
+                        () -> llmConcurrencyLimiter.execute(
+                                () -> passageCharacter(passage.getId(), recognizeOnePassage(passage))),
+                        llmExecutor))
+                .toList();
+        List<PassageCharacter> passageCharacters = futures.stream()
+                .flatMap(future -> future.exceptionally(e -> {
+                    log.warn("Passage人物识别任务执行失败", e);
+                    return List.of();
+                }).join().stream())
                 .toList();
         if (!passageCharacters.isEmpty()) {
             saveBatch(passageCharacters);
