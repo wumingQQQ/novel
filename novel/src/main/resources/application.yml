@@ -53,6 +53,7 @@ novel:
     url: ${RAG_SERVICE_URL:tri://127.0.0.1:50053}
     passage-index-name: novel_passage
     role-example-index-name: role_example
+    reaction-rule-index-name: reaction_rule
     vector-batch-size: 32
 
 auth:

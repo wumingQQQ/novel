@@ -12,6 +12,8 @@ import com.wuming.novel.domain.entity.RoleCharacter;
 import com.wuming.novel.domain.entity.RoleReactionRule;
 import com.wuming.novel.infrastructure.mapper.RoleReactionRuleMapper;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
+import com.wuming.novel.integration.message.EventPublisher;
+import com.wuming.novel.integration.message.rolereactionruleindex.RoleReactionRuleIndexEvent;
 import com.wuming.novel.integration.rpc.rag.RoleExampleVectorIndexService;
 import com.wuming.novel.llm.LlmConcurrencyLimiter;
 import com.wuming.novel.service.IRoleCharacterService;
@@ -26,6 +28,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +62,7 @@ public class RoleReactionRuleService
     private final ObjectMapper objectMapper;
     private final ResourceLoader resourceLoader;
     private final LlmConcurrencyLimiter llmConcurrencyLimiter;
+    private final EventPublisher<RoleReactionRuleIndexEvent> roleReactionRuleIndexEventPublisher;
     @Lazy
     @Autowired
     private RoleReactionRuleService self;
@@ -133,14 +138,53 @@ public class RoleReactionRuleService
      */
     @Transactional(rollbackFor = Exception.class)
     public int persistBuiltRules(Long characterId, List<RoleReactionRule> rules) {
+        List<Long> oldRuleIds = list(new LambdaQueryWrapper<RoleReactionRule>()
+                .select(RoleReactionRule::getId)
+                .eq(RoleReactionRule::getCharacterId, characterId))
+                .stream()
+                .map(RoleReactionRule::getId)
+                .toList();
         remove(new LambdaQueryWrapper<RoleReactionRule>()
                 .eq(RoleReactionRule::getCharacterId, characterId));
         saveBatch(rules);
         RoleCharacter character = roleCharacterService.getById(characterId);
         if (character != null) {
+            publishRoleReactionRuleIndexEvent(character, oldRuleIds, rules);
             markIncomplete(character, "ReactionRule已构建，待构建Profile");
         }
         return rules.size();
+    }
+
+    private void publishRoleReactionRuleIndexEvent(RoleCharacter character,
+                                                   List<Long> oldRuleIds,
+                                                   List<RoleReactionRule> rules) {
+        List<Long> newRuleIds = rules.stream()
+                .map(RoleReactionRule::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (newRuleIds.isEmpty()) {
+            log.warn("角色反应规则保存后未获取到规则主键，跳过向量索引，characterId: {}, ruleCount: {}",
+                    character.getId(), rules.size());
+            return;
+        }
+
+        RoleReactionRuleIndexEvent event = new RoleReactionRuleIndexEvent();
+        event.setNovelId(character.getNovelId());
+        event.setCharacterId(character.getId());
+        event.setCharacterName(character.getCharacterName());
+        event.setDeletedRuleIds(oldRuleIds);
+        event.setIndexedRuleIds(newRuleIds);
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    roleReactionRuleIndexEventPublisher.publish(event);
+                }
+            });
+            return;
+        }
+        roleReactionRuleIndexEventPublisher.publish(event);
     }
 
     private RoleReactionRule buildOneRule(RoleCharacter character, SituationTask task) {
