@@ -3,7 +3,7 @@ package com.wuming.novel.integration.rpc.rag;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.api.rag.dto.RagDocument;
 import com.wuming.novel.domain.entity.RoleExample;
-import com.wuming.novel.service.IRoleExampleService;
+import com.wuming.novel.infrastructure.mapper.RoleExampleMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +26,7 @@ public class RoleExampleVectorIndexService {
     private static final String VECTOR_FAILED = "FAILED";
 
     private final RagService ragService;
-    private final IRoleExampleService roleExampleService;
+    private final RoleExampleMapper roleExampleMapper;
 
     @Value("${novel.rag.role-example-index-name:role_example}")
     private String roleExampleIndexName;
@@ -36,6 +36,16 @@ public class RoleExampleVectorIndexService {
                 .map(this::toDocument)
                 .toList();
         return ragService.upsertDocuments(roleExampleIndexName, documents);
+    }
+
+    public int deleteByIds(List<Long> exampleIds) {
+        if (exampleIds == null || exampleIds.isEmpty()) {
+            return 0;
+        }
+        List<String> documentIds = exampleIds.stream()
+                .map(String::valueOf)
+                .toList();
+        return ragService.deleteDocuments(roleExampleIndexName, documentIds);
     }
 
     /**
@@ -48,7 +58,7 @@ public class RoleExampleVectorIndexService {
         if (exampleIds == null || exampleIds.isEmpty()) {
             return 0;
         }
-        List<RoleExample> examples = roleExampleService.list(new LambdaQueryWrapper<RoleExample>()
+        List<RoleExample> examples = roleExampleMapper.selectList(new LambdaQueryWrapper<RoleExample>()
                 .in(RoleExample::getId, exampleIds)
                 .in(RoleExample::getVectorStatus, VECTOR_PENDING, VECTOR_FAILED));
         if (examples.isEmpty()) {
@@ -62,16 +72,20 @@ public class RoleExampleVectorIndexService {
                 example.setVectorError(null);
                 example.setIndexedTime(LocalDateTime.now());
             });
-            roleExampleService.updateBatchById(examples);
+            updateById(examples);
             return indexedCount;
         } catch (RuntimeException e) {
             examples.forEach(example -> {
                 example.setVectorStatus(VECTOR_FAILED);
                 example.setVectorError(e.getMessage());
             });
-            roleExampleService.updateBatchById(examples);
+            updateById(examples);
             throw e;
         }
+    }
+
+    private void updateById(List<RoleExample> examples) {
+        examples.forEach(roleExampleMapper::updateById);
     }
 
     private RagDocument toDocument(RoleExample example) {
