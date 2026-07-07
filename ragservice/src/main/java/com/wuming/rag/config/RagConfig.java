@@ -72,8 +72,10 @@ public class RagConfig {
                 .embeddingFieldName("vector")
                 .metadataFields(
                         MetadataField.numeric("character_id"),
-                        MetadataField.numeric("passage_sequence"),
-                        MetadataField.text("character_name")
+                        MetadataField.numeric("example_id"),
+                        MetadataField.numeric("passage_id"),
+                        MetadataField.text("character_name"),
+                        MetadataField.text("sample_type")
                 )
                 .build();
     }
