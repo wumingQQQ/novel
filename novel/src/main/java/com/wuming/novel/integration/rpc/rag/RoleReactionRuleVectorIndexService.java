@@ -67,6 +67,13 @@ public class RoleReactionRuleVectorIndexService {
         }
         try {
             int indexedCount = upsertDocuments(rules);
+            if (indexedCount < 0) {
+                throw new IllegalStateException("RAG服务降级，角色反应规则未写入向量库");
+            }
+            if (indexedCount != rules.size()) {
+                throw new IllegalStateException("角色反应规则向量索引数量不一致，requestCount: "
+                        + rules.size() + ", indexedCount: " + indexedCount);
+            }
             rules.forEach(rule -> {
                 rule.setVectorStatus(VECTOR_INDEXED);
                 rule.setVectorError(null);

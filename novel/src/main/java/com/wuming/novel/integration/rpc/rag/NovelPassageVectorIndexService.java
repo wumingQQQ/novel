@@ -54,6 +54,13 @@ public class NovelPassageVectorIndexService {
         }
         try {
             int indexedCount = upsertDocuments(passages);
+            if (indexedCount < 0) {
+                throw new IllegalStateException("RAG服务降级，Passage未写入向量库");
+            }
+            if (indexedCount != passages.size()) {
+                throw new IllegalStateException("Passage向量索引数量不一致，requestCount: "
+                        + passages.size() + ", indexedCount: " + indexedCount);
+            }
             passages.forEach(passage -> {
                 passage.setVectorStatus(VECTOR_INDEXED);
                 passage.setVectorError(null);

@@ -8,32 +8,23 @@ import com.wuming.api.rag.dto.spec.ReactionRuleSearchRequest;
 import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * RAG 远程接口降级实现。
  *
  * <p>供 Dubbo consumer mock 使用。当 RAG 服务不可用、超时或远程调用异常时，
- * 返回不阻塞主流程的默认值。</p>
+ * 写入接口返回-1，查询接口返回空结果，避免阻塞主流程。</p>
  */
 public class RagFacadeMock implements RagFacade {
 
     @Override
     public int upsertDocuments(UpsertDocumentRequest request) {
-        if (request == null || request.getDocuments() == null) {
-            return 0;
-        }
-        return (int) request.getDocuments().stream()
-                .filter(Objects::nonNull)
-                .count();
+        return -1;
     }
 
     @Override
     public int deleteDocuments(DeleteDocumentRequest request) {
-        if (request == null || request.getDocumentIds() == null) {
-            return 0;
-        }
-        return request.getDocumentIds().size();
+        return -1;
     }
 
     @Override

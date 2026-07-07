@@ -84,6 +84,13 @@ public class RoleExampleVectorIndexService {
         }
         try {
             int indexedCount = upsertDocuments(examples);
+            if (indexedCount < 0) {
+                throw new IllegalStateException("RAG服务降级，角色样本未写入向量库");
+            }
+            if (indexedCount != examples.size()) {
+                throw new IllegalStateException("角色样本向量索引数量不一致，requestCount: "
+                        + examples.size() + ", indexedCount: " + indexedCount);
+            }
             examples.forEach(example -> {
                 example.setVectorStatus(VECTOR_INDEXED);
                 example.setVectorError(null);
