@@ -20,6 +20,15 @@ public interface IRoleExampleService extends IService<RoleExample> {
     ExtractExamplesResult extractExamples(Long novelId, String characterName);
 
     /**
+     * 准备角色样本抽取阶段，确保角色存在并标记为构建中。
+     *
+     * @param novelId 小说id
+     * @param characterName 角色名称
+     * @return 角色id
+     */
+    Long startExampleExtraction(Long novelId, String characterName);
+
+    /**
      * 查询指定角色的候选Passage主键。
      *
      * @param novelId 小说id

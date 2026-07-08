@@ -114,6 +114,26 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
     }
 
     /**
+     * 准备角色样本抽取阶段，确保角色存在并标记为构建中。
+     *
+     * @param novelId 小说id
+     * @param characterName 角色名称
+     * @return 角色id
+     */
+    @Override
+    public Long startExampleExtraction(Long novelId, String characterName) {
+        if (novelId == null) {
+            throw new IllegalArgumentException("novelId不能为空");
+        }
+        if (characterName == null || characterName.isBlank()) {
+            throw new IllegalArgumentException("characterName不能为空");
+        }
+        RoleCharacter character = getOrCreateCharacter(novelId, characterName.trim());
+        markBuilding(character);
+        return character.getId();
+    }
+
+    /**
      * 查询角色样本抽取候选Passage主键，用于Pipeline按Passage记录检查点。
      *
      * @param novelId 小说id

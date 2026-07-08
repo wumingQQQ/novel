@@ -11,9 +11,12 @@ import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.support.ChapterAnalysisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * 章节分析流程阶段。
@@ -26,6 +29,8 @@ public class ChapterAnalysisStep implements PipelineStep {
     private final IChapterService chapterService;
     private final ChapterAnalysisService chapterAnalysisService;
     private final RedisStageFailureStore redisStageFailureStore;
+    @Resource(name = "llmExecutor")
+    private Executor llmExecutor;
 
     @Override
     public JobStage stage() {
@@ -41,20 +46,31 @@ public class ChapterAnalysisStep implements PipelineStep {
     public void execute(Long jobId) {
         Job job = requireJob(jobId);
         List<Chapter> chapters = targetChapters(jobId, job);
-        int successCount = 0;
-        for (Chapter chapter : chapters) {
-            try {
-                chapterAnalysisService.analyzeChapter(chapter);
-                redisStageFailureStore.recordSuccess(jobId, stage(), chapter.getId());
-                successCount++;
-            } catch (RuntimeException e) {
-                redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
-                log.warn("章节分析失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}",
-                        jobId, job.getNovelId(), chapter.getId(), e);
-            }
-        }
+        int successCount = chapters.stream()
+                .map(chapter -> CompletableFuture.supplyAsync(() -> analyzeOneChapter(jobId, job, chapter), llmExecutor))
+                .toList()
+                .stream()
+                .map(CompletableFuture::join)
+                .mapToInt(success -> success ? 1 : 0)
+                .sum();
         log.info("章节分析执行完成，jobId: {}, novelId: {}, requestCount: {}, successCount: {}",
                 jobId, job.getNovelId(), chapters.size(), successCount);
+    }
+
+    /**
+     * 分析单章并记录检查点。
+     */
+    private boolean analyzeOneChapter(Long jobId, Job job, Chapter chapter) {
+        try {
+            chapterAnalysisService.analyzeChapter(chapter);
+            redisStageFailureStore.recordSuccess(jobId, stage(), chapter.getId());
+            return true;
+        } catch (RuntimeException e) {
+            redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
+            log.warn("章节分析失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}",
+                    jobId, job.getNovelId(), chapter.getId(), e);
+            return false;
+        }
     }
 
     /**
