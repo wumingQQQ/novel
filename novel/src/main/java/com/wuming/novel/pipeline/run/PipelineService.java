@@ -8,6 +8,7 @@ import com.wuming.novel.integration.message.EventPublisher;
 import com.wuming.novel.integration.message.jobdone.JobFinishEvent;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.pipeline.PipelineStep;
+import com.wuming.novel.pipeline.RedisStageFailureStore;
 import com.wuming.novel.pipeline.StageRetryExecutor;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.sse.JobProgressService;
@@ -25,6 +26,7 @@ public class PipelineService {
     private final IJobService jobService;
     private final List<PipelineStep> pipelineSteps;
     private final StageRetryExecutor stageRetryExecutor;
+    private final RedisStageFailureStore redisStageFailureStore;
     private final JobProgressService jobProgressService;
     private final EventPublisher<JobFinishEvent> eventPublisher;
 
@@ -90,6 +92,7 @@ public class PipelineService {
             jobProgressService.startStage(jobId, step.stage(), step.name());
             stageRetryExecutor.runWithRetry(jobId, step);
             jobService.advanceStage(jobId, step.stage());
+            redisStageFailureStore.clearStage(jobId, step.stage());
             job.setStage(step.stage());
             jobProgressService.completeStage(jobId, step.stage(), step.name() + "完成");
             log.info("任务阶段完成，stageName: {}, costMs: {}",
