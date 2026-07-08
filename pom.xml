@@ -17,9 +17,7 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>novel-api</module>
-        <module>user-api</module>
-        <module>rag-api</module>
+        <module>api</module>
         <module>novel</module>
         <module>user</module>
         <module>chat</module>

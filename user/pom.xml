@@ -60,7 +60,7 @@
 
         <dependency>
             <groupId>com.wuming</groupId>
-            <artifactId>user-api</artifactId>
+            <artifactId>api</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
