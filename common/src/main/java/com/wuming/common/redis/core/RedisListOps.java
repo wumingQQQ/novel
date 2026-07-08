@@ -36,6 +36,14 @@ public class RedisListOps {
         }
     }
 
+    public Long size(String key) {
+        try {
+            return redisTemplate.opsForList().size(key);
+        } catch (RuntimeException e) {
+            throw new BusinessException(ErrorCode.CACHE_OPERATION_FAILED, "Redis列表长度读取失败");
+        }
+    }
+
     public Boolean delete(String key) {
         try {
             return redisTemplate.delete(key);
