@@ -8,6 +8,7 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.IRoleCharacterService;
 import com.wuming.novel.service.IRoleReactionRuleService;
+import com.wuming.novel.sse.JobProgressService;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ public class ReactionRuleBuildStep implements PipelineStep {
     private final IRoleCharacterService roleCharacterService;
     private final IRoleReactionRuleService roleReactionRuleService;
     private final RedisStageFailureStore redisStageFailureStore;
+    private final JobProgressService jobProgressService;
     @Resource(name = "llmExecutor")
     private Executor llmExecutor;
 
@@ -53,10 +55,14 @@ public class ReactionRuleBuildStep implements PipelineStep {
         }
 
         List<String> situationKeys = targetSituationKeys(jobId, characterId);
+        jobProgressService.setStageTotalItems(jobId, stage(), situationKeys.size());
         List<SituationRuleBuildResult> results = situationKeys.stream()
-                .map(situationKey -> CompletableFuture.supplyAsync(
-                        () -> buildOneSituation(jobId, job, characterId, situationKey),
-                        llmExecutor))
+                .map(situationKey -> CompletableFuture
+                        .supplyAsync(
+                                () -> roleReactionRuleService.buildRule(characterId, situationKey),
+                                llmExecutor)
+                        .handle((savedCount, throwable) ->
+                                finishOneSituation(jobId, job, characterId, situationKey, savedCount, throwable)))
                 .toList()
                 .stream()
                 .map(CompletableFuture::join)
@@ -75,19 +81,24 @@ public class ReactionRuleBuildStep implements PipelineStep {
     }
 
     /**
-     * 构建单个情境的反应规则并记录检查点。
+     * 完成单个情境规则构建子任务收尾，统一记录检查点和进度。
      */
-    private SituationRuleBuildResult buildOneSituation(Long jobId, Job job, Long characterId, String situationKey) {
-        try {
-            int savedCount = roleReactionRuleService.buildRule(characterId, situationKey);
+    private SituationRuleBuildResult finishOneSituation(Long jobId,
+                                                        Job job,
+                                                        Long characterId,
+                                                        String situationKey,
+                                                        Integer savedCount,
+                                                        Throwable throwable) {
+        if (throwable == null) {
             redisStageFailureStore.recordSuccess(jobId, stage(), situationKey);
+            jobProgressService.recordItemSuccess(jobId, stage());
             return new SituationRuleBuildResult(true, savedCount);
-        } catch (RuntimeException e) {
-            redisStageFailureStore.recordFailure(jobId, stage(), situationKey);
-            log.warn("情境反应规则构建失败，已记录失败项，jobId: {}, novelId: {}, characterId: {}, situationKey: {}",
-                    jobId, job.getNovelId(), characterId, situationKey, e);
-            return new SituationRuleBuildResult(false, 0);
         }
+        redisStageFailureStore.recordFailure(jobId, stage(), situationKey);
+        jobProgressService.recordItemFailure(jobId, stage());
+        log.warn("情境反应规则构建失败，已记录失败项，jobId: {}, novelId: {}, characterId: {}, situationKey: {}",
+                jobId, job.getNovelId(), characterId, situationKey, throwable);
+        return new SituationRuleBuildResult(false, 0);
     }
 
     /**

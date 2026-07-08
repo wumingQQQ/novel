@@ -9,6 +9,7 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.support.ChapterAnalysisService;
+import com.wuming.novel.sse.JobProgressService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.Resource;
@@ -29,6 +30,7 @@ public class ChapterAnalysisStep implements PipelineStep {
     private final IChapterService chapterService;
     private final ChapterAnalysisService chapterAnalysisService;
     private final RedisStageFailureStore redisStageFailureStore;
+    private final JobProgressService jobProgressService;
     @Resource(name = "llmExecutor")
     private Executor llmExecutor;
 
@@ -46,8 +48,11 @@ public class ChapterAnalysisStep implements PipelineStep {
     public void execute(Long jobId) {
         Job job = requireJob(jobId);
         List<Chapter> chapters = targetChapters(jobId, job);
+        jobProgressService.setStageTotalItems(jobId, stage(), chapters.size());
         int successCount = chapters.stream()
-                .map(chapter -> CompletableFuture.supplyAsync(() -> analyzeOneChapter(jobId, job, chapter), llmExecutor))
+                .map(chapter -> CompletableFuture
+                        .runAsync(() -> chapterAnalysisService.analyzeChapter(chapter), llmExecutor)
+                        .handle((ignored, throwable) -> finishOneChapter(jobId, job, chapter, throwable)))
                 .toList()
                 .stream()
                 .map(CompletableFuture::join)
@@ -58,19 +63,19 @@ public class ChapterAnalysisStep implements PipelineStep {
     }
 
     /**
-     * 分析单章并记录检查点。
+     * 完成单章分析子任务收尾，统一记录检查点和进度。
      */
-    private boolean analyzeOneChapter(Long jobId, Job job, Chapter chapter) {
-        try {
-            chapterAnalysisService.analyzeChapter(chapter);
+    private boolean finishOneChapter(Long jobId, Job job, Chapter chapter, Throwable throwable) {
+        if (throwable == null) {
             redisStageFailureStore.recordSuccess(jobId, stage(), chapter.getId());
+            jobProgressService.recordItemSuccess(jobId, stage());
             return true;
-        } catch (RuntimeException e) {
-            redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
-            log.warn("章节分析失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}",
-                    jobId, job.getNovelId(), chapter.getId(), e);
-            return false;
         }
+        redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
+        jobProgressService.recordItemFailure(jobId, stage());
+        log.warn("章节分析失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}",
+                jobId, job.getNovelId(), chapter.getId(), throwable);
+        return false;
     }
 
     /**

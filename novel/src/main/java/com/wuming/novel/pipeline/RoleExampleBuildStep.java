@@ -6,6 +6,7 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.IRoleExampleService;
+import com.wuming.novel.sse.JobProgressService;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ public class RoleExampleBuildStep implements PipelineStep {
     private final IJobService jobService;
     private final IRoleExampleService roleExampleService;
     private final RedisStageFailureStore redisStageFailureStore;
+    private final JobProgressService jobProgressService;
     @Resource(name = "llmExecutor")
     private Executor llmExecutor;
 
@@ -45,10 +47,12 @@ public class RoleExampleBuildStep implements PipelineStep {
         String targetName = requireText(job.getTargetName(), "targetName不能为空");
         roleExampleService.startExampleExtraction(job.getNovelId(), targetName);
         List<Long> passageIds = targetPassageIds(jobId, job, targetName);
+        jobProgressService.setStageTotalItems(jobId, stage(), passageIds.size());
         List<PassageExampleBuildResult> results = passageIds.stream()
-                .map(passageId -> CompletableFuture.supplyAsync(
-                        () -> buildOnePassage(jobId, job, targetName, passageId),
-                        llmExecutor))
+                .map(passageId -> CompletableFuture
+                        .supplyAsync(() -> roleExampleService.extractExamplesFromPassage(job.getNovelId(), targetName, passageId), llmExecutor)
+                        .handle((result, throwable) -> finishOnePassage(jobId, job, targetName, passageId, result, throwable))
+                )
                 .toList()
                 .stream()
                 .map(CompletableFuture::join)
@@ -72,20 +76,24 @@ public class RoleExampleBuildStep implements PipelineStep {
     }
 
     /**
-     * 构建单个Passage的角色样本并记录检查点。
+     * 完成单个Passage样本构建子任务收尾，统一记录检查点和进度。
      */
-    private PassageExampleBuildResult buildOnePassage(Long jobId, Job job, String targetName, Long passageId) {
-        try {
-            IRoleExampleService.ExtractExamplesResult result =
-                    roleExampleService.extractExamplesFromPassage(job.getNovelId(), targetName, passageId);
+    private PassageExampleBuildResult finishOnePassage(Long jobId,
+                                                       Job job,
+                                                       String targetName,
+                                                       Long passageId,
+                                                       IRoleExampleService.ExtractExamplesResult result,
+                                                       Throwable throwable) {
+        if (throwable == null) {
             redisStageFailureStore.recordSuccess(jobId, stage(), passageId);
+            jobProgressService.recordItemSuccess(jobId, stage());
             return new PassageExampleBuildResult(true, result.characterId(), result.savedCount());
-        } catch (RuntimeException e) {
-            redisStageFailureStore.recordFailure(jobId, stage(), passageId);
-            log.warn("Passage角色样本构建失败，已记录失败项，jobId: {}, novelId: {}, passageId: {}, targetName: {}",
-                    jobId, job.getNovelId(), passageId, targetName, e);
-            return new PassageExampleBuildResult(false, null, 0);
         }
+        redisStageFailureStore.recordFailure(jobId, stage(), passageId);
+        jobProgressService.recordItemFailure(jobId, stage());
+        log.warn("Passage角色样本构建失败，已记录失败项，jobId: {}, novelId: {}, passageId: {}, targetName: {}",
+                jobId, job.getNovelId(), passageId, targetName, throwable);
+        return new PassageExampleBuildResult(false, null, 0);
     }
 
     /**
