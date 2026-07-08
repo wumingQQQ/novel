@@ -1,4 +1,4 @@
-package com.wuming.novel.pipeline;
+package com.wuming.novel.pipeline.run;
 
 import com.wuming.common.exception.BusinessException;
 import com.wuming.common.exception.ErrorCode;
@@ -7,6 +7,8 @@ import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.integration.message.EventPublisher;
 import com.wuming.novel.integration.message.jobdone.JobFinishEvent;
 import com.wuming.novel.infrastructure.observability.TraceContext;
+import com.wuming.novel.pipeline.PipelineStep;
+import com.wuming.novel.pipeline.StageRetryExecutor;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.sse.JobProgressService;
 import lombok.RequiredArgsConstructor;
