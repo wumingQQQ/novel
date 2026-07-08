@@ -6,8 +6,6 @@ import com.wuming.novel.domain.dto.ChapterAnalysisResult;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
-import com.wuming.novel.integration.message.EventPublisher;
-import com.wuming.novel.integration.message.chaptersplit.ChapterAnalysisCompletedEvent;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +29,6 @@ public class ChapterAnalysisService {
     private final IChapterService chapterService;
     private final ChatClient chatClient;
     private final PromptTemplateRenderer renderer;  // 负责加载Prompt并将参数进行渲染
-    private final EventPublisher<ChapterAnalysisCompletedEvent> eventPublisher;
 
     /**
      * 分析整本小说
@@ -43,13 +40,13 @@ public class ChapterAnalysisService {
         }
         Long novelId = job.getNovelId();
         List<Chapter> chapters = chapterService.lambdaQuery().eq(Chapter::getNovelId, novelId).list();
-        chapters.forEach(ch -> analyze(ch, jobId));
+        chapters.forEach(this::analyze);
     }
 
     /**
      * 分析单章
      */
-    private void analyze(Chapter chapter, Long jobId){
+    private void analyze(Chapter chapter){
         try{
             PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
                     SYSTEM_TEMPLATE_PATH,
@@ -74,14 +71,6 @@ public class ChapterAnalysisService {
             chapter.setAnalysisStatus("DONE");
             chapter.setAnalyzedTime(LocalDateTime.now());
             chapterService.updateById(chapter);
-
-            // 发布章节分析完成事件
-            ChapterAnalysisCompletedEvent event = new ChapterAnalysisCompletedEvent();
-            event.setJobId(jobId);
-            event.setNovelId(chapter.getNovelId());
-            event.setChapterId(chapter.getId());
-            event.setChapterSequence(chapter.getSequence());
-            eventPublisher.publish(event);
         }
         catch (Exception e){
             // 记录章节分析失败信息

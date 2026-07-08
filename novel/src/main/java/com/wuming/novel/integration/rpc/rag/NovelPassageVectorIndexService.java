@@ -3,7 +3,7 @@ package com.wuming.novel.integration.rpc.rag;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.api.rag.dto.RagDocument;
 import com.wuming.novel.domain.entity.NovelPassage;
-import com.wuming.novel.service.INovelPassageService;
+import com.wuming.novel.infrastructure.mapper.NovelPassageMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +23,7 @@ public class NovelPassageVectorIndexService {
     private static final String VECTOR_FAILED = "FAILED";
 
     private final RagService ragService;
-    private final INovelPassageService novelPassageService;
+    private final NovelPassageMapper novelPassageMapper;
 
     @Value("${novel.rag.passage-index-name:novel_passage}")
     private String passageIndexName;
@@ -46,7 +46,7 @@ public class NovelPassageVectorIndexService {
     }
 
     /**
-     * 按Passage主键异步写入向量库，并回写索引状态。
+     * 按Passage主键写入向量库，并回写索引状态。
      *
      * @param passageIds 待索引Passage主键
      * @return 成功写入向量库的文档数量
@@ -55,7 +55,7 @@ public class NovelPassageVectorIndexService {
         if (passageIds == null || passageIds.isEmpty()) {
             return 0;
         }
-        List<NovelPassage> passages = novelPassageService.list(new LambdaQueryWrapper<NovelPassage>()
+        List<NovelPassage> passages = novelPassageMapper.selectList(new LambdaQueryWrapper<NovelPassage>()
                 .in(NovelPassage::getId, passageIds)
                 .in(NovelPassage::getVectorStatus, VECTOR_PENDING, VECTOR_FAILED));
         if (passages.isEmpty()) {
@@ -78,7 +78,7 @@ public class NovelPassageVectorIndexService {
                 passage.setVectorError(null);
                 passage.setIndexedTime(LocalDateTime.now());
             });
-            novelPassageService.updateBatchById(passages);
+            updateById(passages);
             return indexedCount;
         } catch (RuntimeException e) {
             markFailed(passages, e.getMessage());
@@ -91,7 +91,11 @@ public class NovelPassageVectorIndexService {
             passage.setVectorStatus(VECTOR_FAILED);
             passage.setVectorError(errorMessage);
         });
-        novelPassageService.updateBatchById(passages);
+        updateById(passages);
+    }
+
+    private void updateById(List<NovelPassage> passages) {
+        passages.forEach(novelPassageMapper::updateById);
     }
 
     private RagDocument toDocument(NovelPassage passage) {
