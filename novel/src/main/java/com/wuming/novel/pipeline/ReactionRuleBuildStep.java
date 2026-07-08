@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * 反应规则构建流程阶段。
  */
@@ -22,6 +24,7 @@ public class ReactionRuleBuildStep implements PipelineStep {
     private final IJobService jobService;
     private final IRoleCharacterService roleCharacterService;
     private final IRoleReactionRuleService roleReactionRuleService;
+    private final RedisStageFailureStore redisStageFailureStore;
 
     @Override
     public JobStage stage() {
@@ -44,11 +47,52 @@ public class ReactionRuleBuildStep implements PipelineStep {
             return;
         }
 
-        int ruleCount = roleReactionRuleService.buildRules(characterId);
-        if (ruleCount <= 0) {
+        List<String> situationKeys = targetSituationKeys(jobId, characterId);
+        int savedCount = 0;
+        int failedCount = 0;
+        for (String situationKey : situationKeys) {
+            try {
+                savedCount += roleReactionRuleService.buildRule(characterId, situationKey);
+                redisStageFailureStore.recordSuccess(jobId, stage(), situationKey);
+            } catch (RuntimeException e) {
+                failedCount++;
+                redisStageFailureStore.recordFailure(jobId, stage(), situationKey);
+                log.warn("情境反应规则构建失败，已记录失败项，jobId: {}, novelId: {}, characterId: {}, situationKey: {}",
+                        jobId, job.getNovelId(), characterId, situationKey, e);
+            }
+        }
+        if (failedCount == 0) {
+            roleReactionRuleService.completeRuleBuild(characterId);
+        }
+        if (savedCount <= 0 && failedCount == 0) {
             log.info("目标角色未构建出反应规则，jobId: {}, novelId: {}, characterId: {}, targetName: {}",
                     job.getId(), job.getNovelId(), characterId, targetName);
         }
+        log.info("反应规则构建执行完成，jobId: {}, novelId: {}, characterId: {}, requestCount: {}, successCount: {}, savedCount: {}",
+                jobId, job.getNovelId(), characterId, situationKeys.size(), situationKeys.size() - failedCount, savedCount);
+    }
+
+    /**
+     * 获取本次需要构建反应规则的情境；存在失败项时只重试失败项，否则跳过已完成项。
+     */
+    private List<String> targetSituationKeys(Long jobId, Long characterId) {
+        List<String> failedSituationKeys = redisStageFailureStore.consumeFailedItems(jobId, stage());
+        if (!failedSituationKeys.isEmpty()) {
+            log.info("重试反应规则构建失败情境，jobId: {}, characterId: {}, failedCount: {}",
+                    jobId, characterId, failedSituationKeys.size());
+            return failedSituationKeys;
+        }
+
+        List<String> completedSituationKeys = redisStageFailureStore.completedItems(jobId, stage());
+        List<String> situationKeys = roleReactionRuleService.situationKeys(characterId);
+        if (completedSituationKeys.isEmpty()) {
+            return situationKeys;
+        }
+        log.info("跳过已完成反应规则构建情境，jobId: {}, characterId: {}, completedCount: {}",
+                jobId, characterId, completedSituationKeys.size());
+        return situationKeys.stream()
+                .filter(situationKey -> !completedSituationKeys.contains(situationKey))
+                .toList();
     }
 
     private Long targetCharacterId(Job job, String targetName) {

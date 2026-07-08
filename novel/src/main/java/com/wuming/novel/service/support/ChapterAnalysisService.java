@@ -40,13 +40,17 @@ public class ChapterAnalysisService {
         }
         Long novelId = job.getNovelId();
         List<Chapter> chapters = chapterService.lambdaQuery().eq(Chapter::getNovelId, novelId).list();
-        chapters.forEach(this::analyze);
+        chapters.forEach(this::analyzeChapter);
     }
 
     /**
-     * 分析单章
+     * 分析单章并回写章节分析结果。
+     *
+     * <p>分析失败时会先将章节标记为FAILED，再继续抛出异常交给Pipeline记录失败项。</p>
+     *
+     * @param chapter 章节实体
      */
-    private void analyze(Chapter chapter){
+    public void analyzeChapter(Chapter chapter){
         try{
             PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
                     SYSTEM_TEMPLATE_PATH,
@@ -69,6 +73,7 @@ public class ChapterAnalysisService {
             chapter.setSummary(result.summary());
             chapter.setSceneBoundaries(result.sceneBoundaries());
             chapter.setAnalysisStatus("DONE");
+            chapter.setAnalysisError(null);
             chapter.setAnalyzedTime(LocalDateTime.now());
             chapterService.updateById(chapter);
         }
@@ -78,6 +83,10 @@ public class ChapterAnalysisService {
             chapter.setAnalysisError(e.getMessage());
             chapterService.updateById(chapter);
             log.error("小说{}, 章节{}分析失败", chapter.getNovelId(), chapter.getId(), e);
+            if (e instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IllegalStateException("章节分析失败，chapterId: " + chapter.getId(), e);
         }
     }
 

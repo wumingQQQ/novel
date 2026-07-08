@@ -114,6 +114,89 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
     }
 
     /**
+     * 查询角色样本抽取候选Passage主键，用于Pipeline按Passage记录检查点。
+     *
+     * @param novelId 小说id
+     * @param characterName 角色名称
+     * @return 候选Passage主键列表
+     */
+    @Override
+    public List<Long> candidatePassageIds(Long novelId, String characterName) {
+        if (novelId == null) {
+            throw new IllegalArgumentException("novelId不能为空");
+        }
+        if (characterName == null || characterName.isBlank()) {
+            throw new IllegalArgumentException("characterName不能为空");
+        }
+        return candidatePassages(novelId, characterName.trim()).stream()
+                .map(NovelPassage::getId)
+                .toList();
+    }
+
+    /**
+     * 抽取并重建单个Passage上的角色样本。
+     *
+     * <p>LLM抽取不进入事务；当前Passage旧样本删除、新样本保存和索引回调在独立事务中完成。</p>
+     *
+     * @param novelId 小说id
+     * @param characterName 角色名称
+     * @param passageId Passage主键
+     * @return 样本抽取结果
+     */
+    @Override
+    public ExtractExamplesResult extractExamplesFromPassage(Long novelId, String characterName, Long passageId) {
+        if (novelId == null) {
+            throw new IllegalArgumentException("novelId不能为空");
+        }
+        if (characterName == null || characterName.isBlank()) {
+            throw new IllegalArgumentException("characterName不能为空");
+        }
+        if (passageId == null) {
+            throw new IllegalArgumentException("passageId不能为空");
+        }
+
+        String normalizedCharacterName = characterName.trim();
+        RoleCharacter character = getOrCreateCharacter(novelId, normalizedCharacterName);
+        NovelPassage passage = novelPassageService.getById(passageId);
+        if (passage == null || !Objects.equals(passage.getNovelId(), novelId)) {
+            throw new IllegalArgumentException("Passage不存在或不属于当前小说: " + passageId);
+        }
+        if (passage.getContent() == null || passage.getContent().isBlank()) {
+            return savePassageExamplesInTransaction(novelId, character, passageId, List.of());
+        }
+
+        List<RoleExample> examples = extractOnePassage(character, passage);
+        return savePassageExamplesInTransaction(novelId, character, passageId, examples);
+    }
+
+    /**
+     * 完成角色样本抽取阶段后的角色状态标记。
+     *
+     * <p>阶段重试时本轮可能没有新增样本，因此以数据库中的角色样本总量判断是否已有有效结果。</p>
+     *
+     * @param novelId 小说id
+     * @param characterName 角色名称
+     * @param savedCount 本轮保存数量，仅保留给调用方表达本轮结果
+     */
+    @Override
+    public void completeExampleExtraction(Long novelId, String characterName, int savedCount) {
+        if (novelId == null) {
+            throw new IllegalArgumentException("novelId不能为空");
+        }
+        if (characterName == null || characterName.isBlank()) {
+            throw new IllegalArgumentException("characterName不能为空");
+        }
+        RoleCharacter character = getOrCreateCharacter(novelId, characterName.trim());
+        long totalCount = count(new LambdaQueryWrapper<RoleExample>()
+                .eq(RoleExample::getCharacterId, character.getId()));
+        if (totalCount <= 0) {
+            markIncomplete(character, "候选Passage中未抽取到有效角色样本");
+            return;
+        }
+        markIncomplete(character, "RoleExample已抽取，待构建ReactionRule和Profile");
+    }
+
+    /**
      * 在独立事务中保存抽取结果，避免LLM调用进入事务。
      *
      * @param novelId 小说id
@@ -147,6 +230,48 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
                 .toList();
         syncRoleExampleIndexAfterCommit(novelId, character, oldExampleIds, newExampleIds, examples.size());
         markIncomplete(character, "RoleExample已抽取，待构建ReactionRule和Profile");
+        return new ExtractExamplesResult(character.getId(), examples.size());
+    }
+
+    /**
+     * 在独立事务中保存单个Passage的抽取结果，避免LLM调用进入事务。
+     *
+     * @param novelId 小说id
+     * @param character 角色
+     * @param passageId Passage主键
+     * @param examples 已抽取的样本
+     * @return 样本抽取结果
+     */
+    private ExtractExamplesResult savePassageExamplesInTransaction(Long novelId,
+                                                                  RoleCharacter character,
+                                                                  Long passageId,
+                                                                  List<RoleExample> examples) {
+        return Objects.requireNonNull(transactionTemplate.execute(
+                status -> savePassageExamples(novelId, character, passageId, examples)));
+    }
+
+    /**
+     * 删除当前Passage旧样本并保存新样本，同时注册事务提交后的同步向量索引动作。
+     *
+     * @param novelId 小说id
+     * @param character 角色
+     * @param passageId Passage主键
+     * @param examples 已抽取的样本
+     * @return 样本抽取结果
+     */
+    private ExtractExamplesResult savePassageExamples(Long novelId,
+                                                      RoleCharacter character,
+                                                      Long passageId,
+                                                      List<RoleExample> examples) {
+        List<Long> oldExampleIds = removeOldExamples(character.getId(), passageId);
+        if (!examples.isEmpty()) {
+            saveBatch(examples);
+        }
+        List<Long> newExampleIds = examples.stream()
+                .map(RoleExample::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        syncRoleExampleIndexAfterCommit(novelId, character, oldExampleIds, newExampleIds, examples.size());
         return new ExtractExamplesResult(character.getId(), examples.size());
     }
 
@@ -198,6 +323,32 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
         remove(new LambdaQueryWrapper<RoleExample>()
                 .eq(RoleExample::getCharacterId, characterId));
         log.debug("已清理角色旧样本，characterId: {}, oldCount: {}", characterId, oldExampleIds.size());
+        return oldExampleIds;
+    }
+
+    /**
+     * 移除某角色在指定Passage上的旧sample。
+     *
+     * @param characterId 角色标识
+     * @param passageId Passage主键
+     * @return 已移除的样本主键
+     */
+    private List<Long> removeOldExamples(Long characterId, Long passageId) {
+        List<Long> oldExampleIds = list(new LambdaQueryWrapper<RoleExample>()
+                .select(RoleExample::getId)
+                .eq(RoleExample::getCharacterId, characterId)
+                .eq(RoleExample::getPassageId, passageId))
+                .stream()
+                .map(RoleExample::getId)
+                .toList();
+        if (oldExampleIds.isEmpty()) {
+            return List.of();
+        }
+        remove(new LambdaQueryWrapper<RoleExample>()
+                .eq(RoleExample::getCharacterId, characterId)
+                .eq(RoleExample::getPassageId, passageId));
+        log.debug("已清理角色Passage旧样本，characterId: {}, passageId: {}, oldCount: {}",
+                characterId, passageId, oldExampleIds.size());
         return oldExampleIds;
     }
 
@@ -300,25 +451,19 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
      * @return 样本集合
      */
     private List<RoleExample> extractOnePassage(RoleCharacter character, NovelPassage passage) {
-        try {
-            RoleExampleExtractionResult result = extractByLlm(character, passage);
-            if (result == null || result.examples().isEmpty()) {
-                log.debug("Passage未抽取到角色样本，characterId: {}, passageId: {}",
-                        character.getId(), passage.getId());
-                return List.of();
-            }
-            List<RoleExample> examples = result.examples().stream()
-                    .map(example -> toRoleExample(character, passage, example))
-                    .filter(Objects::nonNull)
-                    .toList();
-            log.debug("Passage角色样本抽取完成，characterId: {}, passageId: {}, extractedCount: {}",
-                    character.getId(), passage.getId(), examples.size());
-            return examples;
-        } catch (RuntimeException e) {
-            log.warn("Passage角色样本抽取失败，characterId: {}, characterName: {}, passageId: {}",
-                    character.getId(), character.getCharacterName(), passage.getId(), e);
+        RoleExampleExtractionResult result = extractByLlm(character, passage);
+        if (result == null || result.examples().isEmpty()) {
+            log.debug("Passage未抽取到角色样本，characterId: {}, passageId: {}",
+                    character.getId(), passage.getId());
             return List.of();
         }
+        List<RoleExample> examples = result.examples().stream()
+                .map(example -> toRoleExample(character, passage, example))
+                .filter(Objects::nonNull)
+                .toList();
+        log.debug("Passage角色样本抽取完成，characterId: {}, passageId: {}, extractedCount: {}",
+                character.getId(), passage.getId(), examples.size());
+        return examples;
     }
 
     /**

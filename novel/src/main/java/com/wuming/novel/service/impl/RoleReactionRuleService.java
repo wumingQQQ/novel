@@ -98,11 +98,7 @@ public class RoleReactionRuleService
             throw new IllegalArgumentException("角色不存在: " + characterId);
         }
 
-        List<SituationTask> tasks = loadSituationGroups().stream()
-                .flatMap(group -> group.situations().stream()
-                        .filter(s -> s != null && s.situation() != null && !s.situation().isBlank())
-                        .map(s -> new SituationTask(group.category(), s.situation().trim(), s.scenePatterns())))
-                .toList();
+        List<SituationTask> tasks = situationTasks();
         if (tasks.isEmpty()) {
             log.warn("未读取到情境反应规则配置，characterId: {}, config: {}", characterId, situationsConfig);
             return 0;
@@ -133,6 +129,77 @@ public class RoleReactionRuleService
         return savedCount;
     }
 
+    /**
+     * 查询预定义情境任务标识，用于Pipeline按情境记录检查点。
+     *
+     * @param characterId 角色id
+     * @return 情境任务标识列表
+     */
+    @Override
+    public List<String> situationKeys(Long characterId) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId不能为空");
+        }
+        RoleCharacter character = roleCharacterService.getById(characterId);
+        if (character == null) {
+            throw new IllegalArgumentException("角色不存在: " + characterId);
+        }
+        return situationTasks().stream()
+                .map(this::situationKey)
+                .toList();
+    }
+
+    /**
+     * 构建并重建单个情境上的角色反应规则。
+     *
+     * <p>证据不足时会清理该情境旧规则并返回0，调用方可将该情境视为已处理。</p>
+     *
+     * @param characterId 角色id
+     * @param situationKey 情境任务标识
+     * @return 本次保存的规则数量
+     */
+    @Override
+    public int buildRule(Long characterId, String situationKey) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId不能为空");
+        }
+        if (situationKey == null || situationKey.isBlank()) {
+            throw new IllegalArgumentException("situationKey不能为空");
+        }
+        RoleCharacter character = roleCharacterService.getById(characterId);
+        if (character == null) {
+            throw new IllegalArgumentException("角色不存在: " + characterId);
+        }
+        SituationTask task = requireSituationTask(situationKey);
+        RoleReactionRule rule = llmConcurrencyLimiter.execute(() -> buildOneRule(character, task));
+        return saveOneRuleInTransaction(character, task.situation(), rule);
+    }
+
+    /**
+     * 完成反应规则构建阶段后的角色状态标记。
+     *
+     * <p>阶段重试时本轮可能没有新增规则，因此以数据库中的角色规则总量判断是否已有有效结果。</p>
+     *
+     * @param characterId 角色id
+     */
+    @Override
+    public void completeRuleBuild(Long characterId) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId不能为空");
+        }
+        RoleCharacter character = roleCharacterService.getById(characterId);
+        if (character == null) {
+            throw new IllegalArgumentException("角色不存在: " + characterId);
+        }
+        long ruleCount = count(new LambdaQueryWrapper<RoleReactionRule>()
+                .eq(RoleReactionRule::getCharacterId, characterId));
+        if (ruleCount <= 0) {
+            markIncomplete(character, "未生成有效ReactionRule");
+            return;
+        }
+        markIncomplete(character, "ReactionRule已构建，待构建Profile");
+    }
+
 
     /**
      * 为单个情境构建角色反应规则。
@@ -142,37 +209,31 @@ public class RoleReactionRuleService
      * @return 构建成功的规则；证据不足或构建失败时返回null
      */
     private RoleReactionRule buildOneRule(RoleCharacter character, SituationTask task) {
-        try {
-            List<String> queries = rewriteQueries(character, task);
-            List<SearchHit> examples = retrieveExamples(character.getId(), queries);
-            if (examples.isEmpty()) {
-                log.debug("情境未召回角色样本，characterId: {}, category: {}, situation: {}",
-                        character.getId(), task.category(), task.situation());
-                return null;
-            }
-
-            RoleReactionRuleBuildResult result = buildRuleByLlm(character, task, examples);
-            if (result == null || isEvidenceNotEnough(result)) {
-                log.debug("情境证据不足，characterId: {}, category: {}, situation: {}",
-                        character.getId(), task.category(), task.situation());
-                return null;
-            }
-
-            RoleReactionRule rule = new RoleReactionRule();
-            rule.setCharacterId(character.getId());
-            rule.setCharacterName(character.getCharacterName());
-            rule.setSituation(task.situation());
-            rule.setRule(result.rule().trim());
-            rule.setEvidencePassageIds(evidencePassageIds(examples));
-            rule.setVectorStatus(VECTOR_PENDING);
-            log.debug("情境反应规则构建成功，characterId: {}, category: {}, situation: {}",
+        List<String> queries = rewriteQueries(character, task);
+        List<SearchHit> examples = retrieveExamples(character.getId(), queries);
+        if (examples.isEmpty()) {
+            log.debug("情境未召回角色样本，characterId: {}, category: {}, situation: {}",
                     character.getId(), task.category(), task.situation());
-            return rule;
-        } catch (RuntimeException e) {
-            log.warn("情境反应规则构建失败，characterId: {}, category: {}, situation: {}",
-                    character.getId(), task.category(), task.situation(), e);
             return null;
         }
+
+        RoleReactionRuleBuildResult result = buildRuleByLlm(character, task, examples);
+        if (result == null || isEvidenceNotEnough(result)) {
+            log.debug("情境证据不足，characterId: {}, category: {}, situation: {}",
+                    character.getId(), task.category(), task.situation());
+            return null;
+        }
+
+        RoleReactionRule rule = new RoleReactionRule();
+        rule.setCharacterId(character.getId());
+        rule.setCharacterName(character.getCharacterName());
+        rule.setSituation(task.situation());
+        rule.setRule(result.rule().trim());
+        rule.setEvidencePassageIds(evidencePassageIds(examples));
+        rule.setVectorStatus(VECTOR_PENDING);
+        log.debug("情境反应规则构建成功，characterId: {}, category: {}, situation: {}",
+                character.getId(), task.category(), task.situation());
+        return rule;
     }
 
     /**
@@ -314,6 +375,53 @@ public class RoleReactionRuleService
             markIncomplete(character, "ReactionRule已构建，待构建Profile");
         }
         return rules.size();
+    }
+
+    /**
+     * 在独立事务中保存单个情境规则，避免LLM调用进入事务。
+     *
+     * @param character 角色
+     * @param situation 情境描述
+     * @param rule 已构建的规则；为空时代表该情境证据不足，需要清理旧规则
+     * @return 本次保存的规则数量
+     */
+    private int saveOneRuleInTransaction(RoleCharacter character, String situation, RoleReactionRule rule) {
+        return Objects.requireNonNull(transactionTemplate.execute(status -> saveOneRule(character, situation, rule)));
+    }
+
+    /**
+     * 删除当前情境旧规则并保存新规则，同时注册事务提交后的同步向量索引动作。
+     *
+     * @param character 角色
+     * @param situation 情境描述
+     * @param rule 已构建的规则；为空时仅删除旧规则
+     * @return 本次保存的规则数量
+     */
+    private int saveOneRule(RoleCharacter character, String situation, RoleReactionRule rule) {
+        List<Long> oldRuleIds = list(new LambdaQueryWrapper<RoleReactionRule>()
+                .select(RoleReactionRule::getId)
+                .eq(RoleReactionRule::getCharacterId, character.getId())
+                .eq(RoleReactionRule::getSituation, situation))
+                .stream()
+                .map(RoleReactionRule::getId)
+                .toList();
+        if (!oldRuleIds.isEmpty()) {
+            remove(new LambdaQueryWrapper<RoleReactionRule>()
+                    .eq(RoleReactionRule::getCharacterId, character.getId())
+                    .eq(RoleReactionRule::getSituation, situation));
+        }
+        List<Long> newRuleIds;
+        int ruleCount;
+        if (rule == null) {
+            newRuleIds = List.of();
+            ruleCount = 0;
+        } else {
+            save(rule);
+            newRuleIds = rule.getId() == null ? List.of() : List.of(rule.getId());
+            ruleCount = 1;
+        }
+        syncRoleReactionRuleIndexAfterCommit(character, oldRuleIds, newRuleIds, ruleCount);
+        return ruleCount;
     }
 
     /**
@@ -473,6 +581,42 @@ public class RoleReactionRuleService
         } catch (IOException e) {
             throw new IllegalStateException("读取反应规则情境配置失败: " + situationsConfig, e);
         }
+    }
+
+    /**
+     * 将预定义情境配置展开为构建任务。
+     *
+     * @return 情境任务列表
+     */
+    private List<SituationTask> situationTasks() {
+        return loadSituationGroups().stream()
+                .flatMap(group -> group.situations().stream()
+                        .filter(s -> s != null && s.situation() != null && !s.situation().isBlank())
+                        .map(s -> new SituationTask(group.category(), s.situation().trim(), s.scenePatterns())))
+                .toList();
+    }
+
+    /**
+     * 按情境任务标识查找情境任务。
+     *
+     * @param situationKey 情境任务标识
+     * @return 情境任务
+     */
+    private SituationTask requireSituationTask(String situationKey) {
+        return situationTasks().stream()
+                .filter(task -> Objects.equals(situationKey(task), situationKey))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("情境任务不存在: " + situationKey));
+    }
+
+    /**
+     * 构建稳定的情境任务标识。
+     *
+     * @param task 情境任务
+     * @return 情境任务标识
+     */
+    private String situationKey(SituationTask task) {
+        return task.category() + "::" + task.situation();
     }
 
     private record SituationTask(String category, String situation, List<String> scenePatterns) {
