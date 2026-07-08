@@ -11,6 +11,8 @@ import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -33,10 +35,27 @@ public class NovelPassageIndexEventListener implements RocketMQListener<NovelPas
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(event.getJobId());
              TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId());
              TraceContext.MdcScope ignoredChapter = TraceContext.putChapterId(event.getChapterId())) {
-            int passageCount = event.getPassageIds() == null ? 0 : event.getPassageIds().size();
-            log.info("收到Passage向量索引事件，jobId: {}, novelId: {}, chapterId: {}, passageCount: {}",
-                    event.getJobId(), event.getNovelId(), event.getChapterId(), passageCount);
-            int indexedCount = vectorIndexService.indexByIds(event.getPassageIds());
+            List<Long> deletedPassageIds = event.getDeletedPassageIds() == null ? List.of() : event.getDeletedPassageIds();
+            List<Long> passageIds = event.getPassageIds() == null ? List.of() : event.getPassageIds();
+            log.info("收到Passage向量索引事件，jobId: {}, novelId: {}, chapterId: {}, deleteCount: {}, passageCount: {}",
+                    event.getJobId(), event.getNovelId(), event.getChapterId(), deletedPassageIds.size(), passageIds.size());
+            int deletedCount = vectorIndexService.deleteByIds(deletedPassageIds);
+            boolean deleteDegraded = deletedCount < 0;
+            if (deleteDegraded) {
+                log.warn("Passage旧向量删除降级，jobId: {}, novelId: {}, chapterId: {}, requestCount: {}",
+                        event.getJobId(), event.getNovelId(), event.getChapterId(), deletedPassageIds.size());
+            }
+            int indexedCount = vectorIndexService.indexByIds(passageIds);
+            if (indexedCount < 0) {
+                log.warn("Passage向量索引降级，jobId: {}, novelId: {}, chapterId: {}, requestCount: {}",
+                        event.getJobId(), event.getNovelId(), event.getChapterId(), passageIds.size());
+                return;
+            }
+            if (deleteDegraded) {
+                log.warn("Passage向量索引事件部分降级，jobId: {}, novelId: {}, chapterId: {}, deletedCount: {}, indexedCount: {}",
+                        event.getJobId(), event.getNovelId(), event.getChapterId(), deletedCount, indexedCount);
+                return;
+            }
             log.info("Passage向量索引完成，jobId: {}, novelId: {}, chapterId: {}, indexedCount: {}",
                     event.getJobId(), event.getNovelId(), event.getChapterId(), indexedCount);
         }

@@ -68,7 +68,9 @@ public class RoleReactionRuleVectorIndexService {
         try {
             int indexedCount = upsertDocuments(rules);
             if (indexedCount < 0) {
-                throw new IllegalStateException("RAG服务降级，角色反应规则未写入向量库");
+                markFailed(rules, "RAG服务降级，角色反应规则未写入向量库");
+                log.warn("RAG服务降级，角色反应规则未写入向量库，requestCount: {}", rules.size());
+                return indexedCount;
             }
             if (indexedCount != rules.size()) {
                 throw new IllegalStateException("角色反应规则向量索引数量不一致，requestCount: "
@@ -82,13 +84,17 @@ public class RoleReactionRuleVectorIndexService {
             updateById(rules);
             return indexedCount;
         } catch (RuntimeException e) {
-            rules.forEach(rule -> {
-                rule.setVectorStatus(VECTOR_FAILED);
-                rule.setVectorError(e.getMessage());
-            });
-            updateById(rules);
+            markFailed(rules, e.getMessage());
             throw e;
         }
+    }
+
+    private void markFailed(List<RoleReactionRule> rules, String errorMessage) {
+        rules.forEach(rule -> {
+            rule.setVectorStatus(VECTOR_FAILED);
+            rule.setVectorError(errorMessage);
+        });
+        updateById(rules);
     }
 
     private void updateById(List<RoleReactionRule> rules) {

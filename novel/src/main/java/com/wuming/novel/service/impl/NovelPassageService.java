@@ -48,22 +48,22 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         if (chapter == null) {
             throw new IllegalArgumentException("章节不存在: " + chapterId);
         }
-        cleanOldPassages(chapterId);
+        List<Long> oldPassageIds = cleanOldPassages(chapterId);
 
         List<NovelPassage> passages = splitOneChapter(chapter);
         if (passages.isEmpty()) {
+            publishPassageIndexEvent(jobId, chapter, oldPassageIds, List.of());
             log.info("章节没有可切分的Passage，jobId: {}, chapterId: {}", jobId, chapterId);
             return;
         }
 
         saveBatch(passages);
-        publishPassageIndexEvent(jobId, chapter, passages);
+        publishPassageIndexEvent(jobId, chapter, oldPassageIds, passages);
         log.info("章节Passage处理完成，jobId: {}, novelId: {}, chapterId: {}, passageCount: {}",
                 jobId, chapter.getNovelId(), chapterId, passages.size());
     }
 
-    // TODO 移除向量库中的passage
-    private void cleanOldPassages(Long chapterId) {
+    private List<Long> cleanOldPassages(Long chapterId) {
         List<Long> oldPassageIds = list(new LambdaQueryWrapper<NovelPassage>()
                 .eq(NovelPassage::getChapterId, chapterId))
                 .stream()
@@ -74,6 +74,7 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         }
         remove(new LambdaQueryWrapper<NovelPassage>()
                 .eq(NovelPassage::getChapterId, chapterId));
+        return oldPassageIds;
     }
 
     private List<NovelPassage> splitOneChapter(Chapter chapter) {
@@ -177,11 +178,15 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
     }
 
     // 发布将passage索引的事件
-    private void publishPassageIndexEvent(Long jobId, Chapter chapter, List<NovelPassage> passages) {
+    private void publishPassageIndexEvent(Long jobId,
+                                          Chapter chapter,
+                                          List<Long> oldPassageIds,
+                                          List<NovelPassage> passages) {
         NovelPassageIndexEvent event = new NovelPassageIndexEvent();
         event.setJobId(jobId);
         event.setNovelId(chapter.getNovelId());
         event.setChapterId(chapter.getId());
+        event.setDeletedPassageIds(oldPassageIds);
         event.setPassageIds(passages.stream()
                 .map(NovelPassage::getId)
                 .toList());

@@ -22,4 +22,9 @@ public class NovelPassageIndexEvent extends CompleteEvent {
      * 待写入向量库的Passage主键列表。
      */
     private List<Long> passageIds = new ArrayList<>();
+
+    /**
+     * 待从向量库删除的旧Passage主键列表。
+     */
+    private List<Long> deletedPassageIds = new ArrayList<>();
 }

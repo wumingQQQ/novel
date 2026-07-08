@@ -27,13 +27,17 @@ public class RocketMqNovelPassageIndexEventPublisher implements EventPublisher<N
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(event.getJobId());
              TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId());
              TraceContext.MdcScope ignoredChapter = TraceContext.putChapterId(event.getChapterId())) {
-            log.info("开始发送Passage向量索引事件，destination: {}, passageCount: {}",
+            int deleteCount = event.getDeletedPassageIds() == null ? 0 : event.getDeletedPassageIds().size();
+            int passageCount = event.getPassageIds() == null ? 0 : event.getPassageIds().size();
+            log.info("开始发送Passage向量索引事件，destination: {}, deleteCount: {}, passageCount: {}",
                     MqDestinations.NOVEL_PASSAGE_INDEX,
-                    event.getPassageIds().size());
+                    deleteCount,
+                    passageCount);
             rocketMQTemplate.convertAndSend(MqDestinations.NOVEL_PASSAGE_INDEX, event);
-            log.info("Passage向量索引事件发送成功，chapterId: {}, passageCount: {}",
+            log.info("Passage向量索引事件发送成功，chapterId: {}, deleteCount: {}, passageCount: {}",
                     event.getChapterId(),
-                    event.getPassageIds().size());
+                    deleteCount,
+                    passageCount);
         }
     }
 }

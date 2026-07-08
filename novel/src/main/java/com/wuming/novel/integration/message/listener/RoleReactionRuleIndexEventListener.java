@@ -11,6 +11,8 @@ import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -31,14 +33,31 @@ public class RoleReactionRuleIndexEventListener implements RocketMQListener<Role
     @Override
     public void onMessage(RoleReactionRuleIndexEvent event) {
         try (TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId())) {
+            List<Long> deletedRuleIds = event.getDeletedRuleIds() == null ? List.of() : event.getDeletedRuleIds();
+            List<Long> indexedRuleIds = event.getIndexedRuleIds() == null ? List.of() : event.getIndexedRuleIds();
             log.info("收到角色反应规则索引事件，novelId: {}, characterId: {}, characterName: {}, deleteCount: {}, indexCount: {}",
                     event.getNovelId(),
                     event.getCharacterId(),
                     event.getCharacterName(),
-                    event.getDeletedRuleIds().size(),
-                    event.getIndexedRuleIds().size());
-            int deletedCount = vectorIndexService.deleteByIds(event.getDeletedRuleIds());
-            int indexedCount = vectorIndexService.indexByIds(event.getIndexedRuleIds());
+                    deletedRuleIds.size(),
+                    indexedRuleIds.size());
+            int deletedCount = vectorIndexService.deleteByIds(deletedRuleIds);
+            boolean deleteDegraded = deletedCount < 0;
+            if (deleteDegraded) {
+                log.warn("角色反应规则旧向量删除降级，characterId: {}, requestCount: {}",
+                        event.getCharacterId(), deletedRuleIds.size());
+            }
+            int indexedCount = vectorIndexService.indexByIds(indexedRuleIds);
+            if (indexedCount < 0) {
+                log.warn("角色反应规则向量索引降级，characterId: {}, requestCount: {}",
+                        event.getCharacterId(), indexedRuleIds.size());
+                return;
+            }
+            if (deleteDegraded) {
+                log.warn("角色反应规则索引事件部分降级，characterId: {}, deletedCount: {}, indexedCount: {}",
+                        event.getCharacterId(), deletedCount, indexedCount);
+                return;
+            }
             log.info("角色反应规则索引处理完成，characterId: {}, deletedCount: {}, indexedCount: {}",
                     event.getCharacterId(), deletedCount, indexedCount);
         }

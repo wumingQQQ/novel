@@ -85,7 +85,9 @@ public class RoleExampleVectorIndexService {
         try {
             int indexedCount = upsertDocuments(examples);
             if (indexedCount < 0) {
-                throw new IllegalStateException("RAG服务降级，角色样本未写入向量库");
+                markFailed(examples, "RAG服务降级，角色样本未写入向量库");
+                log.warn("RAG服务降级，角色样本未写入向量库，requestCount: {}", examples.size());
+                return indexedCount;
             }
             if (indexedCount != examples.size()) {
                 throw new IllegalStateException("角色样本向量索引数量不一致，requestCount: "
@@ -99,13 +101,17 @@ public class RoleExampleVectorIndexService {
             updateById(examples);
             return indexedCount;
         } catch (RuntimeException e) {
-            examples.forEach(example -> {
-                example.setVectorStatus(VECTOR_FAILED);
-                example.setVectorError(e.getMessage());
-            });
-            updateById(examples);
+            markFailed(examples, e.getMessage());
             throw e;
         }
+    }
+
+    private void markFailed(List<RoleExample> examples, String errorMessage) {
+        examples.forEach(example -> {
+            example.setVectorStatus(VECTOR_FAILED);
+            example.setVectorError(errorMessage);
+        });
+        updateById(examples);
     }
 
     private void updateById(List<RoleExample> examples) {

@@ -35,6 +35,16 @@ public class NovelPassageVectorIndexService {
         return ragService.upsertDocuments(passageIndexName, documents);
     }
 
+    public int deleteByIds(List<Long> passageIds) {
+        if (passageIds == null || passageIds.isEmpty()) {
+            return 0;
+        }
+        List<String> documentIds = passageIds.stream()
+                .map(String::valueOf)
+                .toList();
+        return ragService.deleteDocuments(passageIndexName, documentIds);
+    }
+
     /**
      * 按Passage主键异步写入向量库，并回写索引状态。
      *
@@ -55,7 +65,9 @@ public class NovelPassageVectorIndexService {
         try {
             int indexedCount = upsertDocuments(passages);
             if (indexedCount < 0) {
-                throw new IllegalStateException("RAG服务降级，Passage未写入向量库");
+                markFailed(passages, "RAG服务降级，Passage未写入向量库");
+                log.warn("RAG服务降级，Passage未写入向量库，requestCount: {}", passages.size());
+                return indexedCount;
             }
             if (indexedCount != passages.size()) {
                 throw new IllegalStateException("Passage向量索引数量不一致，requestCount: "
@@ -69,13 +81,17 @@ public class NovelPassageVectorIndexService {
             novelPassageService.updateBatchById(passages);
             return indexedCount;
         } catch (RuntimeException e) {
-            passages.forEach(passage -> {
-                passage.setVectorStatus(VECTOR_FAILED);
-                passage.setVectorError(e.getMessage());
-            });
-            novelPassageService.updateBatchById(passages);
+            markFailed(passages, e.getMessage());
             throw e;
         }
+    }
+
+    private void markFailed(List<NovelPassage> passages, String errorMessage) {
+        passages.forEach(passage -> {
+            passage.setVectorStatus(VECTOR_FAILED);
+            passage.setVectorError(errorMessage);
+        });
+        novelPassageService.updateBatchById(passages);
     }
 
     private RagDocument toDocument(NovelPassage passage) {
