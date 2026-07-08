@@ -32,8 +32,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -264,26 +262,22 @@ public class RoleReactionRuleService
     }
 
     /**
-     * 多 query 召回角色样本，按 documentId 去重，保留首次召回结果
+     * 多 query 召回由RAG服务统一完成合并、去重和重排序。
      */
     private List<SearchHit> retrieveExamples(Long characterId, List<String> queries) {
-        Map<String, SearchHit> hits = new LinkedHashMap<>();
-        for (String query : queries) {
-            List<SearchHit> queryHits = roleExampleVectorIndexService.search(
-                    characterId,
-                    query,
-                    exampleTopK,
-                    rerank,
-                    exampleTopN
-            );
-            for (SearchHit hit : queryHits) {
-                if (hit == null || hit.getDocumentId() == null || hit.getContent() == null || hit.getContent().isBlank()) {
-                    continue;
-                }
-                hits.putIfAbsent(hit.getDocumentId(), hit);
-            }
-        }
-        return new ArrayList<>(hits.values());
+        return roleExampleVectorIndexService.search(
+                characterId,
+                null,
+                queries,
+                exampleTopK,
+                rerank,
+                exampleTopN
+        ).stream()
+                .filter(hit -> hit != null
+                        && hit.getDocumentId() != null
+                        && hit.getContent() != null
+                        && !hit.getContent().isBlank())
+                .toList();
     }
 
     /**

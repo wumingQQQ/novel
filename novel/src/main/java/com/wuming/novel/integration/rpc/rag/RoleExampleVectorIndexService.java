@@ -55,10 +55,20 @@ public class RoleExampleVectorIndexService {
                                   Integer topK,
                                   boolean rerank,
                                   Integer topN) {
+        return search(characterId, query, null, topK, rerank, topN);
+    }
+
+    public List<SearchHit> search(Long characterId,
+                                  String query,
+                                  List<String> queries,
+                                  Integer topK,
+                                  boolean rerank,
+                                  Integer topN) {
         RoleExampleSearchRequest request = new RoleExampleSearchRequest();
         request.setIndexName(roleExampleIndexName);
         request.setCharacterId(characterId);
         request.setQuery(query);
+        request.setQueries(queries);
         request.setTopK(topK);
         request.setRerank(rerank);
         request.setTopN(topN);

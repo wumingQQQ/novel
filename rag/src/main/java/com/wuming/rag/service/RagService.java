@@ -13,6 +13,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,7 @@ public class RagService implements RagFacade {
         return search(
                 request.getIndexName(),
                 request.getQuery(),
+                request.getQueries(),
                 Map.of("novel_id", request.getNovelId()),
                 request.getTopK(),
                 request.isRerank(),
@@ -70,6 +72,7 @@ public class RagService implements RagFacade {
         return search(
                 request.getIndexName(),
                 request.getQuery(),
+                request.getQueries(),
                 Map.of("character_id", request.getCharacterId()),
                 request.getTopK(),
                 request.isRerank(),
@@ -82,6 +85,7 @@ public class RagService implements RagFacade {
         return search(
                 request.getIndexName(),
                 request.getQuery(),
+                request.getQueries(),
                 Map.of("character_id", request.getCharacterId()),
                 request.getTopK(),
                 request.isRerank(),
@@ -91,6 +95,7 @@ public class RagService implements RagFacade {
 
     private List<SearchHit> search(String indexName,
                                    String query,
+                                   List<String> queries,
                                    Map<String, Object> filters,
                                    Integer topK,
                                    boolean isRerank,
@@ -98,19 +103,33 @@ public class RagService implements RagFacade {
         VectorStore store = registry.getRequired(indexName);
         int recallCount = topK == null ? 20 : topK;
         int rerankCount = topN == null ? recallCount : topN;
-
-        SearchRequest.Builder builder = SearchRequest.builder()
-                .query(query)
-                .topK(recallCount);
-        String filterExpression = filterExpression(filters);
-        if (filterExpression != null) {
-            builder.filterExpression(filterExpression);
+        List<String> searchQueries = searchQueries(query, queries);
+        if (searchQueries.isEmpty()) {
+            return List.of();
         }
-        SearchRequest searchRequest = builder.build();
 
-        List<Document> documents = store.similaritySearch(searchRequest);
+        String filterExpression = filterExpression(filters);
+        Map<String, Document> documentMap = new LinkedHashMap<>();
+        for (String searchQuery : searchQueries) {
+            SearchRequest.Builder builder = SearchRequest.builder()
+                    .query(searchQuery)
+                    .topK(recallCount);
+            if (filterExpression != null) {
+                builder.filterExpression(filterExpression);
+            }
+            List<Document> documents = store.similaritySearch(builder.build());
+            for (Document document : documents) {
+                if (document == null || document.getId() == null) {
+                    continue;
+                }
+                documentMap.putIfAbsent(document.getId(), document);
+            }
+        }
+
+        List<Document> documents = new ArrayList<>(documentMap.values());
+        String rerankQuery = hasText(query) ? query.trim() : String.join("\n", searchQueries);
         List<Document> finalDocuments = isRerank
-                ? rerankService.rerank(query, documents)
+                ? rerankService.rerank(rerankQuery, documents)
                 : documents;
         return finalDocuments.stream()
                 .limit(rerankCount)
@@ -132,6 +151,29 @@ public class RagService implements RagFacade {
         hit.setScore(document.getScore() == null ? 0.0 : document.getScore());
         hit.setMetadata(new LinkedHashMap<>(document.getMetadata()));
         return hit;
+    }
+
+    private List<String> searchQueries(String query, List<String> queries) {
+        List<String> result = new ArrayList<>();
+        if (queries != null) {
+            for (String item : queries) {
+                if (!hasText(item)) {
+                    continue;
+                }
+                String normalized = item.trim();
+                if (!result.contains(normalized)) {
+                    result.add(normalized);
+                }
+            }
+        }
+        if (result.isEmpty() && hasText(query)) {
+            result.add(query.trim());
+        }
+        return result;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private String filterExpression(Map<String, Object> filters) {

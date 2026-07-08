@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -89,7 +90,11 @@ public class RagService {
             throw new IllegalArgumentException("searchRequest不能为空");
         }
         request.setIndexName(requireText(request.getIndexName(), "indexName不能为空"));
-        request.setQuery(requireText(request.getQuery(), "query不能为空"));
+        request.setQueries(normalizeQueries(request.getQueries()));
+        request.setQuery(normalizeQuery(request.getQuery()));
+        if (request.getQuery() == null && request.getQueries() == null) {
+            throw new IllegalArgumentException("query和queries不能同时为空");
+        }
         request.setTopK(normalizeTopK(request.getTopK()));
         request.setTopN(normalizeTopN(request.getTopN(), request.getTopK()));
     }
@@ -107,5 +112,26 @@ public class RagService {
 
     private int normalizeTopN(Integer topN, int topK) {
         return topN == null || topN <= 0 ? topK : topN;
+    }
+
+    private String normalizeQuery(String query) {
+        return query == null || query.isBlank() ? null : query.trim();
+    }
+
+    private List<String> normalizeQueries(List<String> queries) {
+        if (queries == null || queries.isEmpty()) {
+            return null;
+        }
+        List<String> normalized = new ArrayList<>();
+        for (String query : queries) {
+            if (query == null || query.isBlank()) {
+                continue;
+            }
+            String value = query.trim();
+            if (!normalized.contains(value)) {
+                normalized.add(value);
+            }
+        }
+        return normalized.isEmpty() ? null : normalized;
     }
 }
