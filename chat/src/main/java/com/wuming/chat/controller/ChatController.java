@@ -25,15 +25,15 @@ public class ChatController {
     private final JwtUserIdExtractor jwtUserIdExtractor;
 
     /**
-     * 基于当前登录用户和已完成画像构建的 job 创建一个新的聊天会话。
+     * 基于当前登录用户和已完成画像构建的角色创建一个新的聊天会话。
      */
-    @PostMapping("/sessions/{jobId}")
+    @PostMapping("/sessions/{characterId}")
     public ApiResponse<Long> createSession(
-            @PathVariable Long jobId,
+            @PathVariable Long characterId,
             Authentication authentication
     ) {
         Long userId = jwtUserIdExtractor.requireUserId(authentication);
-        Long sessionId = chatService.createSession(userId, jobId);
+        Long sessionId = chatService.createSession(userId, characterId);
         return ApiResponse.success(sessionId);
     }
 

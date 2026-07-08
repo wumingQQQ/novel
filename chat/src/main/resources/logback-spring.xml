@@ -4,8 +4,8 @@
     <conversionRule conversionWord="bizMdc" converterClass="com.wuming.common.logging.BusinessMdcConverter"/>
 <!-- 1. 定义全局变量 -->
     <property name="LOG_PATH" value="./logs/chat"/>
-    <property name="CONSOLE_PATTERN" value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%thread]){faint} %highlight(%-5level) %clr(%logger{36}){cyan}%bizMdc{traceId,userId,jobId,sessionId} %clr(-){faint} %msg%n"/>
-    <property name="FILE_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36}%bizMdc{traceId,userId,jobId,sessionId} - %msg%n"/>
+    <property name="CONSOLE_PATTERN" value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%thread]){faint} %highlight(%-5level) %clr(%logger{36}){cyan}%bizMdc{traceId,userId,sessionId} %clr(-){faint} %msg%n"/>
+    <property name="FILE_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36}%bizMdc{traceId,userId,sessionId} - %msg%n"/>
 
     <!-- 2. 控制台输出 Appender -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">

@@ -32,8 +32,17 @@ dubbo:
 chat:
   history-limit: 20
   message-cache-ttl: 3d
-  profile-prompt-cache-ttl: 3d
   rpc-cache-ttl: 2h
+  role-runtime:
+    url: ${NOVEL_SERVICE_URL:tri://127.0.0.1:50051}
+  rag:
+    url: ${RAG_SERVICE_URL:tri://127.0.0.1:50053}
+    role-example-index-name: role_example
+    reaction-rule-index-name: reaction_rule
+    role-example-top-k: 10
+    role-example-top-n: 3
+    reaction-rule-top-k: 8
+    reaction-rule-top-n: 2
 
 auth:
   jwt:

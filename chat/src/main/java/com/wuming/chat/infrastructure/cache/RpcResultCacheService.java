@@ -1,9 +1,9 @@
 package com.wuming.chat.infrastructure.cache;
 
-import com.wuming.api.profile.dto.RoleContextDto;
+import com.wuming.api.role.dto.RoleRuntimeContextDto;
+import com.wuming.api.user.dto.UserResultDto;
 import com.wuming.common.redis.core.RedisJsonOps;
 import com.wuming.common.redis.core.RedisKey;
-import com.wuming.api.user.dto.UserResultDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,7 +16,7 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class RpcResultCacheService {
     private static final String USER_KEY_PREFIX = "chat:rpc:user";
-    private static final String PROFILE_KEY_PREFIX = "chat:rpc:profile";
+    private static final String ROLE_RUNTIME_KEY_PREFIX = "chat:rpc:role-runtime";
 
     private final RedisJsonOps redisJsonOps;
 
@@ -39,18 +39,18 @@ public class RpcResultCacheService {
     }
 
     /**
-     * 读取角色画像上下文缓存，缓存不存在或解析失败时返回null。
+     * 读取角色运行时上下文缓存，缓存不存在或解析失败时返回null。
      */
-    public RoleContextDto getRoleContext(Long jobId) {
-        return readValue(profileKey(jobId), RoleContextDto.class,
-                "角色画像上下文", "jobId", jobId);
+    public RoleRuntimeContextDto getRoleRuntimeContext(Long characterId) {
+        return readValue(roleRuntimeKey(characterId), RoleRuntimeContextDto.class,
+                "角色运行时上下文", "characterId", characterId);
     }
 
     /**
-     * 写入角色画像上下文缓存，只由调用方在远程查询成功后调用。
+     * 写入角色运行时上下文缓存，只缓存远程查询成功的结果。
      */
-    public void putRoleContext(Long jobId, RoleContextDto context) {
-        writeValue(profileKey(jobId), context, "角色画像上下文", "jobId", jobId);
+    public void putRoleRuntimeContext(Long characterId, RoleRuntimeContextDto context) {
+        writeValue(roleRuntimeKey(characterId), context, "角色运行时上下文", "characterId", characterId);
     }
 
     /**
@@ -96,10 +96,10 @@ public class RpcResultCacheService {
     }
 
     /**
-     * 构造角色画像上下文缓存key。
+     * 构造角色运行时上下文缓存key。
      */
-    private String profileKey(Long jobId) {
-        return RedisKey.join(PROFILE_KEY_PREFIX, String.valueOf(jobId));
+    private String roleRuntimeKey(Long characterId) {
+        return RedisKey.join(ROLE_RUNTIME_KEY_PREFIX, String.valueOf(characterId));
     }
 }
 

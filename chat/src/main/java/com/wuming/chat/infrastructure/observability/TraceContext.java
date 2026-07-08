@@ -8,7 +8,6 @@ import java.util.UUID;
 public final class TraceContext {
     public static final String TRACE_ID = TraceConstants.TRACE_ID;
     public static final String USER_ID = TraceConstants.USER_ID;
-    public static final String JOB_ID = TraceConstants.JOB_ID;
     public static final String SESSION_ID = TraceConstants.SESSION_ID;
     public static final String TRACE_HEADER = "X-Trace-Id";
 
@@ -61,13 +60,6 @@ public final class TraceContext {
      */
     public static MdcScope putUserId(Long userId) {
         return put(USER_ID, userId);
-    }
-
-    /**
-     * 在当前线程日志上下文中记录任务id。
-     */
-    public static MdcScope putJobId(Long jobId) {
-        return put(JOB_ID, jobId);
     }
 
     /**

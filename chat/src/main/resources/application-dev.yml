@@ -16,51 +16,15 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:9379}
       password: ${REDIS_PWD:}
-  ai:
-    openai:
-      api-key: ${DS_API_KEY:}
 
 llm:
-  default-provider: deepseek
   temperature: 0.6
-  task-temperature:
-    role-chat: 0.6
-  providers:
-    deepseek:
-      base-url: ${DS_BASE_URL:https://api.deepseek.com}
-      api-key: ${DS_API_KEY:}
-      model: deepseek-v4-flash
-    mimo:
-      base-url: ${MIMO_BASE_URL:https://api.xiaomimimo.com}
-      api-key: ${MIMO_API_KEY:}
-      model: mimo-v2.5-pro
-    agnes:
-      base-url: ${AGNES_BASE_URL:https://apihub.agnes-ai.com}
-      api-key: ${AGNES_API_KEY:}
-      model: agnes-2.0-flash
-    qwen:
-      base-url: ${ALI_BASE_URL:}
-      api-key: ${ALI_API_KEY:}
-      model: qwen3.5-flash
+  deepseek:
+    base-url: ${DS_BASE_URL:https://api.deepseek.com}
+    api-key: ${DS_API_KEY:}
+    model: deepseek-v4-flash
 
 rocketmq:
   name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
   consumer:
     group: chat-scene-consumer-group
-
-
-rag:
-  embedding:
-    api-key: ${EMBEDDING_API_KEY:}
-    base-url: ${EMBEDDING_BASE_URL:https://api.botcf.com}
-    model: BAAI/bge-m3
-    dimensions: 1024
-  reranker:
-    api-key: ${RERANKER_API_KEY:}
-    base-url: ${RERANKER_BASE_URL:https://api.botcf.com}
-    model: BAAI/bge-reranker-v2-m3
-    path: /v1/rerank
-    top-n: 10
-  redis:
-    index: "idx:rag:scene"
-    key-prefix: "rag:scene:"

@@ -19,7 +19,7 @@ public class LlmProvider {
      */
     public ChatModel chatModel(Double temperature) {
         if (baseUrl == null || model == null || apiKey == null) {
-            throw new IllegalStateException("baseUrl or model or apiKey 为空，模型无法正确配置");
+            throw new IllegalStateException("DeepSeek配置不完整，请检查 llm.deepseek.base-url、api-key、model");
         }
         return OpenAiChatModel.builder()
                 .openAiApi(OpenAiApi.builder()

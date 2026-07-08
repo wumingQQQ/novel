@@ -1,26 +1,24 @@
 package com.wuming.chat.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.wuming.api.role.dto.RoleRuntimeContextDto;
 import com.wuming.common.exception.BusinessException;
 import com.wuming.common.exception.ErrorCode;
-import com.wuming.api.profile.dto.RoleContextDto;
 import com.wuming.api.user.dto.UserResultDto;
-import com.wuming.chat.config.llm.LlmClientFactory;
 import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.entity.ChatMessage;
 import com.wuming.chat.domain.entity.ChatSession;
 import com.wuming.chat.domain.model.ChatHistoryMessage;
+import com.wuming.chat.integration.rpc.role.RoleRuntimeContextService;
 import com.wuming.chat.infrastructure.mapper.ChatMessageMapper;
 import com.wuming.chat.infrastructure.mapper.ChatSessionMapper;
 import com.wuming.chat.infrastructure.observability.TraceContext;
-import com.wuming.chat.rag.prompt.RagPromptBuilder;
-import com.wuming.chat.rag.retrieve.RagRetrieveService;
-import com.wuming.chat.integration.rpc.profile.ProfileContextService;
 import com.wuming.chat.integration.rpc.user.UserContextService;
 import com.wuming.chat.infrastructure.cache.ChatMessageCacheService;
-import com.wuming.chat.infrastructure.cache.ProfilePromptCacheService;
+import com.wuming.chat.rag.role.RoleRuntimeRagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,28 +37,25 @@ public class ChatService {
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
     private final ChatMessageCacheService chatMessageCacheService;
-    private final ProfilePromptCacheService profilePromptCacheService;
-    private final ProfileContextService profileContextService;
+    private final RoleRuntimeContextService roleRuntimeContextService;
     private final UserContextService userContextService;
     private final RoleChatPromptBuilder promptBuilder;
-    private final LlmClientFactory llmClientFactory;
-    private final RagPromptBuilder ragPromptBuilder;
-    private final RagRetrieveService retrieveService;
+    private final ChatClient chatClient;
+    private final RoleRuntimeRagService roleRuntimeRagService;
 
     @Value("${chat.history-limit:20}")
     private int historyLimit;
 
     /**
-     * 创建聊天会话前先确认用户可用且对应任务已经生成完整画像。
+     * 创建聊天会话前先确认用户可用且对应角色已经生成完整画像。
      */
     @Transactional
-    public Long createSession(Long userId, Long jobId) {
-        try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId);
-             TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId)) {
+    public Long createSession(Long userId, Long characterId) {
+        try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId)) {
             long start = System.currentTimeMillis();
             log.info("开始创建聊天会话");
             try {
-                Long sessionId = doCreateSession(userId, jobId);
+                Long sessionId = doCreateSession(userId, characterId);
                 log.info("聊天会话创建完成，sessionId: {}, costMs: {}",
                         sessionId, System.currentTimeMillis() - start);
                 return sessionId;
@@ -82,20 +77,18 @@ public class ChatService {
     public SendChatMessageResponse sendMessage(Long userId, Long sessionId, String content) {
         ChatSession session = requireOwnedSession(sessionId, userId);
         try (TraceContext.MdcScope ignoredSession = TraceContext.putSessionId(sessionId);
-             TraceContext.MdcScope ignoredUser = TraceContext.putUserId(session.getUserId());
-             TraceContext.MdcScope ignoredJob = TraceContext.putJobId(session.getJobId())) {
+             TraceContext.MdcScope ignoredUser = TraceContext.putUserId(session.getUserId())) {
             long start = System.currentTimeMillis();
             log.info("开始处理聊天消息");
             try {
                 String userContent = requireContent(content);
 
                 saveMessage(sessionId, ROLE_USER, userContent);
+                RoleRuntimeContextDto runtimeContext = roleRuntimeContextService.getRuntimeContext(session.getCharacterId());
 
-                String ragPrompt = ragPromptBuilder.buildContextPrompt(
-                        retrieveService.retrieve(session.getJobId(), userContent)
-                );
+                String ragPrompt = roleRuntimeRagService.buildContextPrompt(runtimeContext.getCharacterId(), userContent);
                 String assistantContent = requestAssistantReply(
-                        systemPrompt(session.getJobId()),
+                        promptBuilder.buildSystemPrompt(runtimeContext),
                         recentMessages(sessionId),
                         ragPrompt
                 );
@@ -119,12 +112,12 @@ public class ChatService {
     /**
      * 执行聊天会话创建的核心逻辑，外层负责日志上下文和耗时统计。
      */
-    private Long doCreateSession(Long userId, Long jobId) {
+    private Long doCreateSession(Long userId, Long characterId) {
         if (userId == null) {
             throw new IllegalArgumentException("userId不能为空");
         }
-        if (jobId == null) {
-            throw new IllegalArgumentException("jobId不能为空");
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId不能为空");
         }
 
         UserResultDto result = userContextService.getRequiredUser(userId);
@@ -132,11 +125,11 @@ public class ChatService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND, result.getMessage());
         }
 
-        profileContextService.getProfileContext(jobId);
+        RoleRuntimeContextDto runtimeContext = roleRuntimeContextService.getRuntimeContext(characterId);
 
         ChatSession session = new ChatSession();
         session.setUserId(userId);
-        session.setJobId(jobId);
+        session.setCharacterId(runtimeContext.getCharacterId());
         session.setStatus(SESSION_ACTIVE);
         chatSessionMapper.insert(session);
         return session.getId();
@@ -194,6 +187,7 @@ public class ChatService {
         }
         return session;
     }
+
     /**
      * 校验并规整用户输入，避免空消息进入上下文。
      *
@@ -233,24 +227,6 @@ public class ChatService {
     }
 
     /**
-     * 优先读取角色系统提示词缓存，缓存未命中时回源画像表并写入缓存。
-     */
-    private String systemPrompt(Long jobId) {
-        String cachedPrompt = profilePromptCacheService.get(jobId);
-        if (cachedPrompt != null && !cachedPrompt.isBlank()) {
-            log.debug("角色画像提示词缓存命中");
-            return cachedPrompt;
-        }
-
-        log.debug("角色画像提示词缓存未命中，回源画像服务");
-        RoleContextDto profileContext = profileContextService.getProfileContext(jobId);
-        String systemPrompt = promptBuilder.buildSystemPrompt(profileContext);
-        profilePromptCacheService.put(jobId, systemPrompt);
-        log.debug("角色画像提示词缓存已写入");
-        return systemPrompt;
-    }
-
-    /**
      * 使用角色系统提示词、最近对话和RAG上下文请求 LLM 生成角色回复。
      *
      * @param systemPrompt 角色系统提示词
@@ -263,8 +239,7 @@ public class ChatService {
                                          String ragPrompt) {
         long start = System.currentTimeMillis();
         try {
-            String content = llmClientFactory
-                    .taskClient(LlmClientFactory.TASK_ROLE_CHAT)
+            String content = chatClient
                     .prompt()
                     .system(systemPrompt)
                     .user(formatConversation(messages, ragPrompt))

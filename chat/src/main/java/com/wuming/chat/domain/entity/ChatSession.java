@@ -15,7 +15,7 @@ public class ChatSession {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long userId;
-    private Long jobId;
+    private Long characterId;
     private String status;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
