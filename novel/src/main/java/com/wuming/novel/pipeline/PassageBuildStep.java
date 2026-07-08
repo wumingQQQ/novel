@@ -28,6 +28,7 @@ public class PassageBuildStep implements PipelineStep {
     private final IChapterService chapterService;
     private final INovelPassageService novelPassageService;
     private final IPassageCharacterService passageCharacterService;
+    private final RedisStageFailureStore redisStageFailureStore;
 
     @Override
     public JobStage stage() {
@@ -42,15 +43,62 @@ public class PassageBuildStep implements PipelineStep {
     @Override
     public void execute(Long jobId) {
         Job job = requireJob(jobId);
-        List<Chapter> chapters = chapterService.list(new LambdaQueryWrapper<Chapter>()
-                .eq(Chapter::getNovelId, job.getNovelId())
-                .orderByAsc(Chapter::getSequence));
+        List<Chapter> chapters = targetChapters(jobId, job);
+        int successCount = 0;
         for (Chapter chapter : chapters) {
-            List<NovelPassage> passages = novelPassageService.splitPassage(job.getId(), chapter.getId());
-            passageCharacterService.recognizeAndSave(passages);
+            try {
+                buildOneChapter(job, chapter);
+                redisStageFailureStore.recordSuccess(jobId, stage(), chapter.getId());
+                successCount++;
+            } catch (RuntimeException e) {
+                redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
+                log.warn("章节Passage构建失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}",
+                        job.getId(), job.getNovelId(), chapter.getId(), e);
+            }
         }
-        log.info("小说Passage构建完成，jobId: {}, novelId: {}, chapterCount: {}",
-                job.getId(), job.getNovelId(), chapters.size());
+        log.info("小说Passage构建执行完成，jobId: {}, novelId: {}, requestCount: {}, successCount: {}",
+                job.getId(), job.getNovelId(), chapters.size(), successCount);
+    }
+
+    /**
+     * 获取本次需要处理的章节；存在失败项时只重试失败章节，否则跳过已完成章节。
+     *
+     * @param jobId 任务id
+     * @param job 任务实体
+     * @return 本次需要构建Passage的章节列表
+     */
+    private List<Chapter> targetChapters(Long jobId, Job job) {
+        List<Long> failedChapterIds = redisStageFailureStore.consumeFailedLongItems(jobId, stage());
+        if (!failedChapterIds.isEmpty()) {
+            log.info("重试Passage构建失败章节，jobId: {}, novelId: {}, failedCount: {}",
+                    jobId, job.getNovelId(), failedChapterIds.size());
+            return chapterService.list(new LambdaQueryWrapper<Chapter>()
+                    .eq(Chapter::getNovelId, job.getNovelId())
+                    .in(Chapter::getId, failedChapterIds)
+                    .orderByAsc(Chapter::getSequence));
+        }
+        List<Long> completedChapterIds = redisStageFailureStore.completedLongItems(jobId, stage());
+        LambdaQueryWrapper<Chapter> queryWrapper = new LambdaQueryWrapper<Chapter>()
+                .eq(Chapter::getNovelId, job.getNovelId())
+                .orderByAsc(Chapter::getSequence);
+        if (!completedChapterIds.isEmpty()) {
+            // 如果已完成部分不为空，说明已经处理过且存在失败
+            queryWrapper.notIn(Chapter::getId, completedChapterIds);
+            log.info("跳过已完成Passage构建章节，jobId: {}, novelId: {}, completedCount: {}",
+                    jobId, job.getNovelId(), completedChapterIds.size());
+        }
+        return chapterService.list(queryWrapper);
+    }
+
+    /**
+     * 构建单章Passage并识别Passage中的角色。
+     *
+     * @param job 任务实体
+     * @param chapter 章节实体
+     */
+    private void buildOneChapter(Job job, Chapter chapter) {
+        List<NovelPassage> passages = novelPassageService.splitPassage(job.getId(), chapter.getId());
+        passageCharacterService.recognizeAndSave(passages);
     }
 
     private Job requireJob(Long jobId) {
