@@ -11,9 +11,9 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ragservice</artifactId>
+    <artifactId>rag</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>ragservice</name>
+    <name>rag</name>
     <description>RAG service backed by Redis Search vector indexes</description>
 
     <dependencies>
