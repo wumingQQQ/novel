@@ -7,7 +7,7 @@ import java.util.List;
  */
 public record ReactionSituationGroup(
         String category,
-        List<String> situations
+        List<ReactionSituation> situations
 ) {
     public ReactionSituationGroup {
         situations = situations == null ? List.of() : List.copyOf(situations);

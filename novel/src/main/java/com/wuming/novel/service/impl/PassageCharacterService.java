@@ -28,7 +28,8 @@ import java.util.Map;
 public class PassageCharacterService
         extends ServiceImpl<PassageCharacterMapper, PassageCharacter>
         implements IPassageCharacterService {
-    private static final String TEMPLATE_PATH = "prompts/passage-character-recognition.st";
+    private static final String SYSTEM_TEMPLATE_PATH = "prompts/system/passage-character-recognition.st";
+    private static final String USER_TEMPLATE_PATH = "prompts/user/passage-character-recognition.st";
 
     private final ChatClient chatClient;
     private final PromptTemplateRenderer renderer;
@@ -75,12 +76,14 @@ public class PassageCharacterService
     }
 
     private PassageCharacterResult recognize(NovelPassage passage) {
-        String prompt = renderer.render(TEMPLATE_PATH, Map.of(
-                "passageContent", passage.getContent()
-        ));
-
+        PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
+                SYSTEM_TEMPLATE_PATH,
+                USER_TEMPLATE_PATH,
+                Map.of("passageContent", passage.getContent())
+        );
         return chatClient.prompt()
-                .user(prompt)
+                .system(dualPrompt.systemPrompt())
+                .user(dualPrompt.userPrompt())
                 .call()
                 .entity(PassageCharacterResult.class);
     }

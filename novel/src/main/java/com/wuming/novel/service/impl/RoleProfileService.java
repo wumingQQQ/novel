@@ -39,7 +39,8 @@ import java.util.StringJoiner;
 public class RoleProfileService
         extends ServiceImpl<RoleProfileMapper, RoleProfile>
         implements IRoleProfileService {
-    private static final String TEMPLATE_PATH = "prompts/role-profile-build.st";
+    private static final String SYSTEM_TEMPLATE_PATH = "prompts/system/role-profile-build.st";
+    private static final String USER_TEMPLATE_PATH = "prompts/user/role-profile-build.st";
     private static final String BUILD_VERSION = "v1.0.0";
     private static final String COMPLETED = "COMPLETED";
     private static final String INCOMPLETE = "INCOMPLETE";
@@ -149,14 +150,19 @@ public class RoleProfileService
     private RoleProfileBuildResult buildProfileByLlm(RoleCharacter character,
                                                      List<RoleExample> examples,
                                                      List<RoleReactionRule> rules) {
-        String prompt = renderer.render(TEMPLATE_PATH, Map.of(
-                "characterName", character.getCharacterName(),
-                "novelName", character.getNovelName(),
-                "examples", formatExamples(examples),
-                "reactionRules", formatReactionRules(rules)
-        ));
+        PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
+                SYSTEM_TEMPLATE_PATH,
+                USER_TEMPLATE_PATH,
+                Map.of(
+                        "characterName", character.getCharacterName(),
+                        "novelName", character.getNovelName(),
+                        "examples", formatExamples(examples),
+                        "reactionRules", formatReactionRules(rules)
+                )
+        );
         return chatClient.prompt()
-                .user(prompt)
+                .system(dualPrompt.systemPrompt())
+                .user(dualPrompt.userPrompt())
                 .call()
                 .entity(RoleProfileBuildResult.class);
     }

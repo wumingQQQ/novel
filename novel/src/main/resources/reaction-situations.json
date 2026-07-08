@@ -2,38 +2,157 @@
   {
     "category": "EMOTION_TRIGGER",
     "situations": [
-      "被质疑或不信任时",
-      "被公开赞美时",
-      "被冒犯或侮辱时",
-      "感到尴尬时",
-      "遇到失败或出错时"
+      {
+        "situation": "被质疑或不信任时",
+        "scenePatterns": [
+          "有人当面否定{characterName}的判断或能力",
+          "{characterName}的动机或诚意被他人怀疑",
+          "他人拒绝相信{characterName}说的话"
+        ]
+      },
+      {
+        "situation": "被公开赞美时",
+        "scenePatterns": [
+          "他人在众人面前称赞{characterName}",
+          "{characterName}的能力或成果被他人高度评价",
+          "{characterName}收到意料之外的夸奖"
+        ]
+      },
+      {
+        "situation": "被冒犯或侮辱时",
+        "scenePatterns": [
+          "他人用言语贬低或羞辱{characterName}",
+          "{characterName}被人当众出丑或嘲讽",
+          "他人触犯了{characterName}的底线或尊严"
+        ]
+      },
+      {
+        "situation": "感到尴尬时",
+        "scenePatterns": [
+          "{characterName}在他人面前出现失误或窘迫",
+          "{characterName}被迫面对自己不擅长的情境",
+          "{characterName}的某件私事或弱点被意外暴露"
+        ]
+      },
+      {
+        "situation": "遇到失败或出错时",
+        "scenePatterns": [
+          "{characterName}的计划或行动失败",
+          "{characterName}犯了错误并意识到后果",
+          "{characterName}未能达成自己设定的目标"
+        ]
+      }
     ]
   },
   {
     "category": "RELATION_INTERACTION",
     "situations": [
-      "面对亲近的人主动示好时",
-      "被陌生人搭话时",
-      "与不喜欢的人交流时",
-      "被人求助时"
+      {
+        "situation": "面对亲近的人主动示好时",
+        "scenePatterns": [
+          "与{characterName}关系亲密的人主动表达关心或好意",
+          "{characterName}的朋友或盟友向其示好或亲近",
+          "他人试图与{characterName}拉近关系"
+        ]
+      },
+      {
+        "situation": "被陌生人搭话时",
+        "scenePatterns": [
+          "不认识的人主动与{characterName}搭话",
+          "{characterName}在陌生场合被人询问或接触",
+          "初次见面的人对{characterName}表示友好"
+        ]
+      },
+      {
+        "situation": "与不喜欢的人交流时",
+        "scenePatterns": [
+          "{characterName}不得不与令其反感的人对话",
+          "{characterName}的对立者或敌人主动找其说话",
+          "{characterName}被迫与讨厌的人共处同一场合"
+        ]
+      },
+      {
+        "situation": "被人求助时",
+        "scenePatterns": [
+          "他人向{characterName}请求帮助",
+          "{characterName}被人拜托做某件事",
+          "有人在困境中找{characterName}寻求支持"
+        ]
+      }
     ]
   },
   {
     "category": "TOPIC_BOUNDARY",
     "situations": [
-      "被问及自己的弱点或软肋时",
-      "被问及感情或亲密关系时",
-      "被问及家庭或背景时",
-      "被人开玩笑或调侃时"
+      {
+        "situation": "被问及自己的弱点或软肋时",
+        "scenePatterns": [
+          "他人直接询问{characterName}的弱点或不足",
+          "对话涉及{characterName}的短板或恐惧",
+          "他人试图通过言语探查{characterName}的软肋"
+        ]
+      },
+      {
+        "situation": "被问及感情或亲密关系时",
+        "scenePatterns": [
+          "他人询问{characterName}是否有感情对象",
+          "话题触及{characterName}对某人的情感态度",
+          "{characterName}被追问与某人的关系"
+        ]
+      },
+      {
+        "situation": "被问及家庭或背景时",
+        "scenePatterns": [
+          "他人询问{characterName}的家庭情况",
+          "对话触及{characterName}的出身或过去",
+          "{characterName}被要求讲述自己的成长经历"
+        ]
+      },
+      {
+        "situation": "被人开玩笑或调侃时",
+        "scenePatterns": [
+          "他人以玩笑方式取笑{characterName}",
+          "{characterName}成为众人调侃的对象",
+          "他人拿{characterName}的某个特点开玩笑"
+        ]
+      }
     ]
   },
   {
     "category": "BEHAVIOR_TENDENCY",
     "situations": [
-      "需要承认错误时",
-      "需要向人道谢时",
-      "独处或安静时",
-      "面对无聊或无意义的事时"
+      {
+        "situation": "需要承认错误时",
+        "scenePatterns": [
+          "{characterName}被迫承认自己判断失误",
+          "他人指出{characterName}的错误并要求回应",
+          "{characterName}的错误已无法否认，需要表态"
+        ]
+      },
+      {
+        "situation": "需要向人道谢时",
+        "scenePatterns": [
+          "{characterName}受到他人帮助后需要表示感谢",
+          "他人为{characterName}做了重要的事",
+          "{characterName}被明确期待表达谢意"
+        ]
+      },
+      {
+        "situation": "独处或安静时",
+        "scenePatterns": [
+          "{characterName}一个人时的状态和行为",
+          "{characterName}在无人打扰的安静时刻",
+          "{characterName}独自面对某个想法或情绪"
+        ]
+      },
+      {
+        "situation": "面对无聊或无意义的事时",
+        "scenePatterns": [
+          "{characterName}被要求做令其厌倦的事",
+          "{characterName}处于无聊或毫无意义的场合",
+          "他人说的话或做的事让{characterName}提不起兴趣"
+        ]
+      }
     ]
   }
 ]
