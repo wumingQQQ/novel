@@ -49,8 +49,10 @@ import java.util.concurrent.Executor;
 public class RoleReactionRuleService
         extends ServiceImpl<RoleReactionRuleMapper, RoleReactionRule>
         implements IRoleReactionRuleService {
-    private static final String QUERY_REWRITE_TEMPLATE = "prompts/role-reaction-query-rewrite.st";
-    private static final String RULE_BUILD_TEMPLATE = "prompts/role-reaction-rule-build.st";
+    private static final String QUERY_REWRITE_SYSTEM_TEMPLATE = "prompts/system/role-reaction-query-rewrite.st";
+    private static final String QUERY_REWRITE_USER_TEMPLATE = "prompts/user/role-reaction-query-rewrite.st";
+    private static final String RULE_BUILD_SYSTEM_TEMPLATE = "prompts/system/role-reaction-rule-build.st";
+    private static final String RULE_BUILD_USER_TEMPLATE = "prompts/user/role-reaction-rule-build.st";
     private static final String VECTOR_PENDING = "PENDING";
     private static final String INCOMPLETE = "INCOMPLETE";
     private static final String EVIDENCE_NOT_ENOUGH = "证据不足";
@@ -96,8 +98,8 @@ public class RoleReactionRuleService
 
         List<SituationTask> tasks = loadSituationGroups().stream()
                 .flatMap(group -> group.situations().stream()
-                        .filter(situation -> situation != null && !situation.isBlank())
-                        .map(situation -> new SituationTask(group.category(), situation.trim())))
+                        .filter(s -> s != null && s.situation() != null && !s.situation().isBlank())
+                        .map(s -> new SituationTask(group.category(), s.situation().trim(), s.scenePatterns())))
                 .toList();
         if (tasks.isEmpty()) {
             log.warn("未读取到情境反应规则配置，characterId: {}, config: {}", characterId, situationsConfig);
@@ -189,16 +191,14 @@ public class RoleReactionRuleService
 
     private RoleReactionRule buildOneRule(RoleCharacter character, SituationTask task) {
         try {
-            String query = rewriteQuery(character, task);
-            // 召回文档
-            List<SearchHit> examples = retrieveExamples(character.getId(), query);
+            List<String> queries = rewriteQueries(character, task);
+            List<SearchHit> examples = retrieveExamples(character.getId(), queries);
             if (examples.isEmpty()) {
                 log.debug("情境未召回角色样本，characterId: {}, category: {}, situation: {}",
                         character.getId(), task.category(), task.situation());
                 return null;
             }
 
-            // 调用llm构建规则
             RoleReactionRuleBuildResult result = buildRuleByLlm(character, task, examples);
             if (result == null || isEvidenceNotEnough(result)) {
                 log.debug("情境证据不足，characterId: {}, category: {}, situation: {}",
@@ -206,7 +206,6 @@ public class RoleReactionRuleService
                 return null;
             }
 
-            // 创建实体
             RoleReactionRule rule = new RoleReactionRule();
             rule.setCharacterId(character.getId());
             rule.setCharacterName(character.getCharacterName());
@@ -225,44 +224,64 @@ public class RoleReactionRuleService
     }
 
     /**
-     * 重写情境语句
+     * 将情境改写为多条检索 query，基于场景触发模式生成不同角度
      */
-    private String rewriteQuery(RoleCharacter character, SituationTask task) {
-        String prompt = renderer.render(QUERY_REWRITE_TEMPLATE, Map.of(
-                "characterName", character.getCharacterName(),
-                "category", task.category(),
-                "situation", task.situation()
-        ));
+    private List<String> rewriteQueries(RoleCharacter character, SituationTask task) {
+        PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
+                QUERY_REWRITE_SYSTEM_TEMPLATE,
+                QUERY_REWRITE_USER_TEMPLATE,
+                Map.of(
+                        "characterName", character.getCharacterName(),
+                        "category", task.category(),
+                        "situation", task.situation(),
+                        "scenePatterns", formatScenePatterns(character.getCharacterName(), task.scenePatterns())
+                )
+        );
         RoleReactionQueryRewriteResult result = chatClient.prompt()
-                .user(prompt)
+                .system(dualPrompt.systemPrompt())
+                .user(dualPrompt.userPrompt())
                 .call()
                 .entity(RoleReactionQueryRewriteResult.class);
-        if (result == null || result.query() == null || result.query().isBlank()) {
-            return task.situation();
+        if (result == null || result.queries() == null || result.queries().isEmpty()) {
+            return List.of(task.situation());
         }
-        return result.query().trim();
+        List<String> queries = result.queries().stream()
+                .filter(q -> q != null && !q.isBlank())
+                .map(String::trim)
+                .toList();
+        return queries.isEmpty() ? List.of(task.situation()) : queries;
+    }
+
+    private String formatScenePatterns(String characterName, List<String> scenePatterns) {
+        if (scenePatterns == null || scenePatterns.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String pattern : scenePatterns) {
+            sb.append("- ").append(pattern.replace("{characterName}", characterName)).append("\n");
+        }
+        return sb.toString().stripTrailing();
     }
 
     /**
-     * 召回角色样本
-     * @param characterId 角色id
-     * @param query 用户查询
-     * @return 召回文档
+     * 多 query 召回角色样本，按 documentId 去重，保留首次召回结果
      */
-    private List<SearchHit> retrieveExamples(Long characterId, String query) {
+    private List<SearchHit> retrieveExamples(Long characterId, List<String> queries) {
         Map<String, SearchHit> hits = new LinkedHashMap<>();
-        List<SearchHit> queryHits = roleExampleVectorIndexService.search(
-                characterId,
-                query,
-                exampleTopK,
-                rerank,
-                exampleTopN
-        );
-        for (SearchHit hit : queryHits) {
-            if (hit == null || hit.getDocumentId() == null || hit.getContent() == null || hit.getContent().isBlank()) {
-                continue;
+        for (String query : queries) {
+            List<SearchHit> queryHits = roleExampleVectorIndexService.search(
+                    characterId,
+                    query,
+                    exampleTopK,
+                    rerank,
+                    exampleTopN
+            );
+            for (SearchHit hit : queryHits) {
+                if (hit == null || hit.getDocumentId() == null || hit.getContent() == null || hit.getContent().isBlank()) {
+                    continue;
+                }
+                hits.putIfAbsent(hit.getDocumentId(), hit);
             }
-            hits.putIfAbsent(hit.getDocumentId(), hit);
         }
         return new ArrayList<>(hits.values());
     }
@@ -277,14 +296,19 @@ public class RoleReactionRuleService
     private RoleReactionRuleBuildResult buildRuleByLlm(RoleCharacter character,
                                                        SituationTask task,
                                                        List<SearchHit> examples) {
-        String prompt = renderer.render(RULE_BUILD_TEMPLATE, Map.of(
-                "characterName", character.getCharacterName(),
-                "category", task.category(),
-                "situation", task.situation(),
-                "examples", formatExamples(examples)
-        ));
+        PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
+                RULE_BUILD_SYSTEM_TEMPLATE,
+                RULE_BUILD_USER_TEMPLATE,
+                Map.of(
+                        "characterName", character.getCharacterName(),
+                        "category", task.category(),
+                        "situation", task.situation(),
+                        "examples", formatExamples(examples)
+                )
+        );
         return chatClient.prompt()
-                .user(prompt)
+                .system(dualPrompt.systemPrompt())
+                .user(dualPrompt.userPrompt())
                 .call()
                 .entity(RoleReactionRuleBuildResult.class);
     }
@@ -374,6 +398,6 @@ public class RoleReactionRuleService
         }
     }
 
-    private record SituationTask(String category, String situation) {
+    private record SituationTask(String category, String situation, List<String> scenePatterns) {
     }
 }

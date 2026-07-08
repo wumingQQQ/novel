@@ -24,7 +24,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ChapterAnalysisService {
     private static final int CONTENT_LIMIT = 12000;
-    private static final String TEMPLATE_PATH = "prompts/chapter-analysis.st";
+    private static final String SYSTEM_TEMPLATE_PATH = "prompts/system/chapter-analysis.st";
+    private static final String USER_TEMPLATE_PATH = "prompts/user/chapter-analysis.st";
 
     private final IJobService jobService;
     private final IChapterService chapterService;
@@ -50,12 +51,17 @@ public class ChapterAnalysisService {
      */
     private void analyze(Chapter chapter, Long jobId){
         try{
-            String prompt = renderer.render(TEMPLATE_PATH, Map.of(
-                    "chapterTitle", chapter.getTitle(),
-                    "chapterContent", abbreviate(chapter.getContent())
-            ));
+            PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
+                    SYSTEM_TEMPLATE_PATH,
+                    USER_TEMPLATE_PATH,
+                    Map.of(
+                            "chapterTitle", chapter.getTitle(),
+                            "chapterContent", abbreviate(chapter.getContent())
+                    )
+            );
             ChapterAnalysisResult result = chatClient.prompt()
-                    .user(prompt)
+                    .system(dualPrompt.systemPrompt())
+                    .user(dualPrompt.userPrompt())
                     .call()
                     .entity(ChapterAnalysisResult.class);
             if(result == null){

@@ -23,9 +23,25 @@ public class PromptTemplateRenderer {
         this.resourceLoader = resourceLoader;
     }
 
+    /**
+     * 渲染单一提示词模板（向后兼容）
+     */
     public String render(String templatePath, Map<String, ?> variables) {
         PromptTemplate promptTemplate = templateCache.computeIfAbsent(templatePath, this::loadTemplate);
         return promptTemplate.render(templateVariables(variables));
+    }
+
+    /**
+     * 渲染系统提示词和用户提示词（新方法）
+     * @param systemTemplatePath 系统提示词模板路径，如 "prompts/system/role-profile-build.st"
+     * @param userTemplatePath 用户提示词模板路径，如 "prompts/user/role-profile-build.st"
+     * @param variables 变量映射
+     * @return 包含系统提示词和用户提示词的结果对象
+     */
+    public DualPrompt renderDual(String systemTemplatePath, String userTemplatePath, Map<String, ?> variables) {
+        String systemPrompt = render(systemTemplatePath, variables);
+        String userPrompt = render(userTemplatePath, variables);
+        return new DualPrompt(systemPrompt, userPrompt);
     }
 
     private PromptTemplate loadTemplate(String templatePath) {
@@ -45,4 +61,9 @@ public class PromptTemplateRenderer {
         variables.forEach((key, value) -> result.put(key, value == null ? "" : value));
         return result;
     }
+
+    /**
+     * 双提示词结果
+     */
+    public record DualPrompt(String systemPrompt, String userPrompt) {}
 }

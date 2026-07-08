@@ -46,7 +46,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExample>
         implements IRoleExampleService {
-    private static final String TEMPLATE_PATH = "prompts/role-example-extraction.st";
+    private static final String SYSTEM_TEMPLATE_PATH = "prompts/system/role-example-extraction.st";
+    private static final String USER_TEMPLATE_PATH = "prompts/user/role-example-extraction.st";
     private static final String BUILDING = "BUILDING";
     private static final String INCOMPLETE = "INCOMPLETE";
     private static final String VECTOR_PENDING = "PENDING";
@@ -327,13 +328,17 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
      * @return 抽取结果
      */
     private RoleExampleExtractionResult extractByLlm(RoleCharacter character, NovelPassage passage) {
-        String prompt = renderer.render(TEMPLATE_PATH, Map.of(
-                "characterName", character.getCharacterName(),
-                "passageContent", passage.getContent()
-        ));
-
+        PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
+                SYSTEM_TEMPLATE_PATH,
+                USER_TEMPLATE_PATH,
+                Map.of(
+                        "characterName", character.getCharacterName(),
+                        "passageContent", passage.getContent()
+                )
+        );
         return chatClient.prompt()
-                .user(prompt)
+                .system(dualPrompt.systemPrompt())
+                .user(dualPrompt.userPrompt())
                 .call()
                 .entity(RoleExampleExtractionResult.class);
     }
