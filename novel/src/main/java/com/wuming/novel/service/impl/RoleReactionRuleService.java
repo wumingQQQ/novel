@@ -12,9 +12,8 @@ import com.wuming.novel.domain.entity.RoleCharacter;
 import com.wuming.novel.domain.entity.RoleReactionRule;
 import com.wuming.novel.infrastructure.mapper.RoleReactionRuleMapper;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
-import com.wuming.novel.integration.message.EventPublisher;
-import com.wuming.novel.integration.message.rolereactionruleindex.RoleReactionRuleIndexEvent;
 import com.wuming.novel.integration.rpc.rag.RoleExampleVectorIndexService;
+import com.wuming.novel.integration.rpc.rag.RoleReactionRuleVectorIndexService;
 import com.wuming.novel.llm.LlmConcurrencyLimiter;
 import com.wuming.novel.service.IRoleCharacterService;
 import com.wuming.novel.service.IRoleReactionRuleService;
@@ -22,14 +21,12 @@ import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,10 +59,8 @@ public class RoleReactionRuleService
     private final ObjectMapper objectMapper;
     private final ResourceLoader resourceLoader;
     private final LlmConcurrencyLimiter llmConcurrencyLimiter;
-    private final EventPublisher<RoleReactionRuleIndexEvent> roleReactionRuleIndexEventPublisher;
-    @Lazy
-    @Autowired
-    private RoleReactionRuleService self;
+    private final RoleReactionRuleVectorIndexService roleReactionRuleVectorIndexService;
+    private final TransactionTemplate transactionTemplate;
     @Resource(name = "llmExecutor")
     private Executor llmExecutor;
 
@@ -84,6 +79,15 @@ public class RoleReactionRuleService
     @Value("${novel.reaction-rule.min-confidence:0.6}")
     private double minConfidence;
 
+    /**
+     * 基于预定义情境为指定角色构建反应规则。
+     *
+     * <p>情境检索、query改写和规则生成不进入事务；只有删除旧规则、保存新规则、
+     * 标记构建状态和注册索引回调在独立事务中执行。</p>
+     *
+     * @param characterId 角色id
+     * @return 本次保存的规则数量
+     */
     @Override
     public int buildRules(Long characterId) {
         if (characterId == null) {
@@ -124,69 +128,19 @@ public class RoleReactionRuleService
             return 0;
         }
 
-        int savedCount = self.persistBuiltRules(characterId, rules);
+        int savedCount = saveBuiltRulesInTransaction(characterId, rules);
         log.info("角色情境反应规则构建完成，characterId: {}, savedCount: {}", characterId, savedCount);
         return savedCount;
     }
 
+
     /**
-     * 持久化已构建的情境反应规则。
+     * 为单个情境构建角色反应规则。
      *
-     * @param characterId 角色id
-     * @param rules 已构建规则
-     * @return 本次保存的规则数量
+     * @param character 角色
+     * @param task 情境任务
+     * @return 构建成功的规则；证据不足或构建失败时返回null
      */
-    @Transactional(rollbackFor = Exception.class)
-    public int persistBuiltRules(Long characterId, List<RoleReactionRule> rules) {
-        List<Long> oldRuleIds = list(new LambdaQueryWrapper<RoleReactionRule>()
-                .select(RoleReactionRule::getId)
-                .eq(RoleReactionRule::getCharacterId, characterId))
-                .stream()
-                .map(RoleReactionRule::getId)
-                .toList();
-        remove(new LambdaQueryWrapper<RoleReactionRule>()
-                .eq(RoleReactionRule::getCharacterId, characterId));
-        saveBatch(rules);
-        RoleCharacter character = roleCharacterService.getById(characterId);
-        if (character != null) {
-            publishRoleReactionRuleIndexEvent(character, oldRuleIds, rules);
-            markIncomplete(character, "ReactionRule已构建，待构建Profile");
-        }
-        return rules.size();
-    }
-
-    private void publishRoleReactionRuleIndexEvent(RoleCharacter character,
-                                                   List<Long> oldRuleIds,
-                                                   List<RoleReactionRule> rules) {
-        List<Long> newRuleIds = rules.stream()
-                .map(RoleReactionRule::getId)
-                .filter(Objects::nonNull)
-                .toList();
-        if (newRuleIds.isEmpty()) {
-            log.warn("角色反应规则保存后未获取到规则主键，跳过向量索引，characterId: {}, ruleCount: {}",
-                    character.getId(), rules.size());
-            return;
-        }
-
-        RoleReactionRuleIndexEvent event = new RoleReactionRuleIndexEvent();
-        event.setNovelId(character.getNovelId());
-        event.setCharacterId(character.getId());
-        event.setCharacterName(character.getCharacterName());
-        event.setDeletedRuleIds(oldRuleIds);
-        event.setIndexedRuleIds(newRuleIds);
-
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    roleReactionRuleIndexEventPublisher.publish(event);
-                }
-            });
-            return;
-        }
-        roleReactionRuleIndexEventPublisher.publish(event);
-    }
-
     private RoleReactionRule buildOneRule(RoleCharacter character, SituationTask task) {
         try {
             List<String> queries = rewriteQueries(character, task);
@@ -223,6 +177,10 @@ public class RoleReactionRuleService
 
     /**
      * 将情境改写为多条检索 query，基于场景触发模式生成不同角度
+     *
+     * @param character 角色
+     * @param task 情境任务
+     * @return 用于召回角色样本的query列表
      */
     private List<String> rewriteQueries(RoleCharacter character, SituationTask task) {
         PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
@@ -250,29 +208,22 @@ public class RoleReactionRuleService
         return queries.isEmpty() ? List.of(task.situation()) : queries;
     }
 
-    private String formatScenePatterns(String characterName, List<String> scenePatterns) {
-        if (scenePatterns == null || scenePatterns.isEmpty()) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (String pattern : scenePatterns) {
-            sb.append("- ").append(pattern.replace("{characterName}", characterName)).append("\n");
-        }
-        return sb.toString().stripTrailing();
-    }
-
     /**
      * 多 query 召回由RAG服务统一完成合并、去重和重排序。
+     *
+     * @param characterId 角色id
+     * @param queries 召回query列表
+     * @return 召回到的角色样本
      */
     private List<SearchHit> retrieveExamples(Long characterId, List<String> queries) {
         return roleExampleVectorIndexService.search(
-                characterId,
-                null,
-                queries,
-                exampleTopK,
-                rerank,
-                exampleTopN
-        ).stream()
+                        characterId,
+                        null,
+                        queries,
+                        exampleTopK,
+                        rerank,
+                        exampleTopN
+                ).stream()
                 .filter(hit -> hit != null
                         && hit.getDocumentId() != null
                         && hit.getContent() != null
@@ -308,7 +259,128 @@ public class RoleReactionRuleService
     }
 
     /**
+     * 将情境触发模式格式化为提示词片段。
+     *
+     * @param characterName 角色名称
+     * @param scenePatterns 情境触发模式
+     * @return 提示词中的触发模式文本
+     */
+    private String formatScenePatterns(String characterName, List<String> scenePatterns) {
+        if (scenePatterns == null || scenePatterns.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String pattern : scenePatterns) {
+            sb.append("- ").append(pattern.replace("{characterName}", characterName)).append("\n");
+        }
+        return sb.toString().stripTrailing();
+    }
+
+    /**
+     * 在独立事务中保存构建结果，避免LLM调用进入事务。
+     *
+     * @param characterId 角色id
+     * @param rules 已构建的反应规则
+     * @return 本次保存的规则数量
+     */
+    private int saveBuiltRulesInTransaction(Long characterId, List<RoleReactionRule> rules) {
+        return Objects.requireNonNull(transactionTemplate.execute(status -> saveBuiltRules(characterId, rules)));
+    }
+
+    /**
+     * 删除旧规则并保存新规则，同时注册事务提交后的同步向量索引动作。
+     *
+     * @param characterId 角色id
+     * @param rules 已构建的反应规则
+     * @return 本次保存的规则数量
+     */
+    private int saveBuiltRules(Long characterId, List<RoleReactionRule> rules) {
+        List<Long> oldRuleIds = list(new LambdaQueryWrapper<RoleReactionRule>()
+                .select(RoleReactionRule::getId)
+                .eq(RoleReactionRule::getCharacterId, characterId))
+                .stream()
+                .map(RoleReactionRule::getId)
+                .toList();
+        remove(new LambdaQueryWrapper<RoleReactionRule>()
+                .eq(RoleReactionRule::getCharacterId, characterId));
+        saveBatch(rules);
+        List<Long> newRuleIds = rules.stream()
+                .map(RoleReactionRule::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        RoleCharacter character = roleCharacterService.getById(characterId);
+        if (character != null) {
+            syncRoleReactionRuleIndexAfterCommit(character, oldRuleIds, newRuleIds, rules.size());
+            markIncomplete(character, "ReactionRule已构建，待构建Profile");
+        }
+        return rules.size();
+    }
+
+    /**
+     * 在事务提交后同步刷新角色反应规则向量索引。
+     *
+     * @param character 角色
+     * @param oldRuleIds 待删除向量的旧规则id
+     * @param newRuleIds 待写入向量的新规则id
+     * @param ruleCount 本次保存的规则数量
+     */
+    private void syncRoleReactionRuleIndexAfterCommit(RoleCharacter character,
+                                                      List<Long> oldRuleIds,
+                                                      List<Long> newRuleIds,
+                                                      int ruleCount) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    syncRoleReactionRuleIndex(character, oldRuleIds, newRuleIds, ruleCount);
+                }
+            });
+            return;
+        }
+        syncRoleReactionRuleIndex(character, oldRuleIds, newRuleIds, ruleCount);
+    }
+
+    /**
+     * 删除旧反应规则向量并写入新规则向量。
+     *
+     * @param character 角色
+     * @param oldRuleIds 待删除向量的旧规则id
+     * @param newRuleIds 待写入向量的新规则id
+     * @param ruleCount 本次保存的规则数量
+     */
+    private void syncRoleReactionRuleIndex(RoleCharacter character,
+                                           List<Long> oldRuleIds,
+                                           List<Long> newRuleIds,
+                                           int ruleCount) {
+        if (newRuleIds.isEmpty() && ruleCount > 0) {
+            throw new IllegalStateException("角色反应规则保存后未获取到规则主键，无法同步索引，characterId: "
+                    + character.getId());
+        }
+        int deletedCount = roleReactionRuleVectorIndexService.deleteByIds(oldRuleIds);
+        requireRagSuccess("删除旧ReactionRule向量", deletedCount);
+        int indexedCount = roleReactionRuleVectorIndexService.indexByIds(newRuleIds);
+        requireRagSuccess("索引ReactionRule向量", indexedCount);
+        log.info("角色反应规则向量同步索引完成，novelId: {}, characterId: {}, characterName: {}, deletedCount: {}, indexedCount: {}",
+                character.getNovelId(), character.getId(), character.getCharacterName(), deletedCount, indexedCount);
+    }
+
+    /**
+     * 检查RAG调用结果，负数代表远程服务降级。
+     *
+     * @param action 当前动作
+     * @param result RAG调用返回值
+     */
+    private void requireRagSuccess(String action, int result) {
+        if (result < 0) {
+            throw new IllegalStateException(action + "失败：RAG服务降级");
+        }
+    }
+
+    /**
      * 判断llm响应结果是否满足
+     *
+     * @param result LLM构建规则结果
+     * @return true表示证据不足或置信度不达标
      */
     private boolean isEvidenceNotEnough(RoleReactionRuleBuildResult result) {
         String rule = result.rule();
@@ -337,6 +409,12 @@ public class RoleReactionRuleService
         return builder.toString();
     }
 
+    /**
+     * 从召回样本元数据中提取证据Passage id。
+     *
+     * @param examples 召回样本
+     * @return 去重后的证据Passage id列表
+     */
     private List<Long> evidencePassageIds(List<SearchHit> examples) {
         return examples.stream()
                 .map(hit -> metadataLong(hit, "passage_id"))
@@ -347,6 +425,7 @@ public class RoleReactionRuleService
 
     /**
      * 将召回文档元数据中的某个字段转为Long
+     *
      * @param hit 召回文档
      * @param key 字段
      * @return Long值
@@ -371,6 +450,9 @@ public class RoleReactionRuleService
 
     /**
      * 将角色构建状态标记为incomplete，尚未完成
+     *
+     * @param character 角色
+     * @param reason 未完成原因
      */
     private void markIncomplete(RoleCharacter character, String reason) {
         character.setBuildStatus(INCOMPLETE);
@@ -380,6 +462,7 @@ public class RoleReactionRuleService
 
     /**
      * 从预定义json文件中读取描述
+     *
      * @return 不同分类的场景
      */
     private List<ReactionSituationGroup> loadSituationGroups() {

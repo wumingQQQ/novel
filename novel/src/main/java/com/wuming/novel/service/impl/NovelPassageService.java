@@ -6,8 +6,7 @@ import com.wuming.novel.config.PassageSplitProperties;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.infrastructure.mapper.NovelPassageMapper;
-import com.wuming.novel.integration.message.EventPublisher;
-import com.wuming.novel.integration.message.passageindex.NovelPassageIndexEvent;
+import com.wuming.novel.integration.rpc.rag.NovelPassageVectorIndexService;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.INovelPassageService;
 import lombok.RequiredArgsConstructor;
@@ -32,18 +31,19 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
     private static final String VECTOR_PENDING = "PENDING";
 
     private final IChapterService chapterService;
-    private final EventPublisher<NovelPassageIndexEvent> passageIndexEventPublisher;
+    private final NovelPassageVectorIndexService passageVectorIndexService;
     private final PassageSplitProperties passageSplitProperties;
 
     /**
-     * 按章节分析结果切分单章 Passage，保存 Passage，并写入向量索引。
+     * 按章节内容切分单章Passage，替换该章节旧Passage，并在事务提交后同步刷新向量索引。
      *
      * @param jobId 任务id
      * @param chapterId 章节id
+     * @return 本次切分后保存的新Passage列表
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void splitPassage(Long jobId, Long chapterId) {
+    public List<NovelPassage> splitPassage(Long jobId, Long chapterId) {
         Chapter chapter = chapterService.getById(chapterId);
         if (chapter == null) {
             throw new IllegalArgumentException("章节不存在: " + chapterId);
@@ -52,17 +52,26 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
 
         List<NovelPassage> passages = splitOneChapter(chapter);
         if (passages.isEmpty()) {
-            publishPassageIndexEvent(jobId, chapter, oldPassageIds, List.of());
+            syncPassageIndexAfterCommit(jobId, chapter, oldPassageIds, List.of());
             log.info("章节没有可切分的Passage，jobId: {}, chapterId: {}", jobId, chapterId);
-            return;
+            return List.of();
         }
 
         saveBatch(passages);
-        publishPassageIndexEvent(jobId, chapter, oldPassageIds, passages);
+        syncPassageIndexAfterCommit(jobId, chapter, oldPassageIds, passages.stream()
+                .map(NovelPassage::getId)
+                .toList());
         log.info("章节Passage处理完成，jobId: {}, novelId: {}, chapterId: {}, passageCount: {}",
                 jobId, chapter.getNovelId(), chapterId, passages.size());
+        return passages;
     }
 
+    /**
+     * 清理指定章节下已存在的Passage，并返回旧Passage id，用于后续删除旧向量。
+     *
+     * @param chapterId 章节id
+     * @return 被清理的旧Passage id列表
+     */
     private List<Long> cleanOldPassages(Long chapterId) {
         List<Long> oldPassageIds = list(new LambdaQueryWrapper<NovelPassage>()
                 .eq(NovelPassage::getChapterId, chapterId))
@@ -77,6 +86,12 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         return oldPassageIds;
     }
 
+    /**
+     * 将单章内容切分为多个Passage实体。
+     *
+     * @param chapter 章节实体
+     * @return 待保存的Passage列表
+     */
     private List<NovelPassage> splitOneChapter(Chapter chapter) {
         List<String> paragraphs = paragraphs(chapter.getContent());
         if (paragraphs.isEmpty()) {
@@ -104,6 +119,8 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
 
     /**
      * 将章节内容按换行切分并进行trim
+     *
+     * @param content 章节正文
      * @return 段落内容的列表
      */
     private List<String> paragraphs(String content) {
@@ -120,6 +137,13 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         return paragraphs;
     }
 
+    /**
+     * 根据当前切分策略生成段落范围。
+     *
+     * @param paragraphCount 章节段落数量
+     * @param sceneBoundaries LLM分析出的场景起始段落
+     * @return Passage覆盖的段落范围列表
+     */
     private List<Range> ranges(int paragraphCount, List<Integer> sceneBoundaries) {
         if (passageSplitProperties.getSplitStrategy() == PassageSplitProperties.SplitStrategy.SLIDING_WINDOW) {
             return slidingWindowRanges(paragraphCount);
@@ -138,6 +162,12 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         return toRanges(starts, paragraphCount);
     }
 
+    /**
+     * 使用滑动窗口生成段落范围。
+     *
+     * @param paragraphCount 章节段落数量
+     * @return 滑动窗口段落范围列表
+     */
     private List<Range> slidingWindowRanges(int paragraphCount) {
         List<Range> ranges = new ArrayList<>();
         int windowSize = passageSplitProperties.getWindowSize();
@@ -159,6 +189,13 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         return ranges;
     }
 
+    /**
+     * 将场景起始段落转换为连续、不重叠的段落范围。
+     *
+     * @param starts 场景起始段落列表
+     * @param paragraphCount 章节段落数量
+     * @return 场景范围列表
+     */
     private List<Range> toRanges(List<Integer> starts, int paragraphCount) {
         List<Integer> sortedStarts = starts.stream()
                 .distinct()
@@ -177,31 +214,57 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         return ranges;
     }
 
-    // 发布将passage索引的事件
-    private void publishPassageIndexEvent(Long jobId,
-                                          Chapter chapter,
-                                          List<Long> oldPassageIds,
-                                          List<NovelPassage> passages) {
-        NovelPassageIndexEvent event = new NovelPassageIndexEvent();
-        event.setJobId(jobId);
-        event.setNovelId(chapter.getNovelId());
-        event.setChapterId(chapter.getId());
-        event.setDeletedPassageIds(oldPassageIds);
-        event.setPassageIds(passages.stream()
-                .map(NovelPassage::getId)
-                .toList());
-
-        // 注册回调事件，在事务提交后发布消息
+    /**
+     * 在事务提交后同步刷新Passage向量索引。
+     *
+     * @param jobId 任务id
+     * @param chapter 章节实体
+     * @param oldPassageIds 待删除向量的旧Passage id
+     * @param passageIds 待写入向量的新Passage id
+     */
+    private void syncPassageIndexAfterCommit(Long jobId,
+                                             Chapter chapter,
+                                             List<Long> oldPassageIds,
+                                             List<Long> passageIds) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    passageIndexEventPublisher.publish(event);
+                    syncPassageIndex(jobId, chapter, oldPassageIds, passageIds);
                 }
             });
             return;
         }
-        passageIndexEventPublisher.publish(event);
+        syncPassageIndex(jobId, chapter, oldPassageIds, passageIds);
+    }
+
+    /**
+     * 删除旧Passage向量并写入新Passage向量。
+     *
+     * @param jobId 任务id
+     * @param chapter 章节实体
+     * @param oldPassageIds 待删除向量的旧Passage id
+     * @param passageIds 待写入向量的新Passage id
+     */
+    private void syncPassageIndex(Long jobId, Chapter chapter, List<Long> oldPassageIds, List<Long> passageIds) {
+        int deletedCount = passageVectorIndexService.deleteByIds(oldPassageIds);
+        requireRagSuccess("删除旧Passage向量", deletedCount);
+        int indexedCount = passageVectorIndexService.indexByIds(passageIds);
+        requireRagSuccess("索引Passage向量", indexedCount);
+        log.info("Passage向量同步索引完成，jobId: {}, novelId: {}, chapterId: {}, deletedCount: {}, indexedCount: {}",
+                jobId, chapter.getNovelId(), chapter.getId(), deletedCount, indexedCount);
+    }
+
+    /**
+     * 检查RAG调用结果，负数代表远程服务降级。
+     *
+     * @param action 当前动作
+     * @param result RAG调用返回值
+     */
+    private void requireRagSuccess(String action, int result) {
+        if (result < 0) {
+            throw new IllegalStateException(action + "失败：RAG服务降级");
+        }
     }
 
     private record Range(int start, int end) {

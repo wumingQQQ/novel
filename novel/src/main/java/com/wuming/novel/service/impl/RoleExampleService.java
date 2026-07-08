@@ -12,8 +12,7 @@ import com.wuming.novel.domain.entity.RoleCharacter;
 import com.wuming.novel.domain.entity.RoleExample;
 import com.wuming.novel.infrastructure.mapper.RoleExampleMapper;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
-import com.wuming.novel.integration.message.EventPublisher;
-import com.wuming.novel.integration.message.roleexampleindex.RoleExampleIndexEvent;
+import com.wuming.novel.integration.rpc.rag.RoleExampleVectorIndexService;
 import com.wuming.novel.llm.LlmConcurrencyLimiter;
 import com.wuming.novel.service.INovelPassageService;
 import com.wuming.novel.service.INovelService;
@@ -24,11 +23,9 @@ import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -60,10 +57,8 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
     private final ChatClient chatClient;
     private final PromptTemplateRenderer renderer;
     private final LlmConcurrencyLimiter llmConcurrencyLimiter;
-    private final EventPublisher<RoleExampleIndexEvent> roleExampleIndexEventPublisher;
-    @Lazy
-    @Autowired
-    private IRoleExampleService self;
+    private final RoleExampleVectorIndexService roleExampleVectorIndexService;
+    private final TransactionTemplate transactionTemplate;
     @Resource(name = "llmExecutor")
     private Executor llmExecutor;
 
@@ -73,8 +68,18 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
     @Value("${novel.role-example.min-confidence:0.6}")
     private double minConfidence;
 
+    /**
+     * 抽取指定角色的原作样本。
+     *
+     * <p>候选Passage筛选和LLM抽取不进入事务；只有删除旧样本、保存新样本、
+     * 标记构建状态和注册索引回调在独立事务中执行。</p>
+     *
+     * @param novelId 小说id
+     * @param characterName 角色名称
+     * @return 样本抽取结果
+     */
     @Override
-    public int extractExamples(Long novelId, String characterName) {
+    public ExtractExamplesResult extractExamples(Long novelId, String characterName) {
         if (novelId == null) {
             throw new IllegalArgumentException("novelId不能为空");
         }
@@ -89,7 +94,7 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
         List<NovelPassage> candidates = candidatePassages(novelId, normalizedCharacterName);
         if (candidates.isEmpty()) {
             markIncomplete(character, "没有找到包含目标角色的候选Passage");
-            return 0;
+            return new ExtractExamplesResult(character.getId(), 0);
         }
         log.info("开始抽取角色原作样本，novelId: {}, characterId: {}, characterName: {}, candidateCount: {}",
                 novelId, character.getId(), normalizedCharacterName, candidates.size());
@@ -99,23 +104,50 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
             markIncomplete(character, "候选Passage中未抽取到有效角色样本");
             log.info("角色原作样本抽取完成，characterId: {}, characterName: {}, savedCount: 0",
                     character.getId(), normalizedCharacterName);
-            return 0;
+            return new ExtractExamplesResult(character.getId(), 0);
         }
 
-        int savedCount = self.persistExtractedExamples(novelId, character, examples);
+        ExtractExamplesResult result = saveExtractedExamplesInTransaction(novelId, character, examples);
         log.info("角色原作样本抽取完成，characterId: {}, characterName: {}, savedCount: {}",
-                character.getId(), normalizedCharacterName, savedCount);
-        return savedCount;
+                character.getId(), normalizedCharacterName, result.savedCount());
+        return result;
     }
 
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public int persistExtractedExamples(Long novelId, RoleCharacter character, List<RoleExample> examples) {
+    /**
+     * 在独立事务中保存抽取结果，避免LLM调用进入事务。
+     *
+     * @param novelId 小说id
+     * @param character 角色
+     * @param examples 已抽取的样本
+     * @return 样本抽取结果
+     */
+    private ExtractExamplesResult saveExtractedExamplesInTransaction(Long novelId,
+                                                                    RoleCharacter character,
+                                                                    List<RoleExample> examples) {
+        return Objects.requireNonNull(transactionTemplate.execute(
+                status -> saveExtractedExamples(novelId, character, examples)));
+    }
+
+    /**
+     * 删除旧样本并保存新样本，同时注册事务提交后的同步向量索引动作。
+     *
+     * @param novelId 小说id
+     * @param character 角色
+     * @param examples 已抽取的样本
+     * @return 样本抽取结果
+     */
+    private ExtractExamplesResult saveExtractedExamples(Long novelId,
+                                                        RoleCharacter character,
+                                                        List<RoleExample> examples) {
         List<Long> oldExampleIds = removeOldExamples(character.getId());
-        self.saveBatch(examples);
-        publishRoleExampleIndexEvent(novelId, character, oldExampleIds, examples);
+        saveBatch(examples);
+        List<Long> newExampleIds = examples.stream()
+                .map(RoleExample::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        syncRoleExampleIndexAfterCommit(novelId, character, oldExampleIds, newExampleIds, examples.size());
         markIncomplete(character, "RoleExample已抽取，待构建ReactionRule和Profile");
-        return examples.size();
+        return new ExtractExamplesResult(character.getId(), examples.size());
     }
 
     /**
@@ -147,6 +179,26 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
         newCharacter.setBuildStatus(BUILDING);
         roleCharacterService.save(newCharacter);
         return newCharacter;
+    }
+
+    /**
+     * 移除某角色的旧sample
+     * @param characterId 角色标识
+     */
+    private List<Long> removeOldExamples(Long characterId) {
+        List<Long> oldExampleIds = list(new LambdaQueryWrapper<RoleExample>()
+                .select(RoleExample::getId)
+                .eq(RoleExample::getCharacterId, characterId))
+                .stream()
+                .map(RoleExample::getId)
+                .toList();
+        if (oldExampleIds.isEmpty()) {
+            return List.of();
+        }
+        remove(new LambdaQueryWrapper<RoleExample>()
+                .eq(RoleExample::getCharacterId, characterId));
+        log.debug("已清理角色旧样本，characterId: {}, oldCount: {}", characterId, oldExampleIds.size());
+        return oldExampleIds;
     }
 
     /**
@@ -218,58 +270,6 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
                 .toList();
     }
 
-    /**
-     * 移除某角色的旧sample
-     * @param characterId 角色标识
-     */
-    private List<Long> removeOldExamples(Long characterId) {
-        List<Long> oldExampleIds = list(new LambdaQueryWrapper<RoleExample>()
-                .select(RoleExample::getId)
-                .eq(RoleExample::getCharacterId, characterId))
-                .stream()
-                .map(RoleExample::getId)
-                .toList();
-        if (oldExampleIds.isEmpty()) {
-            return List.of();
-        }
-        remove(new LambdaQueryWrapper<RoleExample>()
-                .eq(RoleExample::getCharacterId, characterId));
-        log.debug("已清理角色旧样本，characterId: {}, oldCount: {}", characterId, oldExampleIds.size());
-        return oldExampleIds;
-    }
-
-    private void publishRoleExampleIndexEvent(Long novelId,
-                                              RoleCharacter character,
-                                              List<Long> oldExampleIds,
-                                              List<RoleExample> examples) {
-        List<Long> newExampleIds = examples.stream()
-                .map(RoleExample::getId)
-                .filter(Objects::nonNull)
-                .toList();
-        if (newExampleIds.isEmpty()) {
-            log.warn("角色样本保存后未获取到样本主键，跳过向量索引，characterId: {}, exampleCount: {}",
-                    character.getId(), examples.size());
-            return;
-        }
-
-        RoleExampleIndexEvent event = new RoleExampleIndexEvent();
-        event.setNovelId(novelId);
-        event.setCharacterId(character.getId());
-        event.setCharacterName(character.getCharacterName());
-        event.setDeletedExampleIds(oldExampleIds);
-        event.setIndexedExampleIds(newExampleIds);
-
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    roleExampleIndexEventPublisher.publish(event);
-                }
-            });
-            return;
-        }
-        roleExampleIndexEventPublisher.publish(event);
-    }
 
     /**
      * 从批量passage中抽取样本
@@ -344,6 +344,70 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
     }
 
     /**
+     * 在事务提交后同步刷新角色样本向量索引。
+     *
+     * @param novelId 小说id
+     * @param character 角色
+     * @param oldExampleIds 待删除向量的旧样本id
+     * @param newExampleIds 待写入向量的新样本id
+     * @param exampleCount 本次保存的样本数量
+     */
+    private void syncRoleExampleIndexAfterCommit(Long novelId,
+                                                 RoleCharacter character,
+                                                 List<Long> oldExampleIds,
+                                                 List<Long> newExampleIds,
+                                                 int exampleCount) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    syncRoleExampleIndex(novelId, character, oldExampleIds, newExampleIds, exampleCount);
+                }
+            });
+            return;
+        }
+        syncRoleExampleIndex(novelId, character, oldExampleIds, newExampleIds, exampleCount);
+    }
+
+    /**
+     * 删除旧角色样本向量并写入新样本向量。
+     *
+     * @param novelId 小说id
+     * @param character 角色
+     * @param oldExampleIds 待删除向量的旧样本id
+     * @param newExampleIds 待写入向量的新样本id
+     * @param exampleCount 本次保存的样本数量
+     */
+    private void syncRoleExampleIndex(Long novelId,
+                                      RoleCharacter character,
+                                      List<Long> oldExampleIds,
+                                      List<Long> newExampleIds,
+                                      int exampleCount) {
+        if (newExampleIds.isEmpty() && exampleCount > 0) {
+            throw new IllegalStateException("角色样本保存后未获取到样本主键，无法同步索引，characterId: "
+                    + character.getId());
+        }
+        int deletedCount = roleExampleVectorIndexService.deleteByIds(oldExampleIds);
+        requireRagSuccess("删除旧RoleExample向量", deletedCount);
+        int indexedCount = roleExampleVectorIndexService.indexByIds(newExampleIds);
+        requireRagSuccess("索引RoleExample向量", indexedCount);
+        log.info("角色样本向量同步索引完成，novelId: {}, characterId: {}, characterName: {}, deletedCount: {}, indexedCount: {}",
+                novelId, character.getId(), character.getCharacterName(), deletedCount, indexedCount);
+    }
+
+    /**
+     * 检查RAG调用结果，负数代表远程服务降级。
+     *
+     * @param action 当前动作
+     * @param result RAG调用返回值
+     */
+    private void requireRagSuccess(String action, int result) {
+        if (result < 0) {
+            throw new IllegalStateException(action + "失败：RAG服务降级");
+        }
+    }
+
+    /**
      * 将llm响应集合中的单个对象转为角色样本
      * @param character 目标角色
      * @param passage 文本块
@@ -372,7 +436,12 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
         return roleExample;
     }
 
-    // 确保sampleType内容在预期之内
+    /**
+     * 归一化并校验样本类型。
+     *
+     * @param sampleType LLM返回的样本类型
+     * @return 合法样本类型；非法时返回null
+     */
     private String normalizeSampleType(String sampleType) {
         if (sampleType == null) {
             return null;
@@ -381,7 +450,12 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
         return SAMPLE_TYPES.contains(normalized) ? normalized : null;
     }
 
-    // 归整sampleText
+    /**
+     * 清理样本文本。
+     *
+     * @param sampleText LLM返回的样本文本
+     * @return 去除首尾空白后的样本文本；空文本返回null
+     */
     private String normalizeSampleText(String sampleText) {
         if (sampleText == null) {
             return null;
