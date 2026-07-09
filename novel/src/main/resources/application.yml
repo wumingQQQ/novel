@@ -16,7 +16,7 @@ spring:
     multipart:
       max-file-size: 50MB
   config:
-    import: classpath:tencent-cos.env
+    import: classpath:tencent-cos.properties
 
 mybatis-plus:
   type-aliases-package: com.wuming.novel.domain
