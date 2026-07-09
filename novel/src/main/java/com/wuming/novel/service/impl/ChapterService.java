@@ -7,20 +7,16 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.infrastructure.mapper.ChapterMapper;
+import com.wuming.novel.integration.storage.NovelFileStorageRouter;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.mozilla.universalchardet.UniversalDetector;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -35,6 +31,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
     private final ChapterMapper chapterMapper;
     private final INovelService novelService;
     private final IJobService jobService;
+    private final NovelFileStorageRouter novelFileStorageRouter;
 
     private static final Pattern CHAPTER_PATTERN = Pattern.compile(
             "^第[一二三四五六七八九十百千\\d]+章[^。！？\n]*[。！？]?\\s*$",
@@ -61,12 +58,8 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             cleanOldChapter(novelId);
 
             Novel novel = novelService.getById(novelId);
-            String filePath = novel.getFilePath();
-            Path path = Paths.get(filePath);
-
-            String encoding = getEncoding(filePath);
-
-            String content = Files.readString(path, Charset.forName(encoding));
+            byte[] fileBytes = novelFileStorageRouter.read(novel);
+            String content = new String(fileBytes, StandardCharsets.UTF_8);
             List<String> c = splitChapter(content, novelId);
             List<Chapter> chapters = new ArrayList<>();
             for (int i = 0; i < c.size(); i++) {
@@ -91,8 +84,8 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             if(!chapters.isEmpty()) {
                 saveBatch(chapters);
             }
-            log.info("章节切分完成，jobId: {}, novelId: {}, chapterCount: {}, encoding: {}",
-                    jobId, novelId, chapters.size(), encoding);
+            log.info("章节切分完成，jobId: {}, novelId: {}, chapterCount: {}",
+                    jobId, novelId, chapters.size());
         } catch (Exception e) {
             log.warn("章节切分失败，jobId: {}, novelId: {}, errorType: {}, errorMessage: {}",
                     jobId, novelId, e.getClass().getSimpleName(), e.getMessage());
@@ -140,20 +133,4 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
         return result;
     }
 
-
-    /**
-     * 获取文件编码
-     * @param filePath 文件路径
-     * @return 字符串格式的编码
-     */
-    private String getEncoding(String filePath) throws IOException {
-        // 智能判断文件编码
-        byte[] bytes = Files.readAllBytes(Paths.get(filePath));
-        UniversalDetector detector = new UniversalDetector(null);
-        detector.handleData(bytes, 0, bytes.length);
-        detector.dataEnd();
-        String encoding = detector.getDetectedCharset();
-        detector.reset();
-        return encoding == null ? "UTF-8" : encoding;
-    }
 }
