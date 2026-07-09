@@ -82,7 +82,7 @@ public class PipelineService {
     private void runStepIfNeeded(Long jobId, Job job, PipelineStep step) {
         try (TraceContext.MdcScope ignoredStage = TraceContext.putStage(step.stage())) {
             if (step.stage().getCode() <= job.getStage().getCode()) {
-                jobProgressService.completeStage(jobId, step.stage(), step.name() + "已完成");
+                jobProgressService.completeSkippedStage(jobId, step.stage(), step.name() + "已完成");
                 log.debug("跳过已完成阶段，stageName: {}", step.name());
                 return;
             }
@@ -108,6 +108,10 @@ public class PipelineService {
      */
     private void publishJobFinishEvent(Long jobId, String failReason) {
         Job job = jobService.getById(jobId);
+        if (job == null) {
+            log.warn("job完成事件发布跳过，任务不存在，jobId: {}", jobId);
+            return;
+        }
         JobFinishEvent event = new JobFinishEvent();
         event.setJobId(jobId);
         event.setUserId(job.getUserId());
