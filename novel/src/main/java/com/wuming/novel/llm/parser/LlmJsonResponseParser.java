@@ -33,7 +33,7 @@ public class LlmJsonResponseParser {
                 : responseRepairer.repairCandidates(json, targetType)) {
             try {
                 T result = objectMapper.readValue(repair.json(), targetType);
-                log.warn(
+                log.debug(
                         "LLM JSON解析失败后{}成功，targetType={}",
                         repair.description(),
                         targetType.getSimpleName()
@@ -44,12 +44,10 @@ public class LlmJsonResponseParser {
             }
         }
 
-        log.warn(
-                "LLM JSON解析失败，targetType={}, raw={}",
-                targetType.getSimpleName(),
-                abbreviate(json),
-                firstException
-        );
+        log.warn("LLM JSON解析失败，targetType: {}, rawLength: {}, errorMessage: {}",
+                targetType.getSimpleName(), json.length(), firstException.getOriginalMessage());
+        log.debug("LLM JSON解析失败原文，targetType: {}, raw: {}",
+                targetType.getSimpleName(), abbreviate(json), firstException);
         throw new LlmJsonParseException(
                 "LLM JSON解析失败，targetType=" + targetType.getSimpleName(),
                 firstException

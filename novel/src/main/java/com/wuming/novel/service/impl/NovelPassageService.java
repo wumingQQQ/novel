@@ -53,7 +53,8 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         List<NovelPassage> passages = splitOneChapter(chapter);
         if (passages.isEmpty()) {
             syncPassageIndexAfterCommit(jobId, chapter, oldPassageIds, List.of());
-            log.info("章节没有可切分的Passage，jobId: {}, chapterId: {}", jobId, chapterId);
+            log.debug("章节没有可切分的Passage，jobId: {}, novelId: {}, chapterId: {}",
+                    jobId, chapter.getNovelId(), chapterId);
             return List.of();
         }
 
@@ -61,7 +62,7 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         syncPassageIndexAfterCommit(jobId, chapter, oldPassageIds, passages.stream()
                 .map(NovelPassage::getId)
                 .toList());
-        log.info("章节Passage处理完成，jobId: {}, novelId: {}, chapterId: {}, passageCount: {}",
+        log.debug("章节Passage处理完成，jobId: {}, novelId: {}, chapterId: {}, passageCount: {}",
                 jobId, chapter.getNovelId(), chapterId, passages.size());
         return passages;
     }
@@ -251,7 +252,7 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         requireRagSuccess("删除旧Passage向量", deletedCount);
         int indexedCount = passageVectorIndexService.indexByIds(passageIds);
         requireRagSuccess("索引Passage向量", indexedCount);
-        log.info("Passage向量同步索引完成，jobId: {}, novelId: {}, chapterId: {}, deletedCount: {}, indexedCount: {}",
+        log.debug("Passage向量同步索引完成，jobId: {}, novelId: {}, chapterId: {}, deletedCount: {}, indexedCount: {}",
                 jobId, chapter.getNovelId(), chapter.getId(), deletedCount, indexedCount);
     }
 

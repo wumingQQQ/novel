@@ -89,7 +89,7 @@ public class RoleExampleVectorIndexService {
                 .in(RoleExample::getId, exampleIds)
                 .in(RoleExample::getVectorStatus, VECTOR_PENDING, VECTOR_FAILED));
         if (examples.isEmpty()) {
-            log.info("没有需要索引的角色样本，requestCount: {}", exampleIds.size());
+            log.debug("没有需要索引的角色样本，requestCount: {}", exampleIds.size());
             return 0;
         }
         try {

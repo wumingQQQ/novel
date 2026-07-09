@@ -54,7 +54,9 @@ public class RoleProfileBuildStep implements PipelineStep {
                     job.getId(), job.getNovelId(), characterId, targetName);
             return;
         }
-        roleProfileService.buildProfile(characterId);
+        boolean profileBuilt = roleProfileService.buildProfile(characterId);
+        log.info("角色画像构建执行完成，jobId: {}, novelId: {}, characterId: {}, targetName: {}, profileBuilt: {}",
+                job.getId(), job.getNovelId(), characterId, targetName, profileBuilt);
     }
 
     private Long targetCharacterId(Job job, String targetName) {

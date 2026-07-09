@@ -67,7 +67,6 @@ public class ChapterAnalysisService {
                 throw new BusinessException(ErrorCode.LLM_EMPTY_RESPONSE);
             }
 
-            // 更新章节未完成部分
             chapter.setSummary(result.summary());
             chapter.setSceneBoundaries(result.sceneBoundaries());
             chapter.setAnalysisStatus("DONE");
@@ -76,11 +75,11 @@ public class ChapterAnalysisService {
             chapterService.updateById(chapter);
         }
         catch (Exception e){
-            // 记录章节分析失败信息
             chapter.setAnalysisStatus("FAILED");
             chapter.setAnalysisError(e.getMessage());
             chapterService.updateById(chapter);
-            log.error("小说{}, 章节{}分析失败", chapter.getNovelId(), chapter.getId(), e);
+            log.debug("章节分析失败，已标记FAILED，novelId: {}, chapterId: {}, errorType: {}, errorMessage: {}",
+                    chapter.getNovelId(), chapter.getId(), e.getClass().getSimpleName(), e.getMessage(), e);
             if (e instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }

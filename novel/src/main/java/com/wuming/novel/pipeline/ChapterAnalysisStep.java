@@ -74,9 +74,17 @@ public class ChapterAnalysisStep implements PipelineStep {
         }
         redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
         jobProgressService.recordItemFailure(jobId, stage());
-        log.warn("章节分析失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}",
+        Throwable cause = logCause(throwable);
+        log.warn("章节分析失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}, errorType: {}, errorMessage: {}",
+                jobId, job.getNovelId(), chapter.getId(),
+                cause.getClass().getSimpleName(), cause.getMessage());
+        log.debug("章节分析失败堆栈，jobId: {}, novelId: {}, chapterId: {}",
                 jobId, job.getNovelId(), chapter.getId(), throwable);
         return false;
+    }
+
+    private Throwable logCause(Throwable throwable) {
+        return throwable.getCause() == null ? throwable : throwable.getCause();
     }
 
     /**
@@ -99,7 +107,7 @@ public class ChapterAnalysisStep implements PipelineStep {
                 .orderByAsc(Chapter::getSequence);
         if (!completedChapterIds.isEmpty()) {
             queryWrapper.notIn(Chapter::getId, completedChapterIds);
-            log.info("跳过已完成章节分析项，jobId: {}, novelId: {}, completedCount: {}",
+            log.debug("跳过已完成章节分析项，jobId: {}, novelId: {}, completedCount: {}",
                     jobId, job.getNovelId(), completedChapterIds.size());
         }
         return chapterService.list(queryWrapper);

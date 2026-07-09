@@ -297,7 +297,8 @@ public class JobProgressService {
         emitter.onCompletion(() -> subscribers.remove(jobId, emitter));
         emitter.onTimeout(() -> subscribers.remove(jobId, emitter));
         emitter.onError(e -> {
-            log.error("job: {} SSE订阅异常", jobId, e);
+            log.debug("SSE订阅关闭，jobId: {}, errorType: {}, errorMessage: {}",
+                    jobId, e.getClass().getSimpleName(), e.getMessage());
             subscribers.remove(jobId, emitter);
         });
     }
@@ -310,6 +311,8 @@ public class JobProgressService {
             emitter.send(SseEmitter.event().name("progress").data(progress));
         } catch (IOException | IllegalStateException e) {
             subscribers.remove(jobId, emitter);
+            log.debug("SSE进度推送失败，已移除订阅，jobId: {}, errorType: {}, errorMessage: {}",
+                    jobId, e.getClass().getSimpleName(), e.getMessage());
             emitter.completeWithError(e);
         }
     }

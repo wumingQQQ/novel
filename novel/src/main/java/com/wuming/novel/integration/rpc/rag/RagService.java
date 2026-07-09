@@ -59,23 +59,24 @@ public class RagService {
                     throw new IllegalArgumentException("novelId不能为null");
                 }
                 hits = ragFacade.searchPassages(r);
-                log.info("RAG文档召回，query: {}, retrieve count: {}", request.getQuery(), hits.size());
+                log.debug("RAG文档召回完成，indexName: {}, novelId: {}, queryCount: {}, topK: {}, topN: {}, rerank: {}, hitCount: {}",
+                        r.getIndexName(), r.getNovelId(), queryCount(r), r.getTopK(), r.getTopN(), r.isRerank(), hits.size());
             }
             case RoleExampleSearchRequest r -> {
                 if (r.getCharacterId() == null) {
                     throw new IllegalArgumentException("characterId不能为null");
                 }
                 hits = ragFacade.searchRoleExamples(r);
-                log.info("RAG角色样本召回，characterId: {}, query: {}, retrieve count: {}",
-                        r.getCharacterId(), request.getQuery(), hits.size());
+                log.debug("RAG角色样本召回完成，indexName: {}, characterId: {}, queryCount: {}, topK: {}, topN: {}, rerank: {}, hitCount: {}",
+                        r.getIndexName(), r.getCharacterId(), queryCount(r), r.getTopK(), r.getTopN(), r.isRerank(), hits.size());
             }
             case ReactionRuleSearchRequest r -> {
                 if (r.getCharacterId() == null) {
                     throw new IllegalArgumentException("characterId不能为null");
                 }
                 hits = ragFacade.searchReactionRules(r);
-                log.info("RAG角色反应规则召回，characterId: {}, query: {}, retrieve count: {}",
-                        r.getCharacterId(), request.getQuery(), hits.size());
+                log.debug("RAG角色反应规则召回完成，indexName: {}, characterId: {}, queryCount: {}, topK: {}, topN: {}, rerank: {}, hitCount: {}",
+                        r.getIndexName(), r.getCharacterId(), queryCount(r), r.getTopK(), r.getTopN(), r.isRerank(), hits.size());
             }
             default -> {
                 throw new IllegalArgumentException("不支持的RAG检索请求类型: " + request.getClass().getName());
@@ -133,5 +134,12 @@ public class RagService {
             }
         }
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private int queryCount(SearchRequest request) {
+        if (request.getQueries() != null) {
+            return request.getQueries().size();
+        }
+        return request.getQuery() == null ? 0 : 1;
     }
 }

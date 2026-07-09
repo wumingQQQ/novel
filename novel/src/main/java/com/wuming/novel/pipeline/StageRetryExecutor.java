@@ -17,13 +17,15 @@ public class StageRetryExecutor {
     public void runWithRetry(Long jobId, PipelineStep step) {
         RuntimeException lastException = null;
         for (int attempt = 1; attempt <= maxRetry; attempt++) {
-            log.debug("job: {} stage: {} 开始执行，第{}次尝试", jobId, step.stage(), attempt);
+            log.debug("阶段尝试开始，jobId: {}, stage: {}, attempt: {}", jobId, step.stage(), attempt);
             try {
                 step.execute(jobId);
                 lastException = null;
             } catch (RuntimeException e) {
                 lastException = e;
-                log.warn("job: {} stage: {} 第{}次执行异常", jobId, step.stage(), attempt, e);
+                log.warn("阶段尝试异常，jobId: {}, stage: {}, attempt: {}, errorType: {}, errorMessage: {}",
+                        jobId, step.stage(), attempt, e.getClass().getSimpleName(), e.getMessage());
+                log.debug("阶段尝试异常堆栈，jobId: {}, stage: {}, attempt: {}", jobId, step.stage(), attempt, e);
             }
 
             long failureCount = redisStageFailureStore.failureCount(jobId, step.stage());
@@ -32,13 +34,13 @@ public class StageRetryExecutor {
             }
 
             if (failureCount > 0) {
-                log.warn("job: {} stage: {} 第{}次执行后仍有失败项，失败数: {}",
+                log.warn("阶段尝试后仍有失败项，jobId: {}, stage: {}, attempt: {}, failureCount: {}",
                         jobId,
                         step.stage(),
                         attempt,
                         failureCount);
             } else {
-                log.warn("job: {} stage: {} 第{}次执行异常且没有记录失败项，等待重试",
+                log.warn("阶段尝试异常且没有记录失败项，等待重试，jobId: {}, stage: {}, attempt: {}",
                         jobId,
                         step.stage(),
                         attempt);

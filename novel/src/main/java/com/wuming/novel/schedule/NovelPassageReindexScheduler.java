@@ -53,7 +53,9 @@ public class NovelPassageReindexScheduler {
             log.info("Passage向量索引补偿完成，requestCount: {}, indexedCount: {}",
                     passageIds.size(), indexedCount);
         } catch (RuntimeException e) {
-            log.warn("Passage向量索引补偿失败，requestCount: {}", passageIds.size(), e);
+            log.warn("Passage向量索引补偿失败，requestCount: {}, errorType: {}, errorMessage: {}",
+                    passageIds.size(), e.getClass().getSimpleName(), e.getMessage());
+            log.debug("Passage向量索引补偿失败堆栈，requestCount: {}", passageIds.size(), e);
         }
     }
 }

@@ -56,6 +56,8 @@ public class PassageCharacterService
         if (!passageCharacters.isEmpty()) {
             self.saveBatch(passageCharacters);
         }
+        log.debug("Passage人物识别完成，passageCount: {}, mappingCount: {}",
+                passages.size(), passageCharacters.size());
     }
 
     private List<String> recognizeOnePassage(NovelPassage passage) {
@@ -63,8 +65,10 @@ public class PassageCharacterService
             PassageCharacterResult result = recognize(passage);
             return normalizeCharacters(result.characters());
         } catch (RuntimeException e) {
-            log.warn("Passage人物识别失败，passageId: {}, chapterId: {}, chapterSequence: {}",
-                    passage.getId(), passage.getChapterId(), passage.getInnerSequence(), e);
+            log.warn("Passage人物识别失败，passageId: {}, chapterId: {}, chapterSequence: {}, errorType: {}, errorMessage: {}",
+                    passage.getId(), passage.getChapterId(), passage.getInnerSequence(),
+                    e.getClass().getSimpleName(), e.getMessage());
+            log.debug("Passage人物识别异常堆栈，passageId: {}", passage.getId(), e);
             return List.of();
         }
     }

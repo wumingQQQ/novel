@@ -92,9 +92,17 @@ public class RoleExampleBuildStep implements PipelineStep {
         }
         redisStageFailureStore.recordFailure(jobId, stage(), passageId);
         jobProgressService.recordItemFailure(jobId, stage());
-        log.warn("Passage角色样本构建失败，已记录失败项，jobId: {}, novelId: {}, passageId: {}, targetName: {}",
+        Throwable cause = logCause(throwable);
+        log.warn("Passage角色样本构建失败，已记录失败项，jobId: {}, novelId: {}, passageId: {}, targetName: {}, errorType: {}, errorMessage: {}",
+                jobId, job.getNovelId(), passageId, targetName,
+                cause.getClass().getSimpleName(), cause.getMessage());
+        log.debug("Passage角色样本构建失败堆栈，jobId: {}, novelId: {}, passageId: {}, targetName: {}",
                 jobId, job.getNovelId(), passageId, targetName, throwable);
         return new PassageExampleBuildResult(false, null, 0);
+    }
+
+    private Throwable logCause(Throwable throwable) {
+        return throwable.getCause() == null ? throwable : throwable.getCause();
     }
 
     /**
@@ -113,7 +121,7 @@ public class RoleExampleBuildStep implements PipelineStep {
         if (completedPassageIds.isEmpty()) {
             return candidatePassageIds;
         }
-        log.info("跳过已完成角色样本构建Passage，jobId: {}, novelId: {}, completedCount: {}",
+        log.debug("跳过已完成角色样本构建Passage，jobId: {}, novelId: {}, completedCount: {}",
                 jobId, job.getNovelId(), completedPassageIds.size());
         return candidatePassageIds.stream()
                 .filter(passageId -> !completedPassageIds.contains(passageId))

@@ -63,9 +63,8 @@ public class NovelController {
             long start = System.currentTimeMillis();
             Long novelId = novelService.saveNovel(file, userId);
             try (TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(novelId)) {
-                log.info("小说上传完成，fileName: {}, fileSize: {}, costMs: {}",
-                        file.getOriginalFilename(), file.getSize(),
-                        System.currentTimeMillis() - start);
+                log.info("小说上传完成，fileSize: {}, costMs: {}",
+                        file.getSize(), System.currentTimeMillis() - start);
             }
             return ApiResponse.success(novelId);
         }
@@ -155,9 +154,9 @@ public class NovelController {
     ) {
         Long userId = jwtUserIdExtractor.requireUserId(authentication);
         try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId);
-             TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId)) {
+            TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId)) {
             jobService.requireOwnedJob(jobId, userId);
-            log.info("建立任务进度SSE订阅");
+            log.debug("建立任务进度SSE订阅");
             return jobProgressService.subscribe(jobId);
         }
     }

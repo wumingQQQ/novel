@@ -77,9 +77,17 @@ public class PassageBuildStep implements PipelineStep {
         }
         redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
         jobProgressService.recordItemFailure(jobId, stage());
-        log.warn("章节Passage构建失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}",
+        Throwable cause = logCause(throwable);
+        log.warn("章节Passage构建失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}, errorType: {}, errorMessage: {}",
+                job.getId(), job.getNovelId(), chapter.getId(),
+                cause.getClass().getSimpleName(), cause.getMessage());
+        log.debug("章节Passage构建失败堆栈，jobId: {}, novelId: {}, chapterId: {}",
                 job.getId(), job.getNovelId(), chapter.getId(), throwable);
         return false;
+    }
+
+    private Throwable logCause(Throwable throwable) {
+        return throwable.getCause() == null ? throwable : throwable.getCause();
     }
 
     /**
@@ -106,7 +114,7 @@ public class PassageBuildStep implements PipelineStep {
         if (!completedChapterIds.isEmpty()) {
             // 如果已完成部分不为空，说明已经处理过且存在失败
             queryWrapper.notIn(Chapter::getId, completedChapterIds);
-            log.info("跳过已完成Passage构建章节，jobId: {}, novelId: {}, completedCount: {}",
+            log.debug("跳过已完成Passage构建章节，jobId: {}, novelId: {}, completedCount: {}",
                     jobId, job.getNovelId(), completedChapterIds.size());
         }
         return chapterService.list(queryWrapper);

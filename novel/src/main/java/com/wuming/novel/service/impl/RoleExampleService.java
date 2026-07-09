@@ -453,7 +453,9 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
                         .filter(example -> seen.add(example.getSampleType() + "\n" + example.getSampleText()))
                         .forEach(examples::add);
             } catch (RuntimeException e) {
-                log.warn("Passage角色样本抽取失败，characterId: {}, passageId: {}",
+                log.warn("Passage角色样本抽取失败，characterId: {}, passageId: {}, errorType: {}, errorMessage: {}",
+                        character.getId(), passage.getId(), e.getClass().getSimpleName(), e.getMessage());
+                log.debug("Passage角色样本抽取异常堆栈，characterId: {}, passageId: {}",
                         character.getId(), passage.getId(), e);
             }
         }
@@ -563,7 +565,7 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
         requireRagSuccess("删除旧RoleExample向量", deletedCount);
         int indexedCount = roleExampleVectorIndexService.indexByIds(newExampleIds);
         requireRagSuccess("索引RoleExample向量", indexedCount);
-        log.info("角色样本向量同步索引完成，novelId: {}, characterId: {}, characterName: {}, deletedCount: {}, indexedCount: {}",
+        log.debug("角色样本向量同步索引完成，novelId: {}, characterId: {}, characterName: {}, deletedCount: {}, indexedCount: {}",
                 novelId, character.getId(), character.getCharacterName(), deletedCount, indexedCount);
     }
 

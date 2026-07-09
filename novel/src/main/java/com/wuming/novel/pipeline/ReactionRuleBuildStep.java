@@ -97,9 +97,17 @@ public class ReactionRuleBuildStep implements PipelineStep {
         }
         redisStageFailureStore.recordFailure(jobId, stage(), situationKey);
         jobProgressService.recordItemFailure(jobId, stage());
-        log.warn("情境反应规则构建失败，已记录失败项，jobId: {}, novelId: {}, characterId: {}, situationKey: {}",
+        Throwable cause = logCause(throwable);
+        log.warn("情境反应规则构建失败，已记录失败项，jobId: {}, novelId: {}, characterId: {}, situationKey: {}, errorType: {}, errorMessage: {}",
+                jobId, job.getNovelId(), characterId, situationKey,
+                cause.getClass().getSimpleName(), cause.getMessage());
+        log.debug("情境反应规则构建失败堆栈，jobId: {}, novelId: {}, characterId: {}, situationKey: {}",
                 jobId, job.getNovelId(), characterId, situationKey, throwable);
         return new SituationRuleBuildResult(false, 0);
+    }
+
+    private Throwable logCause(Throwable throwable) {
+        return throwable.getCause() == null ? throwable : throwable.getCause();
     }
 
     /**
@@ -118,7 +126,7 @@ public class ReactionRuleBuildStep implements PipelineStep {
         if (completedSituationKeys.isEmpty()) {
             return situationKeys;
         }
-        log.info("跳过已完成反应规则构建情境，jobId: {}, characterId: {}, completedCount: {}",
+        log.debug("跳过已完成反应规则构建情境，jobId: {}, characterId: {}, completedCount: {}",
                 jobId, characterId, completedSituationKeys.size());
         return situationKeys.stream()
                 .filter(situationKey -> !completedSituationKeys.contains(situationKey))

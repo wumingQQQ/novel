@@ -75,11 +75,13 @@ public class PipelineJobRunner {
         String traceId = TraceContext.ensureTraceId();
         try {
             CompletableFuture.runAsync(() -> run(jobId, runId, traceId), pipelineExecutor);
-            log.info("任务已提交到后台线程池，runId: {}", runId);
+            log.info("任务已提交后台执行，runId: {}", runId);
             return JobSubmitStatus.STARTED;
         } catch (RuntimeException e) {
             jobRunLock.release(jobId, runId);
-            log.warn("任务提交后台线程池失败，runId: {}", runId, e);
+            log.warn("任务提交后台执行失败，runId: {}, errorType: {}, errorMessage: {}",
+                    runId, e.getClass().getSimpleName(), e.getMessage());
+            log.debug("任务提交后台执行异常堆栈，runId: {}", runId, e);
             throw e;
         }
     }
@@ -97,8 +99,9 @@ public class PipelineJobRunner {
                 log.info("后台任务执行完成，runId: {}, costMs: {}",
                         runId, System.currentTimeMillis() - start);
             } catch (RuntimeException e) {
-                log.error("后台任务执行失败，runId: {}, costMs: {}",
-                        runId, System.currentTimeMillis() - start, e);
+                log.error("后台任务执行失败，runId: {}, costMs: {}, errorType: {}, errorMessage: {}",
+                        runId, System.currentTimeMillis() - start,
+                        e.getClass().getSimpleName(), e.getMessage(), e);
             } finally {
                 jobRunLock.release(jobId, runId);
                 log.debug("任务运行锁已释放，runId: {}", runId);

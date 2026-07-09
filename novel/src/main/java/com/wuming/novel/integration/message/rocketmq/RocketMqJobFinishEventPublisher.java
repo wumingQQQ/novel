@@ -27,7 +27,7 @@ public class RocketMqJobFinishEventPublisher implements EventPublisher<JobFinish
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(event.getJobId());
              TraceContext.MdcScope ignoredUser = TraceContext.putUserId(event.getUserId());
              TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(event.getNovelId())) {
-            log.info("开始发送任务完成事件，destination: {}, status: {}",
+            log.debug("准备发送任务完成事件，destination: {}, status: {}",
                     MqDestinations.JOB_ENDED, event.getStatus());
             rocketMQTemplate.convertAndSend(MqDestinations.JOB_ENDED, event);
             log.info("任务完成事件发送成功，destination: {}, status: {}",

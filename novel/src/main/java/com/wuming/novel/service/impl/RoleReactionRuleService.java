@@ -110,7 +110,9 @@ public class RoleReactionRuleService
                     rules.add(rule);
                 }
             } catch (RuntimeException e) {
-                log.warn("角色情境反应规则构建任务失败，characterId: {}, situationKey: {}",
+                log.warn("角色情境反应规则构建任务失败，characterId: {}, situationKey: {}, errorType: {}, errorMessage: {}",
+                        characterId, situationKey(task), e.getClass().getSimpleName(), e.getMessage());
+                log.debug("角色情境反应规则构建异常堆栈，characterId: {}, situationKey: {}",
                         characterId, situationKey(task), e);
             }
         }
@@ -208,15 +210,15 @@ public class RoleReactionRuleService
         List<String> queries = rewriteQueries(character, task);
         List<SearchHit> examples = retrieveExamples(character.getId(), queries);
         if (examples.isEmpty()) {
-            log.debug("情境未召回角色样本，characterId: {}, category: {}, situation: {}",
-                    character.getId(), task.category(), task.situation());
+            log.debug("情境未召回角色样本，characterId: {}, category: {}, situationKey: {}",
+                    character.getId(), task.category(), situationKey(task));
             return null;
         }
 
         RoleReactionRuleBuildResult result = buildRuleByLlm(character, task, examples);
         if (result == null || isEvidenceNotEnough(result)) {
-            log.debug("情境证据不足，characterId: {}, category: {}, situation: {}",
-                    character.getId(), task.category(), task.situation());
+            log.debug("情境证据不足，characterId: {}, category: {}, situationKey: {}",
+                    character.getId(), task.category(), situationKey(task));
             return null;
         }
 
@@ -227,8 +229,8 @@ public class RoleReactionRuleService
         rule.setRule(result.rule().trim());
         rule.setEvidencePassageIds(evidencePassageIds(examples));
         rule.setVectorStatus(VECTOR_PENDING);
-        log.debug("情境反应规则构建成功，characterId: {}, category: {}, situation: {}",
-                character.getId(), task.category(), task.situation());
+        log.debug("情境反应规则构建成功，characterId: {}, category: {}, situationKey: {}",
+                character.getId(), task.category(), situationKey(task));
         return rule;
     }
 
@@ -475,7 +477,7 @@ public class RoleReactionRuleService
         requireRagSuccess("删除旧ReactionRule向量", deletedCount);
         int indexedCount = roleReactionRuleVectorIndexService.indexByIds(newRuleIds);
         requireRagSuccess("索引ReactionRule向量", indexedCount);
-        log.info("角色反应规则向量同步索引完成，novelId: {}, characterId: {}, characterName: {}, deletedCount: {}, indexedCount: {}",
+        log.debug("角色反应规则向量同步索引完成，novelId: {}, characterId: {}, characterName: {}, deletedCount: {}, indexedCount: {}",
                 character.getNovelId(), character.getId(), character.getCharacterName(), deletedCount, indexedCount);
     }
 

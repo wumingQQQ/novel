@@ -56,10 +56,12 @@ public class RedisFailedJobCleaner {
 
             if (!keysToDelete.isEmpty()) {
                 stringRedisTemplate.unlink(keysToDelete);
-                log.debug("redis清理过期失败项key数量: {}", keysToDelete.size());
+                log.debug("Redis失败项清理完成，deletedKeyCount: {}", keysToDelete.size());
             }
         } catch (Exception e) {
-            log.error("redis清理垃圾job时出现异常", e);
+            log.warn("Redis失败项清理失败，errorType: {}, errorMessage: {}",
+                    e.getClass().getSimpleName(), e.getMessage());
+            log.debug("Redis失败项清理失败堆栈", e);
         }
     }
 
@@ -71,14 +73,14 @@ public class RedisFailedJobCleaner {
     private Long parseJobId(String key) {
         String[] parts = key.split(":");
         if (parts.length != 4 || !"job".equals(parts[0]) || !"failed".equals(parts[3])) {
-            log.warn("redis失败项key格式异常，跳过清理: {}", key);
+            log.debug("Redis失败项key格式异常，跳过清理，key: {}", key);
             return null;
         }
 
         try {
             return Long.valueOf(parts[1]);
         } catch (NumberFormatException e) {
-            log.warn("redis失败项key中的jobId格式异常，跳过清理: {}", key);
+            log.debug("Redis失败项key中的jobId格式异常，跳过清理，key: {}", key);
             return null;
         }
     }

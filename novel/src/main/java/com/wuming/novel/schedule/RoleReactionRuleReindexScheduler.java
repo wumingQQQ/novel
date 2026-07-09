@@ -53,7 +53,9 @@ public class RoleReactionRuleReindexScheduler {
             log.info("角色反应规则向量索引补偿完成，requestCount: {}, indexedCount: {}",
                     ruleIds.size(), indexedCount);
         } catch (RuntimeException e) {
-            log.warn("角色反应规则向量索引补偿失败，requestCount: {}", ruleIds.size(), e);
+            log.warn("角色反应规则向量索引补偿失败，requestCount: {}, errorType: {}, errorMessage: {}",
+                    ruleIds.size(), e.getClass().getSimpleName(), e.getMessage());
+            log.debug("角色反应规则向量索引补偿失败堆栈，requestCount: {}", ruleIds.size(), e);
         }
     }
 }

@@ -87,12 +87,12 @@ public class RoleProfileService
         List<RoleExample> examples = profileExamples(characterId);
         if (examples.isEmpty()) {
             self.persistProfileBuildResult(character, null, "没有足够的高置信角色样本用于构建Profile");
-            log.info("角色画像构建跳过，characterId: {}, reason: {}", characterId, "没有足够的高置信角色样本");
+            log.debug("角色画像构建跳过，characterId: {}, reason: {}", characterId, "没有足够的高置信角色样本");
             return false;
         }
         List<RoleReactionRule> rules = roleReactionRules(characterId);
 
-        log.info("开始构建角色画像，characterId: {}, characterName: {}, exampleCount: {}, ruleCount: {}",
+        log.debug("开始构建角色画像，characterId: {}, characterName: {}, exampleCount: {}, ruleCount: {}",
                 characterId, character.getCharacterName(), examples.size(), rules.size());
         RoleProfileBuildResult result = llmConcurrencyLimiter.execute(() -> buildProfileByLlm(character, examples, rules));
         if (!isValidProfileResult(result)) {
@@ -104,7 +104,7 @@ public class RoleProfileService
 
         RoleProfile profile = toRoleProfile(character, result);
         self.persistProfileBuildResult(character, profile, null);
-        log.info("角色画像构建完成，characterId: {}, characterName: {}", characterId, character.getCharacterName());
+        log.debug("角色画像构建完成，characterId: {}, characterName: {}", characterId, character.getCharacterName());
         return true;
     }
 

@@ -43,7 +43,8 @@ public class PipelineService {
              TraceContext.MdcScope ignoredUser = TraceContext.putUserId(job.getUserId());
              TraceContext.MdcScope ignoredNovel = TraceContext.putNovelId(job.getNovelId())) {
             long start = System.currentTimeMillis();
-            log.info("任务流程开始，currentStage: {}", job.getStage());
+            log.info("任务流程开始，currentStage: {}, targetName: {}",
+                    job.getStage(), job.getTargetName());
             jobProgressService.initJob(jobId);
             jobProgressService.startJob(jobId);
 
@@ -54,12 +55,15 @@ public class PipelineService {
                 }
                 jobService.advanceStage(jobId, JobStage.COMPLETE);
                 jobProgressService.completeJob(jobId);
-                log.info("任务流程完成，costMs: {}", System.currentTimeMillis() - start);
+                log.info("任务流程完成，finalStage: {}, costMs: {}",
+                        JobStage.COMPLETE, System.currentTimeMillis() - start);
                 return true;
             } catch (RuntimeException e) {
                 failReason = e.getMessage();
                 jobProgressService.failJob(jobId, e.getMessage());
-                log.warn("任务流程失败，costMs: {}", System.currentTimeMillis() - start, e);
+                log.warn("任务流程失败，currentStage: {}, costMs: {}, errorType: {}, errorMessage: {}",
+                        job.getStage(), System.currentTimeMillis() - start,
+                        e.getClass().getSimpleName(), e.getMessage());
                 throw e;
             } finally {
                 publishJobFinishEvent(jobId, failReason);
@@ -83,20 +87,20 @@ public class PipelineService {
         try (TraceContext.MdcScope ignoredStage = TraceContext.putStage(step.stage())) {
             if (step.stage().getCode() <= job.getStage().getCode()) {
                 jobProgressService.completeSkippedStage(jobId, step.stage(), step.name() + "已完成");
-                log.debug("跳过已完成阶段，stageName: {}", step.name());
+                log.debug("跳过已完成阶段，stage: {}, stageName: {}", step.stage(), step.name());
                 return;
             }
 
             long start = System.currentTimeMillis();
-            log.info("任务阶段开始，stageName: {}", step.name());
+            log.info("任务阶段开始，stage: {}, stageName: {}", step.stage(), step.name());
             jobProgressService.startStage(jobId, step.stage(), step.name());
             stageRetryExecutor.runWithRetry(jobId, step);
             jobService.advanceStage(jobId, step.stage());
             redisStageFailureStore.clearStage(jobId, step.stage());
             job.setStage(step.stage());
             jobProgressService.completeStage(jobId, step.stage(), step.name() + "完成");
-            log.info("任务阶段完成，stageName: {}, costMs: {}",
-                    step.name(), System.currentTimeMillis() - start);
+            log.info("任务阶段完成，stage: {}, stageName: {}, costMs: {}",
+                    step.stage(), step.name(), System.currentTimeMillis() - start);
         }
     }
 
@@ -124,7 +128,9 @@ public class PipelineService {
         try {
             eventPublisher.publish(event);
         } catch (RuntimeException e) {
-            log.warn("job完成事件发布失败，status: {}", status, e);
+            log.warn("job完成事件发布失败，status: {}, errorType: {}, errorMessage: {}",
+                    status, e.getClass().getSimpleName(), e.getMessage());
+            log.debug("job完成事件发布异常堆栈，status: {}", status, e);
         }
     }
 }

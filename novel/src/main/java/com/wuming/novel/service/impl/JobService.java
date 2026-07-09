@@ -89,10 +89,10 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
         job.setStage(stage);
         updateById(job);
         if(stage == JobStage.COMPLETE){
-            log.info("job: {}完成", jobId);
+            log.debug("任务阶段已推进，jobId: {}, stage: {}", jobId, stage);
             return;
         }
-        log.info("job: {}完成{}阶段", jobId, stage.name());
+        log.debug("任务阶段已推进，jobId: {}, stage: {}", jobId, stage);
     }
 }
 

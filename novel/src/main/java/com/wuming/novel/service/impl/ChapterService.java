@@ -51,7 +51,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
     public void splitChapter(Long jobId){
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.CHAPTER_SPLIT.getCode()){
-            log.info("任务{}, 已经完成了阶段{}", jobId, JobStage.CHAPTER_SPLIT);
+            log.debug("章节切分跳过，jobId: {}, currentStage: {}", jobId, job.getStage());
             return;
         }
         Long novelId  = job.getNovelId();
@@ -91,9 +91,12 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             if(!chapters.isEmpty()) {
                 saveBatch(chapters);
             }
-            log.debug("job: {} 小说{}章节切分完成，编码: {}, 章节数: {}", jobId, novelId, encoding, chapters.size());
+            log.info("章节切分完成，jobId: {}, novelId: {}, chapterCount: {}, encoding: {}",
+                    jobId, novelId, chapters.size(), encoding);
         } catch (Exception e) {
-            log.error("job: {}章节切分失败", jobId, e);
+            log.warn("章节切分失败，jobId: {}, novelId: {}, errorType: {}, errorMessage: {}",
+                    jobId, novelId, e.getClass().getSimpleName(), e.getMessage());
+            log.debug("章节切分异常堆栈，jobId: {}, novelId: {}", jobId, novelId, e);
             throw new RuntimeException("章节切分失败", e);
         }
     }
@@ -106,7 +109,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
         queryWrapper.eq("novel_id", novelId);
         int delete = chapterMapper.delete(queryWrapper);
         if(delete > 0) {
-            log.info("清理小说{}的旧章节，数量为{}", novelId, delete);
+            log.debug("清理旧章节完成，novelId: {}, deletedCount: {}", novelId, delete);
         }
     }
 
@@ -131,7 +134,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
         if(chapterStart >= 0) result.add(content.substring(chapterStart));
         else{
             // 章节标记匹配失败
-            log.warn("小说{}找不到章节标记", novelId);
+            log.warn("章节切分未找到章节标记，novelId: {}", novelId);
             return Collections.emptyList();
         }
         return result;

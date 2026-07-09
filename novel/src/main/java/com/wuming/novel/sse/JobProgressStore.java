@@ -29,7 +29,9 @@ public class JobProgressStore {
                     PROGRESS_TTL
             );
         } catch (JsonProcessingException | RuntimeException e) {
-            log.warn("job: {} 进度保存失败", progress.getJobId(), e);
+            log.warn("任务进度保存失败，jobId: {}, errorType: {}, errorMessage: {}",
+                    progress.getJobId(), e.getClass().getSimpleName(), e.getMessage());
+            log.debug("任务进度保存失败堆栈，jobId: {}", progress.getJobId(), e);
         }
     }
 
@@ -44,7 +46,9 @@ public class JobProgressStore {
             }
             return objectMapper.readValue(json, JobProgress.class);
         } catch (JsonProcessingException | RuntimeException e) {
-            log.warn("job: {} 进度读取失败", jobId, e);
+            log.warn("任务进度读取失败，jobId: {}, errorType: {}, errorMessage: {}",
+                    jobId, e.getClass().getSimpleName(), e.getMessage());
+            log.debug("任务进度读取失败堆栈，jobId: {}", jobId, e);
             return null;
         }
     }
@@ -56,7 +60,9 @@ public class JobProgressStore {
         try {
             stringRedisTemplate.delete(progressKey(jobId));
         } catch (RuntimeException e) {
-            log.warn("job: {} 进度删除失败", jobId, e);
+            log.warn("任务进度删除失败，jobId: {}, errorType: {}, errorMessage: {}",
+                    jobId, e.getClass().getSimpleName(), e.getMessage());
+            log.debug("任务进度删除失败堆栈，jobId: {}", jobId, e);
         }
     }
 

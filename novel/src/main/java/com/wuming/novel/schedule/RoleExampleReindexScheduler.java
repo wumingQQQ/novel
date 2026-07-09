@@ -53,7 +53,9 @@ public class RoleExampleReindexScheduler {
             log.info("角色样本向量索引补偿完成，requestCount: {}, indexedCount: {}",
                     exampleIds.size(), indexedCount);
         } catch (RuntimeException e) {
-            log.warn("角色样本向量索引补偿失败，requestCount: {}", exampleIds.size(), e);
+            log.warn("角色样本向量索引补偿失败，requestCount: {}, errorType: {}, errorMessage: {}",
+                    exampleIds.size(), e.getClass().getSimpleName(), e.getMessage());
+            log.debug("角色样本向量索引补偿失败堆栈，requestCount: {}", exampleIds.size(), e);
         }
     }
 }

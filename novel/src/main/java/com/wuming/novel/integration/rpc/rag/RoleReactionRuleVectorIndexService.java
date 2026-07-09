@@ -62,7 +62,7 @@ public class RoleReactionRuleVectorIndexService {
                 .in(RoleReactionRule::getId, ruleIds)
                 .in(RoleReactionRule::getVectorStatus, VECTOR_PENDING, VECTOR_FAILED));
         if (rules.isEmpty()) {
-            log.info("没有需要索引的角色反应规则，requestCount: {}", ruleIds.size());
+            log.debug("没有需要索引的角色反应规则，requestCount: {}", ruleIds.size());
             return 0;
         }
         try {

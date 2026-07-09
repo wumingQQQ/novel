@@ -59,7 +59,7 @@ public class NovelPassageVectorIndexService {
                 .in(NovelPassage::getId, passageIds)
                 .in(NovelPassage::getVectorStatus, VECTOR_PENDING, VECTOR_FAILED));
         if (passages.isEmpty()) {
-            log.info("没有需要索引的Passage，requestCount: {}", passageIds.size());
+            log.debug("没有需要索引的Passage，requestCount: {}", passageIds.size());
             return 0;
         }
         try {
