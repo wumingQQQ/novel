@@ -559,7 +559,7 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
             throw new IllegalStateException("角色样本保存后未获取到样本主键，无法同步索引，characterId: "
                     + character.getId());
         }
-        int deletedCount = roleExampleVectorIndexService.deleteByIds(oldExampleIds);
+        int deletedCount = roleExampleVectorIndexService.deleteByIds(character.getId(), oldExampleIds);
         requireRagSuccess("删除旧RoleExample向量", deletedCount);
         int indexedCount = roleExampleVectorIndexService.indexByIds(newExampleIds);
         requireRagSuccess("索引RoleExample向量", indexedCount);

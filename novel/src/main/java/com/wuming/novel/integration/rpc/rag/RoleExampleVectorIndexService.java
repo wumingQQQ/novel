@@ -40,12 +40,12 @@ public class RoleExampleVectorIndexService {
         return ragService.upsertDocuments(roleExampleIndexName, documents);
     }
 
-    public int deleteByIds(List<Long> exampleIds) {
+    public int deleteByIds(Long characterId, List<Long> exampleIds) {
         if (exampleIds == null || exampleIds.isEmpty()) {
             return 0;
         }
         List<String> documentIds = exampleIds.stream()
-                .map(String::valueOf)
+                .map(exampleId -> exampleDocumentId(characterId, exampleId))
                 .toList();
         return ragService.deleteDocuments(roleExampleIndexName, documentIds);
     }
@@ -130,10 +130,14 @@ public class RoleExampleVectorIndexService {
 
     private RagDocument toDocument(RoleExample example) {
         RagDocument document = new RagDocument();
-        document.setDocumentId(String.valueOf(example.getId()));
+        document.setDocumentId(exampleDocumentId(example.getCharacterId(), example.getId()));
         document.setContent(example.getSampleText());
         document.setMetadata(metadata(example));
         return document;
+    }
+
+    private String exampleDocumentId(Long characterId, Long exampleId) {
+        return "character:%s:example:%s".formatted(characterId, exampleId);
     }
 
     private Map<String, Object> metadata(RoleExample example) {

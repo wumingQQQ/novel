@@ -471,7 +471,7 @@ public class RoleReactionRuleService
             throw new IllegalStateException("角色反应规则保存后未获取到规则主键，无法同步索引，characterId: "
                     + character.getId());
         }
-        int deletedCount = roleReactionRuleVectorIndexService.deleteByIds(oldRuleIds);
+        int deletedCount = roleReactionRuleVectorIndexService.deleteByIds(character.getId(), oldRuleIds);
         requireRagSuccess("删除旧ReactionRule向量", deletedCount);
         int indexedCount = roleReactionRuleVectorIndexService.indexByIds(newRuleIds);
         requireRagSuccess("索引ReactionRule向量", indexedCount);

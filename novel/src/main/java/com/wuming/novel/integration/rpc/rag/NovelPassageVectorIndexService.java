@@ -35,12 +35,12 @@ public class NovelPassageVectorIndexService {
         return ragService.upsertDocuments(passageIndexName, documents);
     }
 
-    public int deleteByIds(List<Long> passageIds) {
+    public int deleteByIds(Long novelId, List<Long> passageIds) {
         if (passageIds == null || passageIds.isEmpty()) {
             return 0;
         }
         List<String> documentIds = passageIds.stream()
-                .map(String::valueOf)
+                .map(passageId -> passageDocumentId(novelId, passageId))
                 .toList();
         return ragService.deleteDocuments(passageIndexName, documentIds);
     }
@@ -100,10 +100,14 @@ public class NovelPassageVectorIndexService {
 
     private RagDocument toDocument(NovelPassage passage) {
         RagDocument document = new RagDocument();
-        document.setDocumentId(String.valueOf(passage.getId()));
+        document.setDocumentId(passageDocumentId(passage.getNovelId(), passage.getId()));
         document.setContent(passage.getContent());
         document.setMetadata(metadata(passage));
         return document;
+    }
+
+    private String passageDocumentId(Long novelId, Long passageId) {
+        return "novel:%s:passage:%s".formatted(novelId, passageId);
     }
 
     private Map<String, Object> metadata(NovelPassage passage) {

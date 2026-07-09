@@ -247,7 +247,7 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
      * @param passageIds 待写入向量的新Passage id
      */
     private void syncPassageIndex(Long jobId, Chapter chapter, List<Long> oldPassageIds, List<Long> passageIds) {
-        int deletedCount = passageVectorIndexService.deleteByIds(oldPassageIds);
+        int deletedCount = passageVectorIndexService.deleteByIds(chapter.getNovelId(), oldPassageIds);
         requireRagSuccess("删除旧Passage向量", deletedCount);
         int indexedCount = passageVectorIndexService.indexByIds(passageIds);
         requireRagSuccess("索引Passage向量", indexedCount);

@@ -38,12 +38,12 @@ public class RoleReactionRuleVectorIndexService {
         return ragService.upsertDocuments(reactionRuleIndexName, documents);
     }
 
-    public int deleteByIds(List<Long> ruleIds) {
+    public int deleteByIds(Long characterId, List<Long> ruleIds) {
         if (ruleIds == null || ruleIds.isEmpty()) {
             return 0;
         }
         List<String> documentIds = ruleIds.stream()
-                .map(String::valueOf)
+                .map(ruleId -> ruleDocumentId(characterId, ruleId))
                 .toList();
         return ragService.deleteDocuments(reactionRuleIndexName, documentIds);
     }
@@ -103,10 +103,14 @@ public class RoleReactionRuleVectorIndexService {
 
     private RagDocument toDocument(RoleReactionRule rule) {
         RagDocument document = new RagDocument();
-        document.setDocumentId(String.valueOf(rule.getId()));
+        document.setDocumentId(ruleDocumentId(rule.getCharacterId(), rule.getId()));
         document.setContent(rule.getSituation() + "\n" + rule.getRule());
         document.setMetadata(metadata(rule));
         return document;
+    }
+
+    private String ruleDocumentId(Long characterId, Long ruleId) {
+        return "character:%s:rule:%s".formatted(characterId, ruleId);
     }
 
     private Map<String, Object> metadata(RoleReactionRule rule) {
