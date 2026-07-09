@@ -14,6 +14,19 @@ spring:
       keepalive-time: 120000
   profiles:
     active: dev
+  config:
+    import: optional:classpath:resend.properties
+  mail:
+    host: ${RESEND_SMTP_HOST:smtp.resend.com}
+    port: ${RESEND_SMTP_PORT:587}
+    username: ${RESEND_SMTP_USERNAME:resend}
+    password: ${RESEND_API_KEY:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 mybatis-plus:
   type-aliases-package: com.wuming.user.domain
@@ -39,3 +52,7 @@ auth:
     expires-minutes: 120
     issuer: https://novel-latest.local
 
+user:
+  mail:
+    enabled: ${USER_MAIL_ENABLED:false}
+    from: ${RESEND_MAIL_FROM:}
