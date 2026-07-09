@@ -9,11 +9,17 @@ import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.redis.RedisVectorStore;
 import org.springframework.ai.vectorstore.redis.RedisVectorStore.MetadataField;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import redis.clients.jedis.Connection;
+import redis.clients.jedis.DefaultJedisClientConfig;
+import redis.clients.jedis.HostAndPort;
+import redis.clients.jedis.JedisClientConfig;
 import redis.clients.jedis.JedisPooled;
 
 @Configuration
@@ -34,16 +40,31 @@ public class RagConfig {
     }
 
     @Bean
-    public JedisPooled jedisPooled(RedisProperties redisProperties) {
+    public JedisPooled jedisPooled(RedisProperties redisProperties,
+                                   @Value("${rag.redis.connection-timeout-ms:10000}") int connectionTimeoutMillis,
+                                   @Value("${rag.redis.socket-timeout-ms:60000}") int socketTimeoutMillis,
+                                   @Value("${rag.redis.pool.max-total:32}") int maxTotal,
+                                   @Value("${rag.redis.pool.max-idle:16}") int maxIdle,
+                                   @Value("${rag.redis.pool.min-idle:2}") int minIdle) {
+        GenericObjectPoolConfig<Connection> poolConfig = new GenericObjectPoolConfig<>();
+        poolConfig.setMaxTotal(maxTotal);
+        poolConfig.setMaxIdle(maxIdle);
+        poolConfig.setMinIdle(minIdle);
+
         String password = redisProperties.getPassword();
         if (password == null || password.isBlank()) {
-            return new JedisPooled(redisProperties.getHost(), redisProperties.getPort());
+            password = null;
         }
+        JedisClientConfig clientConfig = DefaultJedisClientConfig.builder()
+                .connectionTimeoutMillis(connectionTimeoutMillis)
+                .socketTimeoutMillis(socketTimeoutMillis)
+                .password(password)
+                .database(redisProperties.getDatabase())
+                .build();
         return new JedisPooled(
-                redisProperties.getHost(),
-                redisProperties.getPort(),
-                null,
-                password
+                new HostAndPort(redisProperties.getHost(), redisProperties.getPort()),
+                clientConfig,
+                poolConfig
         );
     }
 
