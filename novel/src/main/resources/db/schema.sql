@@ -1,7 +1,11 @@
 create table if not exists novels(
     id bigint primary key auto_increment comment '小说主键',
     name varchar(50) not null comment '小说名称',
-    file_path varchar(100) not null comment '小说保存路径',
+    file_path varchar(255) not null comment '小说保存路径或对象存储key',
+    storage_type varchar(20) not null default 'LOCAL' comment '文件存储类型：LOCAL/COS',
+    object_key varchar(255) comment '对象存储key，LOCAL时与file_path一致',
+    original_filename varchar(255) comment '上传原始文件名',
+    file_size bigint comment '文件大小，单位字节',
     uploader_id bigint not null comment '上传者id',
     create_time datetime default current_timestamp comment '创建时间',
     key idx_novels_uploader_id(uploader_id)

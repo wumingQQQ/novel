@@ -18,6 +18,22 @@ public class Novel implements Serializable {
     private Long id;
     private String name;
     private String filePath;
+    /**
+     * 文件存储类型：LOCAL/COS。
+     */
+    private String storageType;
+    /**
+     * 文件存储定位符：LOCAL为本地路径，COS为对象key。
+     */
+    private String objectKey;
+    /**
+     * 上传时的原始文件名。
+     */
+    private String originalFilename;
+    /**
+     * UTF-8归一化后的文件大小，单位字节。
+     */
+    private Long fileSize;
     private Long uploaderId;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
