@@ -83,6 +83,9 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
 
     public void advanceStage(Long jobId, JobStage stage){
         Job job = getById(jobId);
+        if (job == null) {
+            throw new BusinessException(ErrorCode.JOB_NOT_FOUND, "任务不存在: " + jobId);
+        }
         job.setStage(stage);
         updateById(job);
         if(stage == JobStage.COMPLETE){
