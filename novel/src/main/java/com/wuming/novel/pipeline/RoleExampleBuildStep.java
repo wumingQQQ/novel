@@ -47,7 +47,8 @@ public class RoleExampleBuildStep implements PipelineStep {
         String targetName = requireText(job.getTargetName(), "targetName不能为空");
         roleExampleService.startExampleExtraction(job.getNovelId(), targetName);
         List<Long> passageIds = targetPassageIds(jobId, job, targetName);
-        jobProgressService.setStageTotalItems(jobId, stage(), passageIds.size());
+        int completedCount = redisStageFailureStore.completedLongItems(jobId, stage()).size();
+        jobProgressService.setStageItemCounts(jobId, stage(), completedCount + passageIds.size(), completedCount, 0);
         List<PassageExampleBuildResult> results = passageIds.stream()
                 .map(passageId -> CompletableFuture
                         .supplyAsync(() -> roleExampleService.extractExamplesFromPassage(job.getNovelId(), targetName, passageId), llmExecutor)

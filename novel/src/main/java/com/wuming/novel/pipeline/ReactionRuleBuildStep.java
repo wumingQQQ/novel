@@ -55,7 +55,8 @@ public class ReactionRuleBuildStep implements PipelineStep {
         }
 
         List<String> situationKeys = targetSituationKeys(jobId, characterId);
-        jobProgressService.setStageTotalItems(jobId, stage(), situationKeys.size());
+        int completedCount = redisStageFailureStore.completedItems(jobId, stage()).size();
+        jobProgressService.setStageItemCounts(jobId, stage(), completedCount + situationKeys.size(), completedCount, 0);
         List<SituationRuleBuildResult> results = situationKeys.stream()
                 .map(situationKey -> CompletableFuture
                         .supplyAsync(

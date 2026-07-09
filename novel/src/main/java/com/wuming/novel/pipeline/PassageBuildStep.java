@@ -11,6 +11,7 @@ import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelPassageService;
 import com.wuming.novel.service.IPassageCharacterService;
+import com.wuming.novel.sse.JobProgressService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -29,6 +30,7 @@ public class PassageBuildStep implements PipelineStep {
     private final INovelPassageService novelPassageService;
     private final IPassageCharacterService passageCharacterService;
     private final RedisStageFailureStore redisStageFailureStore;
+    private final JobProgressService jobProgressService;
 
     @Override
     public JobStage stage() {
@@ -44,14 +46,18 @@ public class PassageBuildStep implements PipelineStep {
     public void execute(Long jobId) {
         Job job = requireJob(jobId);
         List<Chapter> chapters = targetChapters(jobId, job);
+        int completedCount = redisStageFailureStore.completedLongItems(jobId, stage()).size();
+        jobProgressService.setStageItemCounts(jobId, stage(), completedCount + chapters.size(), completedCount, 0);
         int successCount = 0;
         for (Chapter chapter : chapters) {
             try {
                 buildOneChapter(job, chapter);
                 redisStageFailureStore.recordSuccess(jobId, stage(), chapter.getId());
+                jobProgressService.recordItemSuccess(jobId, stage());
                 successCount++;
             } catch (RuntimeException e) {
                 redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
+                jobProgressService.recordItemFailure(jobId, stage());
                 log.warn("章节Passage构建失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}",
                         job.getId(), job.getNovelId(), chapter.getId(), e);
             }
