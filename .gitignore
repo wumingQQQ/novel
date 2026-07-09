@@ -60,3 +60,4 @@ test/
 untrack/
 worktrees/
 apm/
+*.env
