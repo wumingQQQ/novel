@@ -61,3 +61,4 @@ untrack/
 worktrees/
 apm/
 *.env
+*.properties
