@@ -33,6 +33,12 @@
 | `REDIS_PWD` | Redis 密码 | 空 | chat/novel |  |
 | `ROCKETMQ_NAME_SERVER` | RocketMQ NameServer | `localhost:9876` | user/chat/novel | Docker/远程环境必须覆盖 |
 | `JWT_SECRET` | JWT 签名密钥 | dev 默认值 | user/chat/novel | 生产环境必须覆盖 |
+| `USER_MAIL_ENABLED` | 是否启用用户邮件通知 | `false` | user | 默认关闭，避免缺少邮件配置时影响服务启动 |
+| `RESEND_API_KEY` | Resend API Key，同时作为 SMTP 密码 | 空 | user | 生产环境必须覆盖 |
+| `RESEND_MAIL_FROM` | 邮件发件人地址 | 空 | user | 需要使用 Resend 已验证域名下的地址 |
+| `RESEND_SMTP_HOST` | Resend SMTP 主机 | `smtp.resend.com` | user | 通常无需覆盖 |
+| `RESEND_SMTP_PORT` | Resend SMTP 端口 | `587` | user | 可按实际配置改为 `465` |
+| `RESEND_SMTP_USERNAME` | Resend SMTP 用户名 | `resend` | user | Resend 固定用户名 |
 
 ## LLM 与 RAG 环境变量
 
@@ -65,6 +71,56 @@
 | `dubbo.*` | `application.yml` | Triple 协议服务暴露，默认端口 `50052` |
 | `rocketmq.name-server` | `application-dev.yml` | 任务完成消息消费 |
 | `auth.jwt.*` | `application.yml` | JWT 签发和校验配置 |
+| `spring.mail.*` | `application.yml` / `resend.properties` | Resend SMTP 邮件发送配置 |
+| `user.mail.*` | `application.yml` / `resend.properties` | 用户通知邮件开关和发件人配置 |
+
+#### 任务完成邮件通知
+
+`user` 模块会消费小说任务完成消息，并在用户存在、状态为 `ACTIVE`、邮箱不为空时发送邮件通知。邮件发送通过 `spring-boot-starter-mail` 和 Resend SMTP 实现：
+
+- `USER_MAIL_ENABLED=false` 时使用空实现，不会真实发信。
+- `USER_MAIL_ENABLED=true` 时使用 `JavaMailSender` 通过 SMTP 发信。
+- 发件人地址配置在 `user.mail.from`，必须是 Resend 已验证域名下的地址。
+- API Key 不应提交到仓库，建议放在环境变量或本地 `resend.properties` 中。
+
+推荐本地创建 `user/src/main/resources/resend.properties`，该文件不应入库：
+
+```properties
+USER_MAIL_ENABLED=true
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxx
+RESEND_MAIL_FROM=no-reply@example.com
+```
+
+如果使用 Resend 465 端口和 SSL，可以在配置中覆盖 Spring Mail 参数：
+
+```yaml
+spring:
+  mail:
+    host: smtp.resend.com
+    port: 465
+    username: resend
+    password: ${RESEND_API_KEY}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+
+user:
+  mail:
+    enabled: true
+    from: no-reply@example.com
+```
+
+真实发信测试默认跳过，需要显式开启：
+
+```powershell
+$env:RESEND_REAL_MAIL_TEST='true'
+mvn -pl user -am "-Dtest=ResendMailRealSendTest" test
+```
+
+真实发信测试会 mock 用户查询，不依赖 MySQL。收件人可通过环境变量 `RESEND_REAL_MAIL_TO` 或配置项 `resend.real-mail-to` 指定。
 
 ### novel
 
