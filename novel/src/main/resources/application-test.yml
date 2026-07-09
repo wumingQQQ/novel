@@ -44,3 +44,13 @@ rocketmq:
   producer:
     group: novel-test-producer-group
     send-message-timeout: 3000
+
+logging:
+  level:
+    root: INFO
+    com.wuming.common.mybatis: WARN
+    com.wuming.novel.infrastructure.mapper: WARN
+    com.wuming.novel.pipeline: INFO
+    com.wuming.novel.service.impl: INFO
+    com.wuming.novel.integration.rpc: INFO
+    org.springframework.ai: WARN
