@@ -6,6 +6,7 @@ import com.wuming.novel.domain.dto.ChapterAnalysisResult;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
+import com.wuming.novel.llm.LlmConcurrencyLimiter;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class ChapterAnalysisService {
     private final IChapterService chapterService;
     private final ChatClient chatClient;
     private final PromptTemplateRenderer renderer;  // 负责加载Prompt并将参数进行渲染
+    private final LlmConcurrencyLimiter llmConcurrencyLimiter;
 
     /**
      * 分析整本小说
@@ -60,11 +62,7 @@ public class ChapterAnalysisService {
                             "chapterContent", abbreviate(chapter.getContent())
                     )
             );
-            ChapterAnalysisResult result = chatClient.prompt()
-                    .system(dualPrompt.systemPrompt())
-                    .user(dualPrompt.userPrompt())
-                    .call()
-                    .entity(ChapterAnalysisResult.class);
+            ChapterAnalysisResult result = analyzeByLlm(dualPrompt);
             if(result == null){
                 throw new BusinessException(ErrorCode.LLM_EMPTY_RESPONSE);
             }
@@ -100,4 +98,17 @@ public class ChapterAnalysisService {
         return content.substring(0, CONTENT_LIMIT);
     }
 
+    /**
+     * 受统一LLM并发限流保护的章节分析调用。
+     *
+     * @param dualPrompt 渲染后的系统提示词和用户提示词
+     * @return 章节分析结果
+     */
+    private ChapterAnalysisResult analyzeByLlm(PromptTemplateRenderer.DualPrompt dualPrompt) {
+        return llmConcurrencyLimiter.execute(() -> chatClient.prompt()
+                .system(dualPrompt.systemPrompt())
+                .user(dualPrompt.userPrompt())
+                .call()
+                .entity(ChapterAnalysisResult.class));
+    }
 }

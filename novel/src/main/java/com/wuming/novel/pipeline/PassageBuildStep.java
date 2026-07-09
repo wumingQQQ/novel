@@ -12,11 +12,14 @@ import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelPassageService;
 import com.wuming.novel.service.IPassageCharacterService;
 import com.wuming.novel.sse.JobProgressService;
+import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * Passage构建流程阶段。
@@ -31,6 +34,8 @@ public class PassageBuildStep implements PipelineStep {
     private final IPassageCharacterService passageCharacterService;
     private final RedisStageFailureStore redisStageFailureStore;
     private final JobProgressService jobProgressService;
+    @Resource(name = "llmExecutor")
+    private Executor llmExecutor;
 
     @Override
     public JobStage stage() {
@@ -48,22 +53,33 @@ public class PassageBuildStep implements PipelineStep {
         List<Chapter> chapters = targetChapters(jobId, job);
         int completedCount = redisStageFailureStore.completedLongItems(jobId, stage()).size();
         jobProgressService.setStageItemCounts(jobId, stage(), completedCount + chapters.size(), completedCount, 0);
-        int successCount = 0;
-        for (Chapter chapter : chapters) {
-            try {
-                buildOneChapter(job, chapter);
-                redisStageFailureStore.recordSuccess(jobId, stage(), chapter.getId());
-                jobProgressService.recordItemSuccess(jobId, stage());
-                successCount++;
-            } catch (RuntimeException e) {
-                redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
-                jobProgressService.recordItemFailure(jobId, stage());
-                log.warn("章节Passage构建失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}",
-                        job.getId(), job.getNovelId(), chapter.getId(), e);
-            }
-        }
+        int successCount = chapters.stream()
+                .map(chapter -> CompletableFuture
+                        .runAsync(() -> buildOneChapter(job, chapter), llmExecutor)
+                        .handle((ignored, throwable) -> finishOneChapter(jobId, job, chapter, throwable)))
+                .toList()
+                .stream()
+                .map(CompletableFuture::join)
+                .mapToInt(success -> success ? 1 : 0)
+                .sum();
         log.info("小说Passage构建执行完成，jobId: {}, novelId: {}, requestCount: {}, successCount: {}",
                 job.getId(), job.getNovelId(), chapters.size(), successCount);
+    }
+
+    /**
+     * 完成单章Passage构建子任务收尾，统一记录检查点和进度。
+     */
+    private boolean finishOneChapter(Long jobId, Job job, Chapter chapter, Throwable throwable) {
+        if (throwable == null) {
+            redisStageFailureStore.recordSuccess(jobId, stage(), chapter.getId());
+            jobProgressService.recordItemSuccess(jobId, stage());
+            return true;
+        }
+        redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
+        jobProgressService.recordItemFailure(jobId, stage());
+        log.warn("章节Passage构建失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}",
+                job.getId(), job.getNovelId(), chapter.getId(), throwable);
+        return false;
     }
 
     /**

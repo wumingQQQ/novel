@@ -17,7 +17,6 @@ import com.wuming.novel.integration.rpc.rag.RoleReactionRuleVectorIndexService;
 import com.wuming.novel.llm.LlmConcurrencyLimiter;
 import com.wuming.novel.service.IRoleCharacterService;
 import com.wuming.novel.service.IRoleReactionRuleService;
-import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -29,11 +28,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 
 /**
  * 角色情境反应规则基础服务实现。
@@ -61,8 +59,6 @@ public class RoleReactionRuleService
     private final LlmConcurrencyLimiter llmConcurrencyLimiter;
     private final RoleReactionRuleVectorIndexService roleReactionRuleVectorIndexService;
     private final TransactionTemplate transactionTemplate;
-    @Resource(name = "llmExecutor")
-    private Executor llmExecutor;
 
     @Value("${novel.reaction-rule.situations-config:classpath:reaction-situations.json}")
     private String situationsConfig;
@@ -106,18 +102,18 @@ public class RoleReactionRuleService
 
         log.info("开始构建角色情境反应规则，characterId: {}, characterName: {}, situationCount: {}",
                 characterId, character.getCharacterName(), tasks.size());
-        List<CompletableFuture<RoleReactionRule>> futures = tasks.stream()
-                .map(task -> CompletableFuture.supplyAsync(
-                        () -> llmConcurrencyLimiter.execute(() -> buildOneRule(character, task)),
-                        llmExecutor))
-                .toList();
-        List<RoleReactionRule> rules = futures.stream()
-                .map(future -> future.exceptionally(e -> {
-                    log.warn("角色情境反应规则构建任务失败，characterId: {}", characterId, e);
-                    return null;
-                }).join())
-                .filter(Objects::nonNull)
-                .toList();
+        List<RoleReactionRule> rules = new ArrayList<>();
+        for (SituationTask task : tasks) {
+            try {
+                RoleReactionRule rule = buildOneRuleWithLimit(character, task);
+                if (rule != null) {
+                    rules.add(rule);
+                }
+            } catch (RuntimeException e) {
+                log.warn("角色情境反应规则构建任务失败，characterId: {}, situationKey: {}",
+                        characterId, situationKey(task), e);
+            }
+        }
         if (rules.isEmpty()) {
             markIncomplete(character, "未生成有效ReactionRule");
             log.info("角色情境反应规则构建完成，characterId: {}, savedCount: 0", characterId);
@@ -171,7 +167,7 @@ public class RoleReactionRuleService
             throw new IllegalArgumentException("角色不存在: " + characterId);
         }
         SituationTask task = requireSituationTask(situationKey);
-        RoleReactionRule rule = llmConcurrencyLimiter.execute(() -> buildOneRule(character, task));
+        RoleReactionRule rule = buildOneRuleWithLimit(character, task);
         return saveOneRuleInTransaction(character, task.situation(), rule);
     }
 
@@ -234,6 +230,17 @@ public class RoleReactionRuleService
         log.debug("情境反应规则构建成功，characterId: {}, category: {}, situation: {}",
                 character.getId(), task.category(), task.situation());
         return rule;
+    }
+
+    /**
+     * 受统一LLM并发限流保护的单情境反应规则构建入口。
+     *
+     * @param character 角色
+     * @param task 情境任务
+     * @return 构建成功的规则；证据不足或构建失败时返回null
+     */
+    private RoleReactionRule buildOneRuleWithLimit(RoleCharacter character, SituationTask task) {
+        return llmConcurrencyLimiter.execute(() -> buildOneRule(character, task));
     }
 
     /**

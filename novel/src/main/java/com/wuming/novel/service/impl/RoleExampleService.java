@@ -19,7 +19,6 @@ import com.wuming.novel.service.INovelService;
 import com.wuming.novel.service.IPassageCharacterService;
 import com.wuming.novel.service.IRoleCharacterService;
 import com.wuming.novel.service.IRoleExampleService;
-import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -30,8 +29,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -59,8 +56,6 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
     private final LlmConcurrencyLimiter llmConcurrencyLimiter;
     private final RoleExampleVectorIndexService roleExampleVectorIndexService;
     private final TransactionTemplate transactionTemplate;
-    @Resource(name = "llmExecutor")
-    private Executor llmExecutor;
 
     @Value("${novel.role-example.max-candidate-passages:80}")
     private int maxCandidatePassages;
@@ -185,7 +180,7 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
             return savePassageExamplesInTransaction(novelId, character, passageId, List.of());
         }
 
-        List<RoleExample> examples = extractOnePassage(character, passage);
+        List<RoleExample> examples = extractOnePassageWithLimit(character, passage);
         return savePassageExamplesInTransaction(novelId, character, passageId, examples);
     }
 
@@ -450,18 +445,30 @@ public class RoleExampleService extends ServiceImpl<RoleExampleMapper, RoleExamp
      */
     private List<RoleExample> extractExamples(RoleCharacter character, List<NovelPassage> candidates) {
         Set<String> seen = new HashSet<>();
-        List<CompletableFuture<List<RoleExample>>> futures = candidates.stream()
-                .map(passage -> CompletableFuture.supplyAsync(
-                        () -> llmConcurrencyLimiter.execute(() -> extractOnePassage(character, passage)),
-                        llmExecutor))
-                .toList();
-        return futures.stream()
-                .flatMap(future -> future.exceptionally(e -> {
-                    log.warn("Passage角色样本抽取任务执行失败，characterId: {}", character.getId(), e);
-                    return List.of();
-                }).join().stream())
-                .filter(example -> seen.add(example.getSampleType() + "\n" + example.getSampleText()))
-                .toList();
+        List<RoleExample> examples = new ArrayList<>();
+        for (NovelPassage passage : candidates) {
+            try {
+                List<RoleExample> passageExamples = extractOnePassageWithLimit(character, passage);
+                passageExamples.stream()
+                        .filter(example -> seen.add(example.getSampleType() + "\n" + example.getSampleText()))
+                        .forEach(examples::add);
+            } catch (RuntimeException e) {
+                log.warn("Passage角色样本抽取失败，characterId: {}, passageId: {}",
+                        character.getId(), passage.getId(), e);
+            }
+        }
+        return examples;
+    }
+
+    /**
+     * 受统一LLM并发限流保护的单Passage样本抽取入口。
+     *
+     * @param character 目标角色
+     * @param passage 文本块
+     * @return 样本集合
+     */
+    private List<RoleExample> extractOnePassageWithLimit(RoleCharacter character, NovelPassage passage) {
+        return llmConcurrencyLimiter.execute(() -> extractOnePassage(character, passage));
     }
 
     /**

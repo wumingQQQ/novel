@@ -8,14 +8,12 @@ import com.wuming.novel.infrastructure.mapper.PassageCharacterMapper;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
 import com.wuming.novel.llm.LlmConcurrencyLimiter;
 import com.wuming.novel.service.IPassageCharacterService;
-import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -34,8 +32,6 @@ public class PassageCharacterService
     private final ChatClient chatClient;
     private final PromptTemplateRenderer renderer;
     private final LlmConcurrencyLimiter llmConcurrencyLimiter;
-    @Resource(name = "llmExecutor")
-    private Executor llmExecutor;
 
     /**
      * 识别 Passage 中出场人物，并保存 Passage 与人物映射。
@@ -47,18 +43,10 @@ public class PassageCharacterService
         if (passages == null || passages.isEmpty()) {
             return;
         }
-        List<CompletableFuture<List<PassageCharacter>>> futures = passages.stream()
-                .map(passage -> CompletableFuture.supplyAsync(
-                        () -> llmConcurrencyLimiter.execute(
-                                () -> passageCharacter(passage.getId(), recognizeOnePassage(passage))),
-                        llmExecutor))
-                .toList();
-        List<PassageCharacter> passageCharacters = futures.stream()
-                .flatMap(future -> future.exceptionally(e -> {
-                    log.warn("Passage人物识别任务执行失败", e);
-                    return List.of();
-                }).join().stream())
-                .toList();
+        List<PassageCharacter> passageCharacters = new ArrayList<>();
+        for (NovelPassage passage : passages) {
+            passageCharacters.addAll(passageCharacter(passage.getId(), recognizeOnePassage(passage)));
+        }
         if (!passageCharacters.isEmpty()) {
             saveBatch(passageCharacters);
         }
@@ -81,11 +69,11 @@ public class PassageCharacterService
                 USER_TEMPLATE_PATH,
                 Map.of("passageContent", passage.getContent())
         );
-        return chatClient.prompt()
+        return llmConcurrencyLimiter.execute(() -> chatClient.prompt()
                 .system(dualPrompt.systemPrompt())
                 .user(dualPrompt.userPrompt())
                 .call()
-                .entity(PassageCharacterResult.class);
+                .entity(PassageCharacterResult.class));
     }
 
     private List<String> normalizeCharacters(List<String> characters) {
