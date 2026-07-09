@@ -48,7 +48,8 @@ public class ChapterAnalysisStep implements PipelineStep {
     public void execute(Long jobId) {
         Job job = requireJob(jobId);
         List<Chapter> chapters = targetChapters(jobId, job);
-        jobProgressService.setStageTotalItems(jobId, stage(), chapters.size());
+        int completedCount = redisStageFailureStore.completedLongItems(jobId, stage()).size();
+        jobProgressService.setStageItemCounts(jobId, stage(), completedCount + chapters.size(), completedCount, 0);
         int successCount = chapters.stream()
                 .map(chapter -> CompletableFuture
                         .runAsync(() -> chapterAnalysisService.analyzeChapter(chapter), llmExecutor)
