@@ -19,9 +19,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
         OpenAiImageAutoConfiguration.class,
         OpenAiModerationAutoConfiguration.class
 })
-public class RagServiceApplication {
+public class RagApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(RagServiceApplication.class, args);
+        SpringApplication.run(RagApplication.class, args);
     }
 }
