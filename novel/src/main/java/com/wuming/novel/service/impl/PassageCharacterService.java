@@ -11,6 +11,8 @@ import com.wuming.novel.service.IPassageCharacterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -33,6 +35,10 @@ public class PassageCharacterService
     private final PromptTemplateRenderer renderer;
     private final LlmConcurrencyLimiter llmConcurrencyLimiter;
 
+    @Lazy
+    @Autowired
+    private PassageCharacterService self;
+
     /**
      * 识别 Passage 中出场人物，并保存 Passage 与人物映射。
      *
@@ -48,7 +54,7 @@ public class PassageCharacterService
             passageCharacters.addAll(passageCharacter(passage.getId(), recognizeOnePassage(passage)));
         }
         if (!passageCharacters.isEmpty()) {
-            saveBatch(passageCharacters);
+            self.saveBatch(passageCharacters);
         }
     }
 
