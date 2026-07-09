@@ -46,12 +46,34 @@ public class JobProgressService {
         updateAndPush(jobId, progress -> progress.getStage(stage).resetTotalItems(totalItems));
     }
 
+    /**
+     * 设置计数阶段的完整子任务计数，用于断点续跑和失败项重试时恢复展示状态。
+     */
+    public void setStageItemCounts(Long jobId, JobStage stage, int totalItems, int successItems, int failedItems) {
+        updateAndPush(jobId, progress -> progress.getStage(stage)
+                .resetItemCounts(totalItems, successItems, failedItems));
+    }
+
     public void startStage(Long jobId, JobStage stage, String message) {
         updateAndPush(jobId, progress -> progress.startStage(stage, message));
     }
 
     public void completeStage(Long jobId, JobStage stage, String message) {
         updateAndPush(jobId, progress -> progress.completeStage(stage, message));
+    }
+
+    /**
+     * 标记已跳过阶段完成；计数阶段没有可恢复子项明细时展示为0/0完成。
+     */
+    public void completeSkippedStage(Long jobId, JobStage stage, String message) {
+        updateAndPush(jobId, progress -> {
+            StageProgress stageProgress = progress.getStage(stage);
+            if (stageProgress.isCounted()) {
+                stageProgress.resetItemCounts(0, 0, 0);
+            }
+            stageProgress.complete(message);
+            progress.touch();
+        });
     }
 
     public void failStage(Long jobId, JobStage stage, String message) {
@@ -65,7 +87,6 @@ public class JobProgressService {
         updateAndPush(jobId, progress -> {
             StageProgress stageProgress = progress.getStage(stage);
             stageProgress.recordItemSuccess();
-            completeCountedStageIfReady(stageProgress);
             progress.touch();
         });
     }
@@ -77,23 +98,6 @@ public class JobProgressService {
         updateAndPush(jobId, progress -> {
             StageProgress stageProgress = progress.getStage(stage);
             stageProgress.recordItemFailure();
-            completeCountedStageIfReady(stageProgress);
-            progress.touch();
-        });
-    }
-
-    /**
-     * 显式结束计数阶段；存在失败子任务时阶段失败，否则阶段成功。
-     */
-    public void finishCountedStage(Long jobId, JobStage stage, String successMessage, String failedMessage) {
-        updateAndPush(jobId, progress -> {
-            StageProgress stageProgress = progress.getStage(stage);
-            if(stageProgress.hasFailedItems()){
-                stageProgress.fail(failedMessage);
-                progress.touch();
-                return;
-            }
-            stageProgress.complete(successMessage);
             progress.touch();
         });
     }
@@ -101,11 +105,13 @@ public class JobProgressService {
     public void completeJob(Long jobId){
         updateAndPush(jobId, JobProgress::completeJob);
         closeSubscriber(jobId);
+        evictLocalProgress(jobId);
     }
 
     public void failJob(Long jobId, String message){
         updateAndPush(jobId, progress -> progress.failJob(message));
         closeSubscriber(jobId);
+        evictLocalProgress(jobId);
     }
 
     /**
@@ -170,26 +176,6 @@ public class JobProgressService {
     }
 
     /**
-     * 计数阶段全部子任务结束后，根据失败数决定阶段成功或失败。
-     */
-    private void completeCountedStageIfReady(StageProgress stage) {
-        if(!stage.isAllItemsFinished()){
-            return;
-        }
-        synchronized (stage) {
-            if(!stage.isAllItemsFinished()){
-                return;
-            }
-
-            if (stage.hasFailedItems()) {
-                stage.fail(stage.getMessage());
-                return;
-            }
-            stage.complete(stage.getMessage());
-        }
-    }
-
-    /**
      * 对本地进度执行变更，并同步保存 Redis 与推送 SSE。
      */
     private void updateAndPush(Long jobId, Consumer<JobProgress> updater) {
@@ -198,8 +184,10 @@ public class JobProgressService {
             log.debug("job: {} 进度对象不存在，忽略进度更新", jobId);
             return;
         }
-        updater.accept(progress);
-        jobProgressStore.save(progress);
+        synchronized (progress) {
+            updater.accept(progress);
+            jobProgressStore.save(progress);
+        }
         pushUpdate(jobId, progress);
     }
 
@@ -257,5 +245,12 @@ public class JobProgressService {
                 subscribers.remove(jobId);
             }
         }
+    }
+
+    /**
+     * 任务结束后仅清理本地进度缓存；Redis进度仍按TTL保留供后续查询。
+     */
+    private void evictLocalProgress(Long jobId) {
+        jobProgressMap.remove(jobId);
     }
 }
