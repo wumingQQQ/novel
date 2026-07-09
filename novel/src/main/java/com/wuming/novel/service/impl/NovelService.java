@@ -6,18 +6,19 @@ import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.exception.FileNotSupportException;
 import com.wuming.novel.exception.FileTooLargeException;
 import com.wuming.novel.infrastructure.mapper.NovelMapper;
+import com.wuming.novel.integration.storage.NovelFileStorageRouter;
+import com.wuming.novel.integration.storage.StoredNovelFile;
 import com.wuming.novel.integration.rpc.user.UserContextService;
 import com.wuming.novel.service.INovelService;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.FilenameUtils;
+import org.mozilla.universalchardet.UniversalDetector;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.UUID;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +26,7 @@ public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INo
 
     private final FileUploadProperties fileUploadProperties;
     private final UserContextService userContextService;
+    private final NovelFileStorageRouter novelFileStorageRouter;
 
 
     /**
@@ -50,27 +52,34 @@ public class NovelService extends ServiceImpl<NovelMapper, Novel> implements INo
         }
 
         String baseName = FilenameUtils.getBaseName(safeOriginalName);
-        String storedFileName = UUID.randomUUID() + ".txt";
-
-        Path uploadDir = Paths.get(fileUploadProperties.getSavePath())
-                .toAbsolutePath()
-                .normalize();
-        Path filePath = uploadDir.resolve(storedFileName).normalize();
-
-        if(!filePath.startsWith(uploadDir)){
-            throw new FileNotSupportException("文件名非法");
-        }
-
-        // 保存文件
-        Files.createDirectories(uploadDir);
-        file.transferTo(filePath);
+        byte[] utf8Bytes = normalizeToUtf8(file.getBytes());
+        StoredNovelFile storedFile = novelFileStorageRouter.store(utf8Bytes, userId);
 
         Novel novel = new Novel();
         novel.setName(baseName);
         novel.setUploaderId(userId);
-        novel.setFilePath(filePath.toString());
+        novel.setFilePath(storedFile.storagePath());
+        novel.setStorageType(storedFile.storageType());
+        novel.setObjectKey(storedFile.storagePath());
+        novel.setOriginalFilename(safeOriginalName);
+        novel.setFileSize(storedFile.size());
 
         save(novel);
         return novel.getId();
+    }
+
+    private byte[] normalizeToUtf8(byte[] bytes) {
+        String encoding = detectEncoding(bytes);
+        String content = new String(bytes, Charset.forName(encoding));
+        return content.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String detectEncoding(byte[] bytes) {
+        UniversalDetector detector = new UniversalDetector(null);
+        detector.handleData(bytes, 0, bytes.length);
+        detector.dataEnd();
+        String encoding = detector.getDetectedCharset();
+        detector.reset();
+        return encoding == null ? StandardCharsets.UTF_8.name() : encoding;
     }
 }
