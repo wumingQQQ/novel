@@ -51,7 +51,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
     public void splitChapter(Long jobId){
         Job job = jobService.getById(jobId);
         if(job.getStage().getCode() >= JobStage.CHAPTER_SPLIT.getCode()){
-            log.info("任务{}已经完成了阶段{}", jobId, JobStage.CHAPTER_SPLIT);
+            log.info("任务{}, 已经完成了阶段{}", jobId, JobStage.CHAPTER_SPLIT);
             return;
         }
         Long novelId  = job.getNovelId();
