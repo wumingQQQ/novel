@@ -135,6 +135,24 @@ public class StageProgress {
     }
 
     /**
+     * 设置计数阶段的完整计数快照，用于断点续跑和失败项重试时恢复展示状态。
+     */
+    public void resetItemCounts(int totalItems, int successItems, int failedItems) {
+        if (!isCounted()) {
+            throw new IllegalStateException("只有计数阶段可以更新子任务数量: " + jobStage);
+        }
+        if (totalItems < 0 || successItems < 0 || failedItems < 0) {
+            throw new IllegalArgumentException("子任务计数不能小于0");
+        }
+        if (successItems + failedItems > totalItems) {
+            throw new IllegalArgumentException("成功和失败子任务数不能超过总数");
+        }
+        this.totalItems = totalItems;
+        this.successItems = new AtomicInteger(successItems);
+        this.failedItems = new AtomicInteger(failedItems);
+    }
+
+    /**
      * 专供 Redis 反序列化恢复字段值，不在业务流程中直接调用。
      */
     public void setSuccessItems(int successItems) {
