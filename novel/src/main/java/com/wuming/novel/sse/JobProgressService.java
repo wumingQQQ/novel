@@ -313,7 +313,7 @@ public class JobProgressService {
             subscribers.remove(jobId, emitter);
             log.debug("SSE进度推送失败，已移除订阅，jobId: {}, errorType: {}, errorMessage: {}",
                     jobId, e.getClass().getSimpleName(), e.getMessage());
-            emitter.completeWithError(e);
+            emitter.complete();
         }
     }
 
@@ -327,7 +327,8 @@ public class JobProgressService {
                 emitter.complete();
             }
             catch (IllegalStateException e) {
-                emitter.completeWithError(e);
+                log.debug("SSE订阅已关闭，跳过重复关闭，jobId: {}, errorMessage: {}",
+                        jobId, e.getMessage());
             }
             finally {
                 subscribers.remove(jobId);
