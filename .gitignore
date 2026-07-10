@@ -56,9 +56,12 @@ lib/
 # 测试暂时不提交
 test/
 
+# 本地敏感配置
+novel/src/main/resources/tencent-cos.properties
+user/src/main/resources/resend.properties
+
 # 专门用于存放不被追踪的文件
 untrack/
 worktrees/
 apm/
 *.env
-*.properties
