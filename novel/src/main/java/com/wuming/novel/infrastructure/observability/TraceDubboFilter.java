@@ -9,9 +9,6 @@ import org.apache.dubbo.rpc.Result;
 import org.apache.dubbo.rpc.RpcContext;
 import org.apache.dubbo.rpc.RpcException;
 import org.slf4j.MDC;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.oauth2.jwt.Jwt;
 
 @Activate(group = {CommonConstants.CONSUMER, CommonConstants.PROVIDER})
 public class TraceDubboFilter implements Filter {
@@ -23,7 +20,7 @@ public class TraceDubboFilter implements Filter {
     @Override
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
         if (RpcContext.getServiceContext().isConsumerSide()) {
-            removeSecurityObjectAttachments();
+            resetClientAttachments();
             attachTraceContext();
             return invoker.invoke(invocation);
         }
@@ -54,20 +51,10 @@ public class TraceDubboFilter implements Filter {
     }
 
     /**
-     * 清理不应该跨RPC传递的Spring Security对象，避免Dubbo尝试序列化认证上下文。
+     * RPC 附件只允许由本过滤器写入日志链路字段，避免认证上下文或其他对象被序列化到远端。
      */
-    private void removeSecurityObjectAttachments() {
-        RpcContext.getClientAttachment().getObjectAttachments().entrySet()
-                .removeIf(entry -> isSecurityObject(entry.getValue()));
-    }
-
-    /**
-     * 判断附件对象是否属于认证上下文，仅用于日志透传前的防御性清理。
-     */
-    private boolean isSecurityObject(Object value) {
-        return value instanceof Authentication
-                || value instanceof SecurityContext
-                || value instanceof Jwt;
+    private void resetClientAttachments() {
+        RpcContext.getClientAttachment().clearAttachments();
     }
 
     /**
