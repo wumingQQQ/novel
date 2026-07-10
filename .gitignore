@@ -54,7 +54,8 @@ lib/
 .codegraph
 
 # 测试暂时不提交
-test/
+**/src/test/
+novel/data/
 
 # 本地敏感配置
 novel/src/main/resources/tencent-cos.properties
