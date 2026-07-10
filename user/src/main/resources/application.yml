@@ -18,15 +18,18 @@ spring:
     import: optional:classpath:resend.properties
   mail:
     host: ${RESEND_SMTP_HOST:smtp.resend.com}
-    port: ${RESEND_SMTP_PORT:587}
+    port: ${RESEND_SMTP_PORT:465}
     username: ${RESEND_SMTP_USERNAME:resend}
     password: ${RESEND_API_KEY:}
     properties:
       mail:
         smtp:
           auth: true
-          starttls:
+          ssl:
             enable: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
 
 mybatis-plus:
   type-aliases-package: com.wuming.user.domain
