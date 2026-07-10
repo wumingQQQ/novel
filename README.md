@@ -160,10 +160,9 @@ mysql -h 127.0.0.1 -P 3306 -uroot novel_dev < chat/src/main/resources/db/schema.
 
 ### 4. 设置本地环境变量
 
-基础配置不会自动激活 `dev` profile；本地启动必须显式设置：
+基础配置会自动激活 `dev` profile；本地启动只需设置 JWT 密钥：
 
 ```powershell
-$env:SPRING_PROFILES_ACTIVE = "dev"
 $env:JWT_SECRET = "replace-with-at-least-32-byte-local-secret"
 ```
 
@@ -203,7 +202,6 @@ $env:ROCKETMQ_NAME_SERVER = "localhost:9876"
 先编译核心模块：
 
 ```powershell
-$env:SPRING_PROFILES_ACTIVE = "dev"
 $env:JWT_SECRET = "replace-with-at-least-32-byte-local-secret"
 
 mvn -pl user,novel,chat,rag -am "-Dmaven.test.skip=true" compile
@@ -218,7 +216,7 @@ mvn -pl novel spring-boot:run
 mvn -pl chat spring-boot:run
 ```
 
-如果在不同终端启动，确保每个终端都设置了相同的 `SPRING_PROFILES_ACTIVE` 和 `JWT_SECRET`。
+如果在不同终端启动，确保每个终端都设置了相同的 `JWT_SECRET`。
 
 ---
 
@@ -295,7 +293,6 @@ curl -X POST http://localhost:8081/chat/sessions/1/messages `
 编译核心模块：
 
 ```powershell
-$env:SPRING_PROFILES_ACTIVE = "dev"
 mvn -pl user,novel,chat,rag -am "-Dmaven.test.skip=true" compile
 ```
 
@@ -340,9 +337,9 @@ git ls-files -- "*src/test*"
 
 ## 常见问题
 
-### Q1: 为什么启动前必须设置 `SPRING_PROFILES_ACTIVE=dev`？
+### Q1: 为什么服务默认激活 `dev` profile？
 
-基础配置不再硬编码激活 `dev`，避免部署时误用开发数据库、空密码或本地服务地址。本地运行需要显式选择 `dev`。
+这样可以减少本地联调的环境变量配置。部署时可通过 `SPRING_PROFILES_ACTIVE` 显式覆盖为目标环境。
 
 ### Q2: 为什么四个服务必须使用同一个 `JWT_SECRET`？
 
