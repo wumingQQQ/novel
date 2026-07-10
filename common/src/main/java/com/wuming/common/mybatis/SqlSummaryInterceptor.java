@@ -30,7 +30,7 @@ public class SqlSummaryInterceptor implements Interceptor {
         long start = System.currentTimeMillis();
         try {
             Object result = invocation.proceed();
-            log.debug("sql summary: mapper={}, type={}, costMs={}",
+            log.trace("sql summary: mapper={}, type={}, costMs={}",
                     statement.getId(),
                     commandType,
                     System.currentTimeMillis() - start
