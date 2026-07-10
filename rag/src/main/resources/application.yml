@@ -31,12 +31,12 @@ rag:
       min-idle: ${RAG_REDIS_POOL_MIN_IDLE:2}
   embedding:
     api-key: ${EMBEDDING_API_KEY:}
-    base-url: https://api.botcf.com
+    base-url: https://api.siliconflow.cn
     model: BAAI/bge-m3
     dimensions: 1024
   reranker:
-    api-key: ${RERANKER_API_KEY:}
-    base-url: https://api.botcf.com
+    api-key: ${EMBEDDING_API_KEY:}
+    base-url: https://api.siliconflow.cn
     model: BAAI/bge-reranker-v2-m3
     path: /v1/rerank
   definition-prefix: "rag:index-definition:"
