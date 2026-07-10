@@ -190,6 +190,18 @@ $env:ROCKETMQ_NAME_SERVER = "localhost:9876"
 
 不要把真实密钥写入 README、提交、日志或示例命令。
 
+### 启用任务完成邮件
+
+user 服务会消费任务完成消息，但邮件通知默认关闭。需要真实发送邮件时，在启动 user 服务的终端设置：
+
+```powershell
+$env:USER_MAIL_ENABLED = "true"
+$env:RESEND_API_KEY = "replace-with-resend-api-key"
+$env:RESEND_MAIL_FROM = "verified-sender@example.com"
+```
+
+修改环境变量后必须重启 user 服务。任务所属用户必须处于 `ACTIVE` 状态并且已填写邮箱；未启用邮件时，user 日志会记录跳过发送的原因。
+
 ### 5. 编译并启动 Java 应用
 
 建议按下面顺序启动：
@@ -356,3 +368,7 @@ git ls-files -- "*src/test*"
 ### Q5: 为什么 Git 不提交 `src/test`？
 
 这是当前仓库策略：测试先作为本地回归资产维护。后续如需纳入版本控制，需要先明确调整该策略。
+
+### Q6: user 已收到任务完成消息，为什么没有邮件？
+
+邮件通知默认关闭。设置 `USER_MAIL_ENABLED=true`、`RESEND_API_KEY` 和 `RESEND_MAIL_FROM` 后重启 user 服务；还需要确认用户状态为 `ACTIVE` 且邮箱非空。
