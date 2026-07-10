@@ -14,7 +14,7 @@ public class NoopEmailSender implements EmailSender {
 
     @Override
     public boolean send(EmailMessage message) {
-        log.debug("邮件发送未启用，跳过发送，subject: {}", message.subject());
+        log.info("邮件发送未启用，跳过发送，subject: {}", message.subject());
         return false;
     }
 }
