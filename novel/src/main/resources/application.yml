@@ -9,9 +9,6 @@ spring:
       idle-timeout: 300000
       max-lifetime: 600000
       keepalive-time: 120000
-  profiles:
-    active: dev
-
   servlet:
     multipart:
       max-file-size: 50MB

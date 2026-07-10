@@ -12,9 +12,6 @@ spring:
       idle-timeout: 300000
       max-lifetime: 600000
       keepalive-time: 120000
-  profiles:
-    active: dev
-
 mybatis-plus:
   type-aliases-package: com.wuming.chat.domain
   configuration:
