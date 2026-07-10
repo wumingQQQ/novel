@@ -3,6 +3,7 @@ package com.wuming.chat.config;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -15,7 +16,7 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    @ConditionalOnProperty(prefix = "auth.jwt", name = "enabled", havingValue = "true")
+    @ConditionalOnProperty(prefix = "auth.jwt", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -28,7 +29,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "auth.jwt", name = "enabled", havingValue = "false", matchIfMissing = true)
+    @Profile({"dev", "test", "local"})
+    @ConditionalOnProperty(prefix = "auth.jwt", name = "enabled", havingValue = "false")
     public SecurityFilterChain permitAllSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)

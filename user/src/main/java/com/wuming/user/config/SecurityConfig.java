@@ -6,6 +6,7 @@ import com.wuming.user.security.AuthMdcFilter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -15,10 +16,6 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
-
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 
 /**
  * 用户模块安全配置，负责声明接口访问规则和密码哈希策略
@@ -30,7 +27,7 @@ public class SecurityConfig {
      * 配置用户模块HTTP安全规则
      */
     @Bean
-    @ConditionalOnProperty(prefix = "auth.jwt", name = "enabled", havingValue = "true")
+    @ConditionalOnProperty(prefix = "auth.jwt", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -46,7 +43,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "auth.jwt", name = "enabled", havingValue = "false", matchIfMissing = true)
+    @Profile({"dev", "test", "local"})
+    @ConditionalOnProperty(prefix = "auth.jwt", name = "enabled", havingValue = "false")
     public SecurityFilterChain permitAllSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -71,11 +69,7 @@ public class SecurityConfig {
      */
     @Bean
     public JwtEncoder jwtEncoder(JwtProperties properties) {
-        SecretKey secretKey = new SecretKeySpec(
-                properties.getSecret().getBytes(StandardCharsets.UTF_8),
-                "HmacSHA256"
-        );
-        return new NimbusJwtEncoder(new ImmutableSecret<>(secretKey));
+        return new NimbusJwtEncoder(new ImmutableSecret<>(properties.requireHs256SecretKey()));
     }
 
 }

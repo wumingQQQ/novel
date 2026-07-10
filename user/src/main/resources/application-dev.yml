@@ -15,4 +15,6 @@ rocketmq:
   consumer:
     group: user-job-consumer-group
 
-
+auth:
+  jwt:
+    secret: ${JWT_SECRET:local-development-jwt-secret-minimum-32-bytes}

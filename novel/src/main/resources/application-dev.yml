@@ -42,3 +42,7 @@ rocketmq:
 novel:
   mq:
     enabled: true
+
+auth:
+  jwt:
+    secret: ${JWT_SECRET:local-development-jwt-secret-minimum-32-bytes}
