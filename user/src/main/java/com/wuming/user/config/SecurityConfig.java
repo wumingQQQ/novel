@@ -3,6 +3,7 @@ package com.wuming.user.config;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.wuming.common.security.JwtProperties;
 import com.wuming.user.security.AuthMdcFilter;
+import com.wuming.user.security.PublicEndpointBearerTokenResolver;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,7 +38,10 @@ public class SecurityConfig {
                         .anyRequest()
                         .authenticated()
                 )
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(new PublicEndpointBearerTokenResolver())
+                        .jwt(Customizer.withDefaults())
+                )
                 .addFilterAfter(new AuthMdcFilter(), BearerTokenAuthenticationFilter.class)
                 .build();
     }
