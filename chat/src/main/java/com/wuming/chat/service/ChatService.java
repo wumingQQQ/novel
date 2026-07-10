@@ -122,7 +122,7 @@ public class ChatService {
 
         UserResultDto result = userContextService.getRequiredUser(userId);
         if (!result.isSuccess()) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND, result.getMessage());
+            throw toUserBusinessException(result);
         }
 
         RoleRuntimeContextDto runtimeContext = roleRuntimeContextService.getRuntimeContext(characterId);
@@ -133,6 +133,20 @@ public class ChatService {
         session.setStatus(SESSION_ACTIVE);
         chatSessionMapper.insert(session);
         return session.getId();
+    }
+
+    private BusinessException toUserBusinessException(UserResultDto result) {
+        String code = result.getCode();
+        if ("USER_NOT_FOUND".equals(code)) {
+            return new BusinessException(ErrorCode.USER_NOT_FOUND, "用户不存在");
+        }
+        if ("USER_DISABLED".equals(code)) {
+            return new BusinessException(ErrorCode.USER_DISABLED, "用户不可用");
+        }
+        if ("USER_INVALID".equals(code)) {
+            return new BusinessException(ErrorCode.PARAM_ERROR, "用户参数无效");
+        }
+        return new BusinessException(ErrorCode.REMOTE_SERVICE_ERROR, "用户服务暂时不可用");
     }
 
     /**

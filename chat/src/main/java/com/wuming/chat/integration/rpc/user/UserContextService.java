@@ -18,8 +18,7 @@ public class UserContextService {
 
     @DubboReference(
             url = "tri://127.0.0.1:50052",
-            timeout = 15000,
-            mock = "com.wuming.api.user.UserFacadeMock"
+            timeout = 15000
     )
     private UserFacade userFacade;
 
@@ -38,11 +37,21 @@ public class UserContextService {
 
             long start = System.currentTimeMillis();
             log.debug("开始远程校验用户");
-            UserResultDto result = userFacade.getRequiredUser(userId);
-            log.debug("远程用户校验返回，success: {}, costMs: {}",
-                    result != null && result.isSuccess(), System.currentTimeMillis() - start);
-            rpcResultCacheService.putUserResult(userId, result);
-            return result;
+            try {
+                UserResultDto result = userFacade.getRequiredUser(userId);
+                log.debug("远程用户校验返回，success: {}, costMs: {}",
+                        result != null && result.isSuccess(), System.currentTimeMillis() - start);
+                if (result != null && result.isSuccess()) {
+                    rpcResultCacheService.putUserResult(userId, result);
+                }
+                return result != null
+                        ? result
+                        : UserResultDto.failure("REMOTE_SERVICE_ERROR", "用户服务暂时不可用");
+            } catch (RuntimeException e) {
+                log.warn("远程用户校验调用失败，costMs: {}",
+                        System.currentTimeMillis() - start, e);
+                return UserResultDto.failure("REMOTE_SERVICE_ERROR", "用户服务暂时不可用");
+            }
         }
     }
 }
