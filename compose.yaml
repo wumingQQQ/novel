@@ -1,0 +1,47 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: novel-mysql
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: novel_dev
+    ports:
+      - "3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+08:00
+    volumes:
+      - novel-mysql-data:/var/lib/mysql
+
+  redis-stack:
+    image: redis/redis-stack-server:7.2.0-v10
+    container_name: novel-redis-stack
+    ports:
+      - "9379:6379"
+    volumes:
+      - novel-redis-data:/data
+
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.3.2
+    container_name: novel-rocketmq-namesrv
+    command: sh mqnamesrv
+    ports:
+      - "9876:9876"
+
+  rocketmq-broker:
+    image: apache/rocketmq:5.3.2
+    container_name: novel-rocketmq-broker
+    depends_on:
+      - rocketmq-namesrv
+    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/broker.conf
+    ports:
+      - "10911:10911"
+    volumes:
+      - ./deploy/rocketmq/broker.conf:/home/rocketmq/broker.conf:ro
+      - novel-rocketmq-store:/home/rocketmq/store
+
+volumes:
+  novel-mysql-data:
+  novel-redis-data:
+  novel-rocketmq-store:
