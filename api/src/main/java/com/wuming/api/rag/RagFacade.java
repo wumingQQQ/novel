@@ -30,6 +30,14 @@ public interface RagFacade {
     int deleteDocuments(DeleteDocumentRequest request);
 
     /**
+     * 对调用方给定的文档集合按查询相关性执行重排序。
+     *
+     * @param request 待重排序文档及查询
+     * @return 按相关性降序排列的文档命中
+     */
+    List<SearchHit> rerankDocuments(RerankDocumentsRequest request);
+
+    /**
      * 按小说 ID 检索原文片段。
      *
      * @param request 原文片段检索请求

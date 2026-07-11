@@ -54,6 +54,34 @@ public class RagService implements RagFacade {
         return request.getDocumentIds().size();
     }
 
+    /**
+     * 对外提供有限候选文档的重排序能力，不额外访问向量索引。
+     *
+     * @param request 查询文本、候选文档与保留数量
+     * @return 按重排序分数降序排列的命中
+     */
+    @Override
+    public List<SearchHit> rerankDocuments(RerankDocumentsRequest request) {
+        if (request == null || !hasText(request.getQuery())
+                || request.getDocuments() == null || request.getDocuments().isEmpty()) {
+            return List.of();
+        }
+        List<Document> documents = request.getDocuments().stream()
+                .filter(Objects::nonNull)
+                .filter(document -> hasText(document.getDocumentId()) && hasText(document.getContent()))
+                .map(this::toSpringDocument)
+                .toList();
+        if (documents.isEmpty()) {
+            return List.of();
+        }
+        int topN = request.getTopN() == null || request.getTopN() <= 0
+                ? documents.size() : request.getTopN();
+        return rerankService.rerank(request.getQuery().trim(), documents).stream()
+                .limit(topN)
+                .map(this::toSearchHit)
+                .toList();
+    }
+
     @Override
     public List<SearchHit> searchPassages(PassageSearchRequest request) {
         return search(
@@ -61,6 +89,7 @@ public class RagService implements RagFacade {
                 request.getQuery(),
                 request.getQueries(),
                 Map.of("novel_id", request.getNovelId()),
+                null,
                 request.getTopK(),
                 request.isRerank(),
                 request.getTopN()
@@ -69,11 +98,15 @@ public class RagService implements RagFacade {
 
     @Override
     public List<SearchHit> searchRoleExamples(RoleExampleSearchRequest request) {
+        String exclusionExpression = request.getExcludedPassageId() == null
+                ? null
+                : "passage_id != " + filterValue(request.getExcludedPassageId());
         return search(
                 request.getIndexName(),
                 request.getQuery(),
                 request.getQueries(),
                 Map.of("character_id", request.getCharacterId()),
+                exclusionExpression,
                 request.getTopK(),
                 request.isRerank(),
                 request.getTopN()
@@ -87,6 +120,7 @@ public class RagService implements RagFacade {
                 request.getQuery(),
                 request.getQueries(),
                 Map.of("character_id", request.getCharacterId()),
+                null,
                 request.getTopK(),
                 request.isRerank(),
                 request.getTopN()
@@ -97,6 +131,7 @@ public class RagService implements RagFacade {
                                    String query,
                                    List<String> queries,
                                    Map<String, Object> filters,
+                                   String exclusionExpression,
                                    Integer topK,
                                    boolean isRerank,
                                    Integer topN) {
@@ -108,7 +143,7 @@ public class RagService implements RagFacade {
             return List.of();
         }
 
-        String filterExpression = filterExpression(filters);
+        String filterExpression = filterExpression(filters, exclusionExpression);
         Map<String, Document> documentMap = new LinkedHashMap<>();
         for (String searchQuery : searchQueries) {
             SearchRequest.Builder builder = SearchRequest.builder()
@@ -176,15 +211,19 @@ public class RagService implements RagFacade {
         return value != null && !value.isBlank();
     }
 
-    private String filterExpression(Map<String, Object> filters) {
+    private String filterExpression(Map<String, Object> filters, String exclusionExpression) {
         if (filters == null || filters.isEmpty()) {
-            return null;
+            return exclusionExpression;
         }
-        return filters.entrySet().stream()
+        String equalityExpression = filters.entrySet().stream()
                 .filter(entry -> entry.getValue() != null)
                 .map(entry -> entry.getKey() + " == " + filterValue(entry.getValue()))
                 .reduce((left, right) -> left + " && " + right)
                 .orElse(null);
+        if (equalityExpression == null) {
+            return exclusionExpression;
+        }
+        return exclusionExpression == null ? equalityExpression : equalityExpression + " && " + exclusionExpression;
     }
 
     private String filterValue(Object value) {

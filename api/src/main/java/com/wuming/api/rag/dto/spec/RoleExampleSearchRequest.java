@@ -13,4 +13,9 @@ public class RoleExampleSearchRequest extends SearchRequest implements Serializa
     private static final long serialVersionUID = 1L;
 
     private Long characterId;
+
+    /**
+     * 评测运行时需要在向量召回前排除的原作 Passage。
+     */
+    private Long excludedPassageId;
 }

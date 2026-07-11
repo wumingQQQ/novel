@@ -3,6 +3,7 @@ package com.wuming.api.rag;
 import com.wuming.api.rag.dto.DeleteDocumentRequest;
 import com.wuming.api.rag.dto.SearchHit;
 import com.wuming.api.rag.dto.UpsertDocumentRequest;
+import com.wuming.api.rag.dto.RerankDocumentsRequest;
 import com.wuming.api.rag.dto.spec.PassageSearchRequest;
 import com.wuming.api.rag.dto.spec.ReactionRuleSearchRequest;
 import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
@@ -25,6 +26,11 @@ public class RagFacadeMock implements RagFacade {
     @Override
     public int deleteDocuments(DeleteDocumentRequest request) {
         return -1;
+    }
+
+    @Override
+    public List<SearchHit> rerankDocuments(RerankDocumentsRequest request) {
+        return List.of();
     }
 
     @Override

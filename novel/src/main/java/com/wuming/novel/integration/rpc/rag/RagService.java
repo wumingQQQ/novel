@@ -3,6 +3,7 @@ package com.wuming.novel.integration.rpc.rag;
 import com.wuming.api.rag.RagFacade;
 import com.wuming.api.rag.dto.DeleteDocumentRequest;
 import com.wuming.api.rag.dto.RagDocument;
+import com.wuming.api.rag.dto.RerankDocumentsRequest;
 import com.wuming.api.rag.dto.SearchHit;
 import com.wuming.api.rag.dto.UpsertDocumentRequest;
 import com.wuming.api.rag.dto.spec.PassageSearchRequest;
@@ -47,6 +48,27 @@ public class RagService {
         log.debug("RAG文档删除完成，indexName: {}, requestCount: {}, deleteCount: {}",
                 indexName, documentIds.size(), count);
         return count;
+    }
+
+    /**
+     * 将有限候选文档交给 RAG 服务重排序，不触发额外向量召回。
+     *
+     * @param query 相关性查询文本
+     * @param documents 待重排序文档
+     * @return 按相关性降序排列的命中；RAG 降级时返回空列表
+     */
+    public List<SearchHit> rerankDocuments(String query, List<RagDocument> documents) {
+        String normalizedQuery = requireText(query, "query不能为空");
+        if (documents == null || documents.isEmpty()) {
+            return List.of();
+        }
+        RerankDocumentsRequest request = new RerankDocumentsRequest();
+        request.setQuery(normalizedQuery);
+        request.setDocuments(documents);
+        request.setTopN(documents.size());
+        List<SearchHit> hits = ragFacade.rerankDocuments(request);
+        log.debug("RAG有限文档重排序完成，documentCount: {}, hitCount: {}", documents.size(), hits.size());
+        return hits;
     }
 
     public List<SearchHit> search(SearchRequest request) {
