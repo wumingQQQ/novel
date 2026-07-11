@@ -128,3 +128,76 @@ create table if not exists role_profiles(
     update_time datetime default current_timestamp on update current_timestamp comment '更新时间',
     key idx_role_profiles_character_id (character_id)
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
+
+create table if not exists role_adjust_requests(
+    id bigint primary key auto_increment comment '个人角色调整请求主键',
+    user_id bigint not null comment '请求用户主键',
+    character_id bigint not null comment '公共角色主键',
+    base_version_id bigint comment '选定的个人版本基线，空表示公共角色基线',
+    requirement text not null comment '用户调整要求',
+    chat_text text comment '辅助理解意图的聊天上下文',
+    status varchar(20) not null default 'PENDING' comment 'PENDING/GENERATING/READY/CONFIRMED/COMPLETED/FAILED/CANCELLED',
+    failure_reason text comment '生成失败原因',
+    created_version_id bigint comment '本请求创建的个人角色版本主键',
+    cancelled_time datetime comment '取消时间',
+    create_time datetime default current_timestamp comment '创建时间',
+    update_time datetime default current_timestamp on update current_timestamp comment '更新时间',
+    key idx_role_adjust_requests_user_character_time (user_id, character_id, create_time),
+    key idx_role_adjust_requests_status_time (status, update_time)
+) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
+
+create table if not exists role_adjust_items(
+    id bigint primary key auto_increment comment '个人角色调整候选项主键',
+    request_id bigint not null comment '所属调整请求主键',
+    change_type varchar(20) not null comment 'ADD/REPLACE/DISABLE',
+    adjustment_id varchar(36) comment '稳定行为调整标识',
+    target_adjustment_id varchar(36) comment 'REPLACE或DISABLE目标调整标识',
+    applicability text comment '适用条件',
+    expected_behavior text comment '应当表现',
+    forbidden_behavior text comment '不应表现',
+    intent_narrowing text comment '原作范围内的意图收窄说明',
+    status varchar(20) not null default 'PENDING' comment 'PENDING/ACCEPTED/REJECTED/REVISING',
+    revision_feedback text comment '用户改写意见',
+    revision_error text comment '单项改写失败原因',
+    display_order int not null comment '请求内展示顺序',
+    create_time datetime default current_timestamp comment '创建时间',
+    update_time datetime default current_timestamp on update current_timestamp comment '更新时间',
+    key idx_role_adjust_items_request_order (request_id, display_order),
+    key idx_role_adjust_items_request_status (request_id, status),
+    key idx_role_adjust_items_target (request_id, target_adjustment_id)
+) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
+
+create table if not exists role_adjust_evidences(
+    id bigint primary key auto_increment comment '个人角色调整原作证据主键',
+    item_id bigint not null comment '所属调整候选项主键',
+    passage_id bigint not null comment '原作Passage主键',
+    quote_text text not null comment '引用原文',
+    relevance_explanation text not null comment '原作支持说明',
+    create_time datetime default current_timestamp comment '创建时间',
+    key idx_role_adjust_evidences_item (item_id),
+    key idx_role_adjust_evidences_passage (passage_id)
+) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
+
+create table if not exists personal_role_track(
+    id bigint primary key auto_increment comment '用户个人角色版本轨迹主键',
+    user_id bigint not null comment '用户主键',
+    character_id bigint not null comment '公共角色主键',
+    latest_version_id bigint comment '最新个人版本主键',
+    latest_version_no int not null default 0 comment '最新个人版本号',
+    create_time datetime default current_timestamp comment '创建时间',
+    update_time datetime default current_timestamp on update current_timestamp comment '更新时间',
+    unique key uk_personal_role_track_user_character (user_id, character_id)
+) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
+
+create table if not exists personal_role_versions(
+    id bigint primary key auto_increment comment '用户个人角色不可变版本主键',
+    track_id bigint not null comment '所属个人角色版本轨迹主键',
+    version_no int not null comment '轨迹内递增版本号',
+    parent_version_id bigint comment '派生来源个人版本主键，空表示公共角色基线',
+    source_request_id bigint not null comment '创建本版本的调整请求主键',
+    behavior_adjustments_snapshot json not null comment '有效行为调整补丁快照',
+    create_time datetime default current_timestamp comment '创建时间',
+    unique key uk_personal_role_versions_track_no (track_id, version_no),
+    key idx_personal_role_versions_parent (parent_version_id),
+    key idx_personal_role_versions_source_request (source_request_id)
+) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
