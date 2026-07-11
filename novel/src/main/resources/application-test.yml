@@ -48,7 +48,7 @@ rocketmq:
 logging:
   level:
     root: INFO
-    com.wuming.common.mybatis: WARN
+    com.wuming.common.observability.sql: WARN
     com.wuming.novel.infrastructure.mapper: WARN
     com.wuming.novel.pipeline: INFO
     com.wuming.novel.service.impl: INFO

@@ -1,4 +1,4 @@
-package com.wuming.common.trace;
+package com.wuming.common.observability.trace;
 
 public final class TraceConstants {
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <conversionRule conversionWord="clr" converterClass="org.springframework.boot.logging.logback.ColorConverter"/>
-    <conversionRule conversionWord="bizMdc" converterClass="com.wuming.common.logging.BusinessMdcConverter"/>
+    <conversionRule conversionWord="bizMdc" converterClass="com.wuming.common.observability.mdc.BusinessMdcConverter"/>
 <!-- 1. 定义全局变量 -->
     <property name="LOG_PATH" value="./logs/novel"/>
     <property name="CONSOLE_PATTERN" value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%thread]){faint} %highlight(%-5level) %clr(%logger{36}){cyan}%bizMdc{traceId,userId,jobId,novelId,chapterId,stage} %clr(-){faint} %msg%n"/>
@@ -64,7 +64,7 @@
     <logger name="com.wuming.novel.infrastructure.mapper" level="INFO"/>
     <logger name="org.springframework.ai" level="DEBUG"/>
     <logger name="com.baomidou.mybatisplus" level="WARN"/>
-    <logger name="com.wuming.common.mybatis" level="DEBUG"/>
+    <logger name="com.wuming.common.observability.sql" level="DEBUG"/>
     <logger name="com.wuming.novel" level="DEBUG"/>
 
     <!-- 7. 全局根配置 -->

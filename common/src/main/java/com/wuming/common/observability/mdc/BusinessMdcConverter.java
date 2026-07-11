@@ -1,4 +1,4 @@
-package com.wuming.common.logging;
+package com.wuming.common.observability.mdc;
 
 import ch.qos.logback.classic.pattern.ClassicConverter;
 import ch.qos.logback.classic.spi.ILoggingEvent;

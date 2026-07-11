@@ -1,6 +1,6 @@
 package com.wuming.chat.infrastructure.observability;
 
-import com.wuming.common.trace.TraceConstants;
+import com.wuming.common.observability.trace.TraceConstants;
 import org.slf4j.MDC;
 
 import java.util.UUID;

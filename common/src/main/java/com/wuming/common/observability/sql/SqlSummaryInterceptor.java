@@ -1,4 +1,4 @@
-package com.wuming.common.mybatis;
+package com.wuming.common.observability.sql;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.executor.Executor;

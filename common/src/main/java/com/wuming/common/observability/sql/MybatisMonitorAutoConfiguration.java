@@ -1,4 +1,4 @@
-package com.wuming.common.mybatis;
+package com.wuming.common.observability.sql;
 
 import org.apache.ibatis.plugin.Interceptor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
