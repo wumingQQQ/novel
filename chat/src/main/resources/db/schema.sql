@@ -19,3 +19,12 @@ create table if not exists chat_messages(
     create_time datetime default current_timestamp comment '创建时间',
     key idx_chat_messages_session_id (session_id, id)
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
+
+create table if not exists chat_session_memories(
+    session_id bigint primary key comment '聊天会话主键',
+    summary_content text not null comment '当前有效的结构化长期记忆摘要',
+    covered_message_id bigint not null comment '摘要已覆盖到的最后一条聊天消息主键',
+    version int not null default 1 comment '摘要乐观并发版本号',
+    create_time datetime default current_timestamp comment '创建时间',
+    update_time datetime default current_timestamp on update current_timestamp comment '更新时间'
+) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
