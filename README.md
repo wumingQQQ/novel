@@ -8,7 +8,7 @@
 [![Dubbo](https://img.shields.io/badge/Dubbo-3.3.2-red.svg)](https://dubbo.apache.org/)
 [![RocketMQ](https://img.shields.io/badge/RocketMQ-2.3.6-purple.svg)](https://rocketmq.apache.org/)
 
-**小说角色画像构建与角色聊天系统 | Spring Boot + Dubbo + RAG + LLM**
+**小说角色画像构建与角色聊天系统 | Spring Boot + Dubbo + RAG + LLM + Vue**
 
 [项目概述](#项目概述) • [快速开始](#快速开始) • [架构说明](#架构说明) • [本地验证](#本地验证) • [常见问题](#常见问题)
 
@@ -48,6 +48,7 @@
 | `rag` | `8083` | `50053` | Embedding、Redis Vector Store、Rerank |
 | `novel` | `8080` | `50051` | 小说上传、画像构建任务、进度查询 |
 | `chat` | `8081` | 无 | 会话、消息、角色上下文聊天 |
+| `web` | `5173`（开发） | 无 | 角色大厅、个人评测与沉浸式聊天前端 |
 
 ### 本地依赖
 
@@ -98,6 +99,7 @@ novel-latest/
 ├── rag/                         # Embedding、Redis Vector Store、Rerank
 ├── chat/                        # 会话、消息、角色运行时聊天
 │   └── src/main/resources/db/schema.sql
+├── web/                          # Vue 3 角色大厅，生产环境由 Nginx 托管
 ├── deploy/rocketmq/broker.conf  # 本地 RocketMQ Broker 配置
 ├── compose.yaml                 # 本地基础设施编排
 └── README.md
@@ -230,6 +232,26 @@ mvn -pl chat spring-boot:run
 
 如果在不同终端启动，确保每个终端都设置了相同的 `JWT_SECRET`。
 
+### 6. 启动角色大厅前端
+
+先启动 `novel` 和 `chat` 服务，再在新终端执行：
+
+```powershell
+cd web
+npm install
+npm run dev
+```
+
+浏览器访问 `http://localhost:5173`。Vite 会将 `/api/` 自动代理到 `http://localhost:8080`，并将 `/api/chat/` 自动代理到 `http://localhost:8081`；公共大厅只请求脱敏角色预览数据，不会展示完整画像、反应规则或原作样本。
+
+个人角色和评测页面复用已有登录服务签发的 JWT。当前前端不提供登录页；完成登录后，将 token 写入浏览器控制台中的 `localStorage.access_token`，刷新页面即可联调受认证的工作区和评测操作。
+
+生产静态镜像可独立构建，Nginx 会将 `/api/` 代理到同一 Docker 网络中的 `novel:8080`，并将 `/api/chat/` 代理到 `chat:8081`：
+
+```powershell
+docker build -t novel-role-hall ./web
+```
+
 ---
 
 ## 最小链路验证
@@ -298,6 +320,8 @@ curl -X POST http://localhost:8081/chat/sessions/1/messages `
 
 聊天依赖角色画像已经构建完成；如果角色仍不可用，`chat` 会拒绝创建会话。
 
+聊天前端当前使用同步回复接口，同时已预留 `POST /chat/sessions/{sessionId}/messages/stream` 的 SSE 通道，后端切换为 token 流后前端无需改变请求路径。针对已完成评测生成的个人版本，聊天会话会记录对应版本 ID 并在创建时校验归属；当前运行时仍使用公共角色基线。
+
 ---
 
 ## 本地验证
@@ -332,6 +356,14 @@ git ls-files -- "*src/test*"
 - 正式脚本只使用三个 `schema.sql`。
 - 变更表结构时，同步更新对应 `schema.sql`。
 - 对已有数据库，需要在变更说明中写出手工 `ALTER` SQL。
+
+本次聊天会话增加个人版本绑定字段；已有数据库执行：
+
+```sql
+ALTER TABLE chat_sessions
+  ADD COLUMN user_role_version_id BIGINT NULL COMMENT '用户个人角色版本主键，空表示公共角色基线',
+  ADD KEY idx_chat_sessions_user_role_version_id (user_role_version_id);
+```
 
 ### 测试策略
 
