@@ -6,6 +6,7 @@ import com.wuming.chat.domain.dto.CreateChatSessionRequest;
 import com.wuming.chat.domain.dto.ChatSessionSummary;
 import com.wuming.chat.domain.entity.ChatMessage;
 import com.wuming.chat.service.ChatService;
+import com.wuming.chat.sse.ChatSseEmitterService;
 import com.wuming.common.security.JwtUserIdExtractor;
 import com.wuming.common.web.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -20,13 +21,13 @@ import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/chat")
 @RequiredArgsConstructor
 public class ChatController {
     private final ChatService chatService;
+    private final ChatSseEmitterService chatSseEmitterService;
     private final JwtUserIdExtractor jwtUserIdExtractor;
 
     /**
@@ -85,18 +86,12 @@ public class ChatController {
             @RequestBody SendChatMessageRequest request,
             Authentication authentication) {
         Long userId = jwtUserIdExtractor.requireUserId(authentication);
-        SseEmitter emitter = new SseEmitter(0L);
-        CompletableFuture.runAsync(() -> {
-            try {
-                SendChatMessageResponse response = chatService.sendMessage(userId, sessionId, request.getContent());
-                emitter.send(SseEmitter.event().name("message").data(response));
-                emitter.send(SseEmitter.event().name("complete").data("done"));
-                emitter.complete();
-            } catch (Exception e) {
-                emitter.completeWithError(e);
+        return chatSseEmitterService.submit(session -> {
+            SendChatMessageResponse response = chatService.sendMessage(userId, sessionId, request.getContent());
+            if (session.send("message", response)) {
+                session.send("complete", "done");
             }
         });
-        return emitter;
     }
 
     /**

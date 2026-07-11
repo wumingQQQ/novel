@@ -29,6 +29,9 @@ dubbo:
 
 
 chat:
+  sse:
+    timeout: 10m
+    max-concurrent-streams: 32
   memory:
     recent-message-limit: 16
     summary-trigger-message-count: 24
