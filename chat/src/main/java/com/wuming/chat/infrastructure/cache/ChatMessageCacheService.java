@@ -25,8 +25,8 @@ public class ChatMessageCacheService {
     private final RedisListOps redisListOps;
     private final ObjectMapper objectMapper;
 
-    @Value("${chat.history-limit:20}")
-    private int historyLimit;
+    @Value("${chat.memory.recent-message-limit:16}")
+    private int recentMessageLimit;
 
     @Value("${chat.message-cache-ttl:3d}")
     private Duration messageCacheTtl;
@@ -101,7 +101,7 @@ public class ChatMessageCacheService {
     }
 
     private int limit() {
-        return Math.max(1, historyLimit);
+        return Math.max(1, recentMessageLimit);
     }
 }
 

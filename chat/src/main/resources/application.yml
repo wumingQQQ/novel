@@ -29,7 +29,9 @@ dubbo:
 
 
 chat:
-  history-limit: 20
+  memory:
+    recent-message-limit: 16
+    summary-trigger-message-count: 24
   message-cache-ttl: 3d
   rpc-cache-ttl: 2h
   role-runtime:

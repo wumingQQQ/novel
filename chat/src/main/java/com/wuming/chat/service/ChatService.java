@@ -9,7 +9,7 @@ import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.dto.ChatSessionSummary;
 import com.wuming.chat.domain.entity.ChatMessage;
 import com.wuming.chat.domain.entity.ChatSession;
-import com.wuming.chat.domain.model.ChatHistoryMessage;
+import com.wuming.chat.domain.model.ChatMemoryContext;
 import com.wuming.chat.integration.rpc.role.RoleRuntimeContextService;
 import com.wuming.chat.infrastructure.mapper.ChatMessageMapper;
 import com.wuming.chat.infrastructure.mapper.ChatSessionMapper;
@@ -20,11 +20,9 @@ import com.wuming.chat.rag.role.RoleRuntimeRagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -38,14 +36,12 @@ public class ChatService {
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
     private final ChatMessageCacheService chatMessageCacheService;
+    private final ChatMemoryService chatMemoryService;
     private final RoleRuntimeContextService roleRuntimeContextService;
     private final UserContextService userContextService;
     private final RoleChatPromptBuilder promptBuilder;
     private final ChatClient chatClient;
     private final RoleRuntimeRagService roleRuntimeRagService;
-
-    @Value("${chat.history-limit:20}")
-    private int historyLimit;
 
     /**
      * 创建聊天会话前先确认用户可用且对应角色已经生成完整画像。
@@ -101,9 +97,10 @@ public class ChatService {
                 RoleRuntimeContextDto runtimeContext = roleRuntimeContextService.getRuntimeContext(session.getCharacterId());
 
                 String ragPrompt = roleRuntimeRagService.buildContextPrompt(runtimeContext.getCharacterId(), userContent);
+                ChatMemoryContext memoryContext = chatMemoryService.prepareContext(sessionId);
                 String assistantContent = requestAssistantReply(
                         promptBuilder.buildSystemPrompt(runtimeContext),
-                        recentMessages(sessionId),
+                        memoryContext,
                         ragPrompt
                 );
 
@@ -253,68 +250,50 @@ public class ChatService {
     }
 
     /**
-     * 优先从 Redis 读取最近消息，缓存未命中时回源数据库并重建缓存。
-     */
-    private List<ChatHistoryMessage> recentMessages(Long sessionId) {
-        List<ChatHistoryMessage> cachedMessages = chatMessageCacheService.recentMessages(sessionId);
-        if (!cachedMessages.isEmpty()) {
-            log.debug("聊天历史缓存命中，messageCount: {}", cachedMessages.size());
-            return cachedMessages;
-        }
-
-        log.debug("聊天历史缓存未命中，回源数据库");
-        List<ChatMessage> messages = chatMessageMapper.selectList(
-                new LambdaQueryWrapper<ChatMessage>()
-                        .eq(ChatMessage::getSessionId, sessionId)
-                        .orderByDesc(ChatMessage::getId)
-                        .last("limit " + Math.max(1, historyLimit))
-        );
-        Collections.reverse(messages);
-        chatMessageCacheService.refresh(sessionId, messages);
-        log.debug("聊天历史缓存已重建，messageCount: {}", messages.size());
-        return messages.stream()
-                .map(message -> new ChatHistoryMessage(message.getRole(), message.getContent()))
-                .toList();
-    }
-
-    /**
      * 使用角色系统提示词、最近对话和RAG上下文请求 LLM 生成角色回复。
      *
      * @param systemPrompt 角色系统提示词
-     * @param messages 该会话对话历史
+     * @param memoryContext 该会话的长期摘要与最近对话
      * @param ragPrompt RAG召回上下文提示词
      * @return LLM生成的角色回复
      */
     private String requestAssistantReply(String systemPrompt,
-                                         List<ChatHistoryMessage> messages,
+                                         ChatMemoryContext memoryContext,
                                          String ragPrompt) {
         long start = System.currentTimeMillis();
         try {
             String content = chatClient
                     .prompt()
                     .system(systemPrompt)
-                    .user(formatConversation(messages, ragPrompt))
+                    .user(formatConversation(memoryContext, ragPrompt))
                     .call()
                     .content();
-            log.info("角色聊天LLM调用完成，historyCount: {}, ragEnabled: {}, costMs: {}",
-                    messages.size(), ragPrompt != null && !ragPrompt.isBlank(),
+            log.info("角色聊天LLM调用完成，recentMessageCount: {}, memoryEnabled: {}, ragEnabled: {}, costMs: {}",
+                    memoryContext.recentMessages().size(), !memoryContext.summaryContent().isBlank(),
+                    ragPrompt != null && !ragPrompt.isBlank(),
                     System.currentTimeMillis() - start);
             return content;
         } catch (RuntimeException e) {
-            log.warn("角色聊天LLM调用失败，historyCount: {}, ragEnabled: {}, costMs: {}",
-                    messages.size(), ragPrompt != null && !ragPrompt.isBlank(),
+            log.warn("角色聊天LLM调用失败，recentMessageCount: {}, memoryEnabled: {}, ragEnabled: {}, costMs: {}",
+                    memoryContext.recentMessages().size(), !memoryContext.summaryContent().isBlank(),
+                    ragPrompt != null && !ragPrompt.isBlank(),
                     System.currentTimeMillis() - start, e);
             throw e;
         }
     }
 
     /**
-     * 将历史消息折叠成普通文本，兼容当前 ChatClient API。
+     * 将长期摘要、最近原文和 RAG 上下文折叠成普通文本，兼容当前 ChatClient API。
      */
-    private String formatConversation(List<ChatHistoryMessage> messages, String ragPrompt) {
+    private String formatConversation(ChatMemoryContext memoryContext, String ragPrompt) {
         StringBuilder builder = new StringBuilder();
+        if (!memoryContext.summaryContent().isBlank()) {
+            builder.append("【长期记忆】\n")
+                    .append(memoryContext.summaryContent())
+                    .append("\n\n");
+        }
         builder.append("【最近对话】\n");
-        for (ChatHistoryMessage message : messages) {
+        for (var message : memoryContext.recentMessages()) {
             if (ROLE_USER.equals(message.role())) {
                 builder.append("用户：").append(message.content()).append('\n');
             } else if (ROLE_ASSISTANT.equals(message.role())) {
