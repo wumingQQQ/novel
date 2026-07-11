@@ -1,4 +1,4 @@
-com.wuming.common.redis.config.CommonRedisAutoConfiguration
+com.wuming.common.cache.redis.CommonRedisAutoConfiguration
 com.wuming.common.security.JwtResourceServerAutoConfiguration
 com.wuming.common.observability.sql.MybatisMonitorAutoConfiguration
-com.wuming.common.datasource.DataSourceWarmupAutoConfiguration
+com.wuming.common.persistence.datasource.DataSourceWarmupAutoConfiguration

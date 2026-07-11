@@ -1,10 +1,6 @@
-package com.wuming.common.redis.config;
+package com.wuming.common.cache.redis;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wuming.common.redis.core.RedisHashOps;
-import com.wuming.common.redis.core.RedisJsonOps;
-import com.wuming.common.redis.core.RedisListOps;
-import com.wuming.common.redis.core.RedisStringOps;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;

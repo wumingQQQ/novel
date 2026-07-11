@@ -1,4 +1,4 @@
-package com.wuming.common.redis.core;
+package com.wuming.common.cache.redis;
 
 import com.wuming.common.exception.BusinessException;
 import com.wuming.common.exception.ErrorCode;

@@ -2,8 +2,8 @@ package com.wuming.chat.infrastructure.cache;
 
 import com.wuming.api.role.dto.RoleRuntimeContextDto;
 import com.wuming.api.user.dto.UserResultDto;
-import com.wuming.common.redis.core.RedisJsonOps;
-import com.wuming.common.redis.core.RedisKey;
+import com.wuming.common.cache.redis.RedisJsonOps;
+import com.wuming.common.cache.redis.RedisKey;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

@@ -1,4 +1,4 @@
-package com.wuming.common.redis.core;
+package com.wuming.common.cache.redis;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

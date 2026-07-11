@@ -1,4 +1,4 @@
-package com.wuming.common.redis.core;
+package com.wuming.common.cache.redis;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;

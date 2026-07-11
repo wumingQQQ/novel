@@ -1,6 +1,6 @@
 package com.wuming.novel.pipeline;
 
-import com.wuming.common.redis.core.RedisListOps;
+import com.wuming.common.cache.redis.RedisListOps;
 import com.wuming.novel.domain.enums.JobStage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

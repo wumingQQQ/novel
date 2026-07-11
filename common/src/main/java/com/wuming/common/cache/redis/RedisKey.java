@@ -1,4 +1,4 @@
-package com.wuming.common.redis.core;
+package com.wuming.common.cache.redis;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;
