@@ -60,6 +60,15 @@ novel:
   role-example:
     max-candidate-passages: 80
     min-confidence: 0.6
+  role-evaluation:
+    prompt-version: v1
+    role-example-top-k: 10
+    role-example-top-n: 3
+    case-candidate-pool-size: 24
+    case-candidate-pool-multiplier: 4
+    rule-improvement-threshold: 3.0
+    rule-improvement-max-runs: 12
+    rule-improvement-max-changes: 2
   rag:
     url: ${RAG_SERVICE_URL:tri://127.0.0.1:50053}
     passage-index-name: novel_passage
