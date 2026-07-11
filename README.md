@@ -365,6 +365,19 @@ ALTER TABLE chat_sessions
   ADD KEY idx_chat_sessions_user_role_version_id (user_role_version_id);
 ```
 
+聊天分层记忆使用长期摘要表；已有数据库执行：
+
+```sql
+CREATE TABLE chat_session_memories (
+  session_id BIGINT PRIMARY KEY COMMENT '聊天会话主键',
+  summary_content TEXT NOT NULL COMMENT '当前有效的结构化长期记忆摘要',
+  covered_message_id BIGINT NOT NULL COMMENT '摘要已覆盖到的最后一条聊天消息主键',
+  version INT NOT NULL DEFAULT 1 COMMENT '摘要乐观并发版本号',
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
 ### 测试策略
 
 - `src/test` 当前只作为本地回归资产维护，不提交 Git。
