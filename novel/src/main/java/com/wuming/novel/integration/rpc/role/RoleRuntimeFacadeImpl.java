@@ -6,10 +6,6 @@ import com.wuming.api.role.dto.RoleRuntimeContextResultDto;
 import com.wuming.api.role.dto.RoleVersionValidationResultDto;
 import com.wuming.novel.domain.entity.RoleCharacter;
 import com.wuming.novel.domain.entity.RoleProfile;
-import com.wuming.novel.domain.entity.UserRoleTrack;
-import com.wuming.novel.domain.entity.UserRoleVersion;
-import com.wuming.novel.infrastructure.mapper.UserRoleTrackMapper;
-import com.wuming.novel.infrastructure.mapper.UserRoleVersionMapper;
 import com.wuming.novel.service.IRoleCharacterService;
 import com.wuming.novel.service.IRoleProfileService;
 import lombok.RequiredArgsConstructor;
@@ -27,8 +23,6 @@ public class RoleRuntimeFacadeImpl implements RoleRuntimeFacade {
 
     private final IRoleCharacterService roleCharacterService;
     private final IRoleProfileService roleProfileService;
-    private final UserRoleTrackMapper userRoleTrackMapper;
-    private final UserRoleVersionMapper userRoleVersionMapper;
 
     @Override
     public RoleRuntimeContextResultDto getRuntimeContext(Long characterId) {
@@ -60,23 +54,12 @@ public class RoleRuntimeFacadeImpl implements RoleRuntimeFacade {
     }
 
     /**
-     * 校验个人版本的轨迹、用户和公共角色完全一致，避免聊天会话绑定越权版本。
+     * 旧个人角色版本已随评测链路移除，暂不允许创建或校验旧版本会话。
      */
     @Override
     public RoleVersionValidationResultDto validateUserRoleVersion(
             Long userId, Long characterId, Long userRoleVersionId) {
-        if (userId == null || characterId == null || userRoleVersionId == null) {
-            return RoleVersionValidationResultDto.failure("PARAM_ERROR", "角色版本校验参数不能为空");
-        }
-        UserRoleVersion version = userRoleVersionMapper.selectById(userRoleVersionId);
-        if (version == null) {
-            return RoleVersionValidationResultDto.failure("ROLE_VERSION_NOT_FOUND", "个人角色版本不存在");
-        }
-        UserRoleTrack track = userRoleTrackMapper.selectById(version.getUserRoleTrackId());
-        if (track == null || !userId.equals(track.getUserId()) || !characterId.equals(track.getCharacterId())) {
-            return RoleVersionValidationResultDto.failure("ROLE_VERSION_FORBIDDEN", "个人角色版本不属于当前用户或目标角色");
-        }
-        return RoleVersionValidationResultDto.success();
+        return RoleVersionValidationResultDto.failure("ROLE_VERSION_UNAVAILABLE", "个人角色调整功能正在重建");
     }
 
     private RoleRuntimeContextDto toContext(RoleCharacter character, RoleProfile profile) {
