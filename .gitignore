@@ -69,6 +69,7 @@ apm/
 .superpowers/
 web/node_modules/
 web/dist/
+web/.vite/
 
 # 开发过程文档不提交；项目说明仅保留 README.md
 /docs/
