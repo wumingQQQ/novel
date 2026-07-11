@@ -16,6 +16,8 @@ public class ChatSession {
     private Long id;
     private Long userId;
     private Long characterId;
+    /** 当前会话可选绑定的用户个人角色版本；为空时使用公共基线。 */
+    private Long userRoleVersionId;
     private String status;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

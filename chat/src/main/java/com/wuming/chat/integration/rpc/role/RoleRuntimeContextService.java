@@ -3,6 +3,7 @@ package com.wuming.chat.integration.rpc.role;
 import com.wuming.api.role.RoleRuntimeFacade;
 import com.wuming.api.role.dto.RoleRuntimeContextDto;
 import com.wuming.api.role.dto.RoleRuntimeContextResultDto;
+import com.wuming.api.role.dto.RoleVersionValidationResultDto;
 import com.wuming.chat.infrastructure.cache.RpcResultCacheService;
 import com.wuming.common.exception.BusinessException;
 import com.wuming.common.exception.ErrorCode;
@@ -49,6 +50,26 @@ public class RoleRuntimeContextService {
             return cachedContext;
         }
         return getRemoteRuntimeContext(characterId);
+    }
+
+    /**
+     * 远程校验个人角色版本确属当前用户和目标公共角色。
+     *
+     * @return 校验通过时为true；校验服务失败或归属不符时返回false
+     */
+    public boolean validateUserRoleVersion(Long userId, Long characterId, Long userRoleVersionId) {
+        RoleVersionValidationResultDto result = roleRuntimeFacade.validateUserRoleVersion(
+                userId, characterId, userRoleVersionId);
+        if (result == null) {
+            log.warn("个人角色版本校验远程返回为空，userId: {}, characterId: {}, versionId: {}",
+                    userId, characterId, userRoleVersionId);
+            return false;
+        }
+        if (!result.isValid()) {
+            log.info("个人角色版本校验未通过，userId: {}, characterId: {}, versionId: {}, code: {}",
+                    userId, characterId, userRoleVersionId, result.getCode());
+        }
+        return result.isValid();
     }
 
     private RoleRuntimeContextDto getRemoteRuntimeContext(Long characterId) {

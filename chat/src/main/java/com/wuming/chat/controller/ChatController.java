@@ -2,6 +2,8 @@ package com.wuming.chat.controller;
 
 import com.wuming.chat.domain.dto.SendChatMessageRequest;
 import com.wuming.chat.domain.dto.SendChatMessageResponse;
+import com.wuming.chat.domain.dto.CreateChatSessionRequest;
+import com.wuming.chat.domain.dto.ChatSessionSummary;
 import com.wuming.chat.domain.entity.ChatMessage;
 import com.wuming.chat.service.ChatService;
 import com.wuming.common.security.JwtUserIdExtractor;
@@ -14,8 +16,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/chat")
@@ -38,6 +43,23 @@ public class ChatController {
     }
 
     /**
+     * 创建可选绑定个人角色版本的聊天会话。
+     */
+    @PostMapping("/sessions")
+    public ApiResponse<Long> createVersionedSession(
+            @RequestBody CreateChatSessionRequest request, Authentication authentication) {
+        Long userId = jwtUserIdExtractor.requireUserId(authentication);
+        return ApiResponse.success(chatService.createSession(
+                userId, request.getCharacterId(), request.getUserRoleVersionId()));
+    }
+
+    /** 查询当前用户的聊天会话摘要。 */
+    @GetMapping("/sessions")
+    public ApiResponse<List<ChatSessionSummary>> listSessions(Authentication authentication) {
+        return ApiResponse.success(chatService.listSessions(jwtUserIdExtractor.requireUserId(authentication)));
+    }
+
+    /**
      * 向当前用户拥有的会话发送消息，并返回角色回复。
      */
     @PostMapping("/sessions/{sessionId}/messages")
@@ -52,6 +74,29 @@ public class ChatController {
                 sessionId,
                 request.getContent()
         ));
+    }
+
+    /**
+     * 以 SSE 协议发送角色回复；当前同步模型完成后输出单条消息事件，为未来 token 流保留协议。
+     */
+    @PostMapping(value = "/sessions/{sessionId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamMessage(
+            @PathVariable Long sessionId,
+            @RequestBody SendChatMessageRequest request,
+            Authentication authentication) {
+        Long userId = jwtUserIdExtractor.requireUserId(authentication);
+        SseEmitter emitter = new SseEmitter(0L);
+        CompletableFuture.runAsync(() -> {
+            try {
+                SendChatMessageResponse response = chatService.sendMessage(userId, sessionId, request.getContent());
+                emitter.send(SseEmitter.event().name("message").data(response));
+                emitter.send(SseEmitter.event().name("complete").data("done"));
+                emitter.complete();
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            }
+        });
+        return emitter;
     }
 
     /**

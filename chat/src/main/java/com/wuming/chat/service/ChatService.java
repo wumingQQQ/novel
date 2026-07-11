@@ -6,6 +6,7 @@ import com.wuming.common.exception.BusinessException;
 import com.wuming.common.exception.ErrorCode;
 import com.wuming.api.user.dto.UserResultDto;
 import com.wuming.chat.domain.dto.SendChatMessageResponse;
+import com.wuming.chat.domain.dto.ChatSessionSummary;
 import com.wuming.chat.domain.entity.ChatMessage;
 import com.wuming.chat.domain.entity.ChatSession;
 import com.wuming.chat.domain.model.ChatHistoryMessage;
@@ -51,11 +52,24 @@ public class ChatService {
      */
     @Transactional
     public Long createSession(Long userId, Long characterId) {
+        return createSession(userId, characterId, null);
+    }
+
+    /**
+     * 创建公共基线或用户个人版本绑定的聊天会话。
+     *
+     * @param userId 当前用户主键
+     * @param characterId 公共角色主键
+     * @param userRoleVersionId 可选个人角色版本主键
+     * @return 新建会话主键
+     */
+    @Transactional
+    public Long createSession(Long userId, Long characterId, Long userRoleVersionId) {
         try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId)) {
             long start = System.currentTimeMillis();
             log.info("开始创建聊天会话");
             try {
-                Long sessionId = doCreateSession(userId, characterId);
+                Long sessionId = doCreateSession(userId, characterId, userRoleVersionId);
                 log.info("聊天会话创建完成，sessionId: {}, costMs: {}",
                         sessionId, System.currentTimeMillis() - start);
                 return sessionId;
@@ -112,7 +126,7 @@ public class ChatService {
     /**
      * 执行聊天会话创建的核心逻辑，外层负责日志上下文和耗时统计。
      */
-    private Long doCreateSession(Long userId, Long characterId) {
+    private Long doCreateSession(Long userId, Long characterId, Long userRoleVersionId) {
         if (userId == null) {
             throw new IllegalArgumentException("userId不能为空");
         }
@@ -126,10 +140,15 @@ public class ChatService {
         }
 
         RoleRuntimeContextDto runtimeContext = roleRuntimeContextService.getRuntimeContext(characterId);
+        if (userRoleVersionId != null && !roleRuntimeContextService
+                .validateUserRoleVersion(userId, runtimeContext.getCharacterId(), userRoleVersionId)) {
+            throw new IllegalArgumentException("个人角色版本不属于当前用户或目标角色");
+        }
 
         ChatSession session = new ChatSession();
         session.setUserId(userId);
         session.setCharacterId(runtimeContext.getCharacterId());
+        session.setUserRoleVersionId(userRoleVersionId);
         session.setStatus(SESSION_ACTIVE);
         chatSessionMapper.insert(session);
         return session.getId();
@@ -177,6 +196,24 @@ public class ChatService {
                         .eq(ChatMessage::getSessionId, sessionId)
                         .orderByAsc(ChatMessage::getId)
         );
+    }
+
+    /**
+     * 查询当前用户的会话摘要，供聊天页左侧会话列表使用。
+     */
+    public List<ChatSessionSummary> listSessions(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId不能为空");
+        }
+        return chatSessionMapper.selectList(new LambdaQueryWrapper<ChatSession>()
+                        .eq(ChatSession::getUserId, userId)
+                        .eq(ChatSession::getStatus, SESSION_ACTIVE)
+                        .orderByDesc(ChatSession::getUpdateTime)
+                        .orderByDesc(ChatSession::getId))
+                .stream()
+                .map(session -> new ChatSessionSummary(
+                        session.getId(), session.getCharacterId(), session.getUserRoleVersionId(), session.getUpdateTime()))
+                .toList();
     }
 
     /**
