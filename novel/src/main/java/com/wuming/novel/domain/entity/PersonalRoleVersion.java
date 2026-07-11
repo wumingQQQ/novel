@@ -27,7 +27,7 @@ public class PersonalRoleVersion implements Serializable {
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<BehaviorAdjustmentSnapshot> behaviorAdjustmentsSnapshot;
     @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime creatTime;
+    private LocalDateTime createTime;
 
     @Data
     public static class BehaviorAdjustmentSnapshot implements Serializable {
