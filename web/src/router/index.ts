@@ -5,12 +5,16 @@ import MyRolesPage from '@/views/MyRolesPage.vue'
 import MyEvaluationsPage from '@/views/MyEvaluationsPage.vue'
 import EvaluationWorkspacePage from '@/views/EvaluationWorkspacePage.vue'
 import ChatPage from '@/views/ChatPage.vue'
+import CreationPage from '@/views/CreationPage.vue'
+import CreationJobPage from '@/views/CreationJobPage.vue'
 
 export default createRouter({
   history: createWebHistory(),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
     { path: '/', name: 'role-hall', component: RoleHallPage },
+    { path: '/creation', name: 'creation', component: CreationPage },
+    { path: '/creation/jobs/:jobId', name: 'creation-job', component: CreationJobPage, props: true },
     { path: '/roles/:id', name: 'role-preview', component: RolePreviewPage, props: true },
     { path: '/my-roles', name: 'my-roles', component: MyRolesPage },
     { path: '/my-evaluations', name: 'my-evaluations', component: MyEvaluationsPage },

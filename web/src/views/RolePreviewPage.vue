@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { AuthenticationRequiredError, hasAccessToken } from '@/api/http'
+import { useAuth } from '@/composables/useAuth'
 import { createChatSession } from '@/api/chat'
 import { createRoleAdjustRequest } from '@/api/role-adjust'
 import { getPublicRolePreview } from '@/api/roles'
@@ -14,12 +15,12 @@ const router = useRouter()
 const role = ref<RolePublicPreview>()
 const loading = ref(false)
 const error = ref('')
-const isGuestNoticeVisible = ref(false)
 const isCreatingAdjustment = ref(false)
 const isCreatingChat = ref(false)
 const isAdjustmentDialogVisible = ref(false)
 const adjustmentRequirement = ref('')
 const adjustmentChatText = ref('')
+const { openAuthDialog } = useAuth()
 const characterId = computed(() => String(route.params.id))
 const userRoleVersionId = computed(() => {
   const value = Number(route.query.userRoleVersionId)
@@ -40,7 +41,7 @@ async function loadPreview() {
 /** 打开调整目标填写框，个人版本详情会自动作为本次调整的基线。 */
 function openAdjustmentDialog() {
   if (!role.value || !hasAccessToken()) {
-    isGuestNoticeVisible.value = true
+    openAuthDialog()
     return
   }
   isAdjustmentDialogVisible.value = true
@@ -60,7 +61,7 @@ async function createAdjustment() {
     isAdjustmentDialogVisible.value = false
     await router.push(`/my-evaluations/${requestId}`)
   } catch (reason) {
-    if (reason instanceof AuthenticationRequiredError) isGuestNoticeVisible.value = true
+    if (reason instanceof AuthenticationRequiredError) openAuthDialog()
     else error.value = reason instanceof Error ? reason.message : '创建调整请求未完成'
   } finally {
     isCreatingAdjustment.value = false
@@ -70,7 +71,7 @@ async function createAdjustment() {
 /** 有既有 JWT 时创建公共角色或指定个人版本绑定的会话。 */
 async function beginChat() {
   if (!role.value || !hasAccessToken()) {
-    isGuestNoticeVisible.value = true
+    openAuthDialog()
     return
   }
   isCreatingChat.value = true
@@ -96,7 +97,6 @@ onMounted(() => void loadPreview())
       <section class="facts"><article><el-icon><Tickets /></el-icon><b>{{ role.exampleCount }}</b><span>互动素材片段</span></article><article><el-icon><DocumentChecked /></el-icon><b>{{ role.ruleCount }}</b><span>角色线索</span></article><article><el-icon><Position /></el-icon><b>公开预览</b><span>完整资产已受保护</span></article></section>
       <section class="about"><p class="eyebrow">WHAT YOU CAN KNOW</p><h2>先认识他的侧影。</h2><p>你看到的是公共角色的有限介绍，用于帮助你判断是否值得开始一次独立评测。评测将从公开角色的受保护资产中生成结果，但不会向任何用户披露原始画像、规则或样本。</p></section>
     </template>
-    <el-dialog v-model="isGuestNoticeVisible" width="min(420px, calc(100% - 32px))" align-center><template #header><span class="dialog-title">创建个人角色调整</span></template><p class="dialog-copy">登录后，你可以针对 {{ role?.characterName }} 提交调整目标，并从候选补丁中确认要保留的内容。请先通过已有登录入口取得 JWT，再保存到 <code>localStorage.access_token</code>。</p><template #footer><el-button type="primary" @click="isGuestNoticeVisible = false">我知道了</el-button></template></el-dialog>
     <el-dialog v-model="isAdjustmentDialogVisible" width="min(560px, calc(100% - 32px))" align-center><template #header><span class="dialog-title">调整 {{ role?.characterName }}</span></template><div class="adjustment-form"><label>希望如何调整</label><el-input v-model="adjustmentRequirement" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" maxlength="200" show-word-limit placeholder="例如：面对质疑时更克制，先说明事实再表达态度。" /><label>相关对话（可选）</label><el-input v-model="adjustmentChatText" type="textarea" :autosize="{ minRows: 3, maxRows: 7 }" maxlength="2000" show-word-limit placeholder="粘贴一段希望角色改进的对话上下文。" /></div><template #footer><el-button @click="isAdjustmentDialogVisible = false">取消</el-button><el-button type="primary" :disabled="!adjustmentRequirement.trim()" :loading="isCreatingAdjustment" @click="createAdjustment">创建调整请求</el-button></template></el-dialog>
   </main>
 </template>

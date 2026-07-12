@@ -4,7 +4,7 @@ interface ApiResponse<T> {
   data: T
 }
 
-/** 浏览器已保存但不在本前端创建的 JWT 键名。 */
+/** 浏览器保存 JWT 的键名。 */
 const ACCESS_TOKEN_KEY = 'access_token'
 
 /** 表示需要用户先在其他入口完成登录的请求错误。 */
@@ -52,4 +52,14 @@ export function authenticatedRequest<T>(path: string, options?: RequestInit): Pr
 /** 判断当前浏览器是否已保存可用于联调的访问令牌。 */
 export function hasAccessToken() {
   return Boolean(localStorage.getItem(ACCESS_TOKEN_KEY)?.trim())
+}
+
+/** 保存登录接口签发的访问令牌。 */
+export function saveAccessToken(token: string) {
+  localStorage.setItem(ACCESS_TOKEN_KEY, token)
+}
+
+/** 清理当前浏览器保存的访问令牌。 */
+export function clearAccessToken() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY)
 }
