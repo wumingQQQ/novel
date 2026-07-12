@@ -61,8 +61,8 @@ public class RoleAdjustGenerationService {
         RoleCharacter character = requireCharacter(request.getCharacterId());
         List<NovelPassage> evidences = loadEvidence(request, character);
         if (evidences.isEmpty()) {
-            log.debug("角色调整候选生成跳过，characterId: {}, reason: {}", request.getCharacterId(), "没有可用原作证据");
-            return RoleAdjustGenerationResult.empty();
+            log.warn("角色调整候选生成失败，characterId: {}, evidenceCount: 0", request.getCharacterId());
+            throw new IllegalStateException("未找到可支撑本次调整的原作证据");
         }
 
         List<BaselineAdjustment> baselineAdjustments = loadBaselineAdjustments(request);
@@ -83,9 +83,13 @@ public class RoleAdjustGenerationService {
                 .user(dualPrompt.userPrompt())
                 .call()
                 .entity(RoleAdjustCandidateResult.class));
-        return result == null ?
-                RoleAdjustGenerationResult.empty() :
-                new RoleAdjustGenerationResult(result.candidates(), evidences, baselineAdjustments);
+        List<RoleAdjustCandidate> candidates = result == null ? List.of() : result.candidates();
+        log.info("角色调整候选生成结果，characterId: {}, evidenceCount: {}, candidateCount: {}",
+                request.getCharacterId(), evidences.size(), candidates.size());
+        if (candidates.isEmpty()) {
+            throw new IllegalStateException("模型未生成可供评审的角色调整候选项");
+        }
+        return new RoleAdjustGenerationResult(candidates, evidences, baselineAdjustments);
     }
 
     /**
