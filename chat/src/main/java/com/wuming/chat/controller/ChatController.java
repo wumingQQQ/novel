@@ -78,7 +78,10 @@ public class ChatController {
     }
 
     /**
-     * 以 SSE 协议发送角色回复；当前同步模型完成后输出单条消息事件，为未来 token 流保留协议。
+     * 以 SSE 协议发送角色回复。
+     *
+     * <p>当前先复用同步发送链路，确保个人角色版本、记忆和RAG上下文与普通发送保持一致；
+     * 后续切换 token 流时也应复用同一套上下文构建逻辑。</p>
      */
     @PostMapping(value = "/sessions/{sessionId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamMessage(
