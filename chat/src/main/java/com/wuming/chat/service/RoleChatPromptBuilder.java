@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -36,7 +37,8 @@ public class RoleChatPromptBuilder {
                 Map.entry("speakingStyleSignature", speakingStyle == null ? "未知" : value(speakingStyle.getSignature())),
                 Map.entry("distinctivePatterns", speakingStyle == null ? "无" : list(speakingStyle.getDistinctivePatterns())),
                 Map.entry("avoidPatterns", speakingStyle == null ? "无" : list(speakingStyle.getAvoidPatterns())),
-                Map.entry("forbiddenBehaviors", value(context.getForbiddenBehaviors()))
+                Map.entry("forbiddenBehaviors", value(context.getForbiddenBehaviors())),
+                Map.entry("behaviorAdjustments", behaviorAdjustments(context.getBehaviorAdjustments()))
         ));
     }
 
@@ -55,5 +57,32 @@ public class RoleChatPromptBuilder {
             }
         }
         return joiner.length() == 0 ? "无" : joiner.toString();
+    }
+
+    /**
+     * 将用户个人版本中的行为补丁压缩为提示词片段。
+     */
+    private String behaviorAdjustments(List<RoleRuntimeContextDto.BehaviorAdjustment> adjustments) {
+        if (adjustments == null || adjustments.isEmpty()) {
+            return "无";
+        }
+        StringJoiner joiner = new StringJoiner("\n");
+        adjustments.stream()
+                .filter(adjustment -> adjustment != null)
+                .sorted(Comparator.comparing(
+                        RoleRuntimeContextDto.BehaviorAdjustment::getDisplayOrder,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .forEach(adjustment -> joiner.add(formatAdjustment(adjustment)));
+        return joiner.length() == 0 ? "无" : joiner.toString();
+    }
+
+    private String formatAdjustment(RoleRuntimeContextDto.BehaviorAdjustment adjustment) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("- 适用场景：").append(value(adjustment.getApplicability()));
+        builder.append("；应当表现：").append(value(adjustment.getExpectedBehavior()));
+        if (adjustment.getForbiddenBehavior() != null && !adjustment.getForbiddenBehavior().isBlank()) {
+            builder.append("；避免表现：").append(adjustment.getForbiddenBehavior());
+        }
+        return builder.toString();
     }
 }

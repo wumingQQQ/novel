@@ -94,7 +94,8 @@ public class ChatService {
                 String userContent = requireContent(content);
 
                 saveMessage(sessionId, ROLE_USER, userContent);
-                RoleRuntimeContextDto runtimeContext = roleRuntimeContextService.getRuntimeContext(session.getCharacterId());
+                RoleRuntimeContextDto runtimeContext = roleRuntimeContextService.getRuntimeContext(
+                        session.getUserId(), session.getCharacterId(), session.getUserRoleVersionId());
 
                 String ragPrompt = roleRuntimeRagService.buildContextPrompt(runtimeContext.getCharacterId(), userContent);
                 ChatMemoryContext memoryContext = chatMemoryService.prepareContext(sessionId);

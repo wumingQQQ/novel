@@ -14,6 +14,12 @@ public class RoleRuntimeFacadeMock implements RoleRuntimeFacade {
     }
 
     @Override
+    public RoleRuntimeContextResultDto getRuntimeContext(
+            Long userId, Long characterId, Long userRoleVersionId) {
+        return getRuntimeContext(characterId);
+    }
+
+    @Override
     public RoleVersionValidationResultDto validateUserRoleVersion(
             Long userId, Long characterId, Long userRoleVersionId) {
         return RoleVersionValidationResultDto.failure(

@@ -24,6 +24,7 @@ public class RoleRuntimeContextDto implements Serializable {
     private String coreTraits;
     private SpeakingStyle speakingStyle = new SpeakingStyle();
     private String forbiddenBehaviors;
+    private List<BehaviorAdjustment> behaviorAdjustments = new ArrayList<>();
 
     /**
      * 角色基础信息。
@@ -50,5 +51,20 @@ public class RoleRuntimeContextDto implements Serializable {
         private String signature;
         private List<String> distinctivePatterns = new ArrayList<>();
         private List<String> avoidPatterns = new ArrayList<>();
+    }
+
+    /**
+     * 当前用户个人角色版本中的行为调整补丁。
+     */
+    @Data
+    public static class BehaviorAdjustment implements Serializable {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private String adjustmentId;
+        private String applicability;
+        private String expectedBehavior;
+        private String forbiddenBehavior;
+        private Integer displayOrder;
     }
 }

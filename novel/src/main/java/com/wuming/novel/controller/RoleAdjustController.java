@@ -13,6 +13,7 @@ import com.wuming.novel.service.adjust.RoleAdjustService;
 import com.wuming.novel.service.adjust.RoleAdjustQueryService;
 import com.wuming.novel.service.adjust.RoleAdjustReviewService;
 import com.wuming.novel.service.adjust.RoleAdjustRevisionService;
+import com.wuming.novel.service.adjust.RoleAdjustVersionService;
 import com.wuming.novel.service.adjust.RoleAdjustWorkflowService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class RoleAdjustController {
     private final RoleAdjustQueryService queryService;
     private final RoleAdjustReviewService reviewService;
     private final RoleAdjustRevisionService revisionService;
+    private final RoleAdjustVersionService versionService;
     private final RoleAdjustWorkflowService workflowService;
     private final JwtUserIdExtractor jwtUserIdExtractor;
 
@@ -117,6 +119,25 @@ public class RoleAdjustController {
                     result.getRevisedItemIds().size(),
                     result.getItemErrors().size());
             return ApiResponse.success(result);
+        }
+    }
+
+    /**
+     * 将已确认的调整请求落地为当前用户的个人角色版本。
+     *
+     * @param requestId 调整请求主键
+     * @param authentication 当前认证上下文
+     * @return 创建的个人角色版本主键
+     */
+    @PostMapping("/{requestId}/version")
+    public ApiResponse<Long> createVersion(
+            @PathVariable Long requestId,
+            Authentication authentication) {
+        Long userId = jwtUserIdExtractor.requireUserId(authentication);
+        try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId)) {
+            Long versionId = versionService.createVersion(userId, requestId);
+            log.debug("角色调整请求已落地为个人版本，requestId: {}, versionId: {}", requestId, versionId);
+            return ApiResponse.success(versionId);
         }
     }
 
