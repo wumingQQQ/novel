@@ -58,13 +58,13 @@ public class ChatController {
      * 向当前用户拥有的会话发送消息，并返回角色回复。
      */
     @PostMapping("/sessions/{sessionId}/messages")
-    public ApiResponse<SendChatMessageResponse> sendMessage(
+    public ApiResponse<SendChatMessageResponse> sendMessageWithCompleteReply(
             @PathVariable Long sessionId,
             @RequestBody SendChatMessageRequest request,
             Authentication authentication
     ) {
         Long userId = jwtUserIdExtractor.requireUserId(authentication);
-        return ApiResponse.success(chatService.sendMessage(
+        return ApiResponse.success(chatService.sendMessageWithCompleteReply(
                 userId,
                 sessionId,
                 request.getContent()
@@ -72,22 +72,24 @@ public class ChatController {
     }
 
     /**
-     * 以 SSE 协议发送角色回复。
+     * 向当前用户拥有的会话发送消息，并以 SSE 协议流式返回角色回复。
      *
-     * <p>当前先复用同步发送链路，确保个人角色版本、记忆和RAG上下文与普通发送保持一致；
-     * 后续切换 token 流时也应复用同一套上下文构建逻辑。</p>
+     * <p>流式发送与完整回复发送复用同一套角色上下文、记忆和RAG构建逻辑。</p>
      */
     @PostMapping(value = "/sessions/{sessionId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamMessage(
+    public SseEmitter sendMessageWithStreamingReply(
             @PathVariable Long sessionId,
             @RequestBody SendChatMessageRequest request,
             Authentication authentication) {
         Long userId = jwtUserIdExtractor.requireUserId(authentication);
         return chatSseEmitterService.submit(session -> {
-            SendChatMessageResponse response = chatService.sendMessage(userId, sessionId, request.getContent());
-            if (session.send("message", response)) {
-                session.send("complete", "done");
-            }
+            chatService.sendMessageWithStreamingReply(
+                    userId,
+                    sessionId,
+                    request.getContent(),
+                    chunk -> session.send("delta", chunk)
+            );
+            session.send("complete", "done");
         });
     }
 

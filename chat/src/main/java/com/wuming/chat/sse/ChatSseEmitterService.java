@@ -69,7 +69,13 @@ public class ChatSseEmitterService {
             task.accept(session);
             session.complete();
         } catch (Exception e) {
-            session.fail(e);
+            if (session.isClosed()) {
+                log.debug("聊天SSE任务结束时连接已关闭，跳过错误事件发送");
+                return;
+            }
+            log.warn("聊天SSE任务执行失败", e);
+            session.send("error", "聊天回复生成失败，请稍后重试");
+            session.complete();
         } finally {
             concurrentStreams.release();
         }
@@ -139,6 +145,11 @@ public class ChatSseEmitterService {
         /** 标记连接已由容器或客户端关闭。 */
         private void markClosed() {
             closed.set(true);
+        }
+
+        /** 判断当前SSE连接是否已经关闭。 */
+        public boolean isClosed() {
+            return closed.get();
         }
 
         /** 返回当前会话持有的底层 emitter。 */

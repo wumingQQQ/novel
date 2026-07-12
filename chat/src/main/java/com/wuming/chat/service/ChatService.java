@@ -9,21 +9,20 @@ import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.dto.ChatSessionSummary;
 import com.wuming.chat.domain.entity.ChatMessage;
 import com.wuming.chat.domain.entity.ChatSession;
-import com.wuming.chat.domain.model.ChatMemoryContext;
+import com.wuming.chat.exception.ChatStreamClientClosedException;
 import com.wuming.chat.integration.rpc.role.RoleRuntimeContextService;
 import com.wuming.chat.infrastructure.mapper.ChatMessageMapper;
 import com.wuming.chat.infrastructure.mapper.ChatSessionMapper;
 import com.wuming.chat.infrastructure.observability.TraceContext;
 import com.wuming.chat.integration.rpc.user.UserContextService;
 import com.wuming.chat.infrastructure.cache.ChatMessageCacheService;
-import com.wuming.chat.rag.role.RoleRuntimeRagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 @Slf4j
 @Service
@@ -36,20 +35,9 @@ public class ChatService {
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
     private final ChatMessageCacheService chatMessageCacheService;
-    private final ChatMemoryService chatMemoryService;
     private final RoleRuntimeContextService roleRuntimeContextService;
     private final UserContextService userContextService;
-    private final RoleChatPromptBuilder promptBuilder;
-    private final ChatClient chatClient;
-    private final RoleRuntimeRagService roleRuntimeRagService;
-
-    /**
-     * 创建聊天会话前先确认用户可用且对应角色已经生成完整画像。
-     */
-    @Transactional
-    public Long createSession(Long userId, Long characterId) {
-        return createSession(userId, characterId, null);
-    }
+    private final ChatAssistantReplyService assistantReplyService;
 
     /**
      * 创建公共基线或用户个人版本绑定的聊天会话。
@@ -78,32 +66,21 @@ public class ChatService {
     }
 
     /**
-     * 保存用户消息，携带画像、RAG上下文和最近历史请求 LLM，再保存角色回复。
+     * 发送用户消息，并等待LLM生成完整角色回复后返回。
      *
      * @param sessionId 聊天会话id
      * @param content 用户输入
      * @return 角色回复消息id和内容
      */
-    public SendChatMessageResponse sendMessage(Long userId, Long sessionId, String content) {
+    public SendChatMessageResponse sendMessageWithCompleteReply(Long userId, Long sessionId, String content) {
         ChatSession session = requireOwnedSession(sessionId, userId);
         try (TraceContext.MdcScope ignoredSession = TraceContext.putSessionId(sessionId);
              TraceContext.MdcScope ignoredUser = TraceContext.putUserId(session.getUserId())) {
             long start = System.currentTimeMillis();
             log.info("开始处理聊天消息");
             try {
-                String userContent = requireContent(content);
-
-                saveMessage(sessionId, ROLE_USER, userContent);
-                RoleRuntimeContextDto runtimeContext = roleRuntimeContextService.getRuntimeContext(
-                        session.getUserId(), session.getCharacterId(), session.getUserRoleVersionId());
-
-                String ragPrompt = roleRuntimeRagService.buildContextPrompt(runtimeContext.getCharacterId(), userContent);
-                ChatMemoryContext memoryContext = chatMemoryService.prepareContext(sessionId);
-                String assistantContent = requestAssistantReply(
-                        promptBuilder.buildSystemPrompt(runtimeContext),
-                        memoryContext,
-                        ragPrompt
-                );
+                String userContent = saveUserMessageAndReturnContent(session, content);
+                String assistantContent = assistantReplyService.generateCompleteReply(session, userContent);
 
                 ChatMessage assistantMessage = saveMessage(
                         sessionId,
@@ -119,6 +96,74 @@ public class ChatService {
                 throw e;
             }
         }
+    }
+
+    /**
+     * 发送用户消息，并以流式方式生成角色回复；完整回复仍会在流结束后保存为助手消息。
+     *
+     * <p>如果上游在输出首个片段前失败，会降级为同步调用；一旦已经向客户端发送过片段，
+     * 就不再降级，避免客户端收到重复或不连续的回复。</p>
+     *
+     * @param userId 当前用户主键
+     * @param sessionId 聊天会话id
+     * @param content 用户输入
+     * @param chunkConsumer 单个LLM片段发送回调，返回false表示客户端已断开
+     */
+    public void sendMessageWithStreamingReply(Long userId,
+                                              Long sessionId,
+                                              String content,
+                                              Predicate<String> chunkConsumer) {
+        ChatSession session = requireOwnedSession(sessionId, userId);
+        try (TraceContext.MdcScope ignoredSession = TraceContext.putSessionId(sessionId);
+             TraceContext.MdcScope ignoredUser = TraceContext.putUserId(session.getUserId())) {
+            long start = System.currentTimeMillis();
+            log.info("开始处理流式聊天消息");
+            try {
+                String userContent = saveUserMessageAndReturnContent(session, content);
+                String assistantContent = assistantReplyService.generateStreamingReply(session, userContent, chunkConsumer);
+                ChatMessage assistantMessage = saveMessage(sessionId, ROLE_ASSISTANT, assistantContent);
+                log.info("流式聊天消息处理完成，assistantMessageId: {}, costMs: {}",
+                        assistantMessage.getId(), System.currentTimeMillis() - start);
+            } catch (ChatStreamClientClosedException e) {
+                log.info("流式聊天客户端已断开，停止保存助手回复，costMs: {}",
+                        System.currentTimeMillis() - start);
+                throw e;
+            } catch (RuntimeException e) {
+                log.warn("流式聊天消息处理失败，costMs: {}",
+                        System.currentTimeMillis() - start, e);
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * 按插入顺序返回会话内的全部消息。
+     */
+    public List<ChatMessage> listMessages(Long userId, Long sessionId) {
+        requireOwnedSession(sessionId, userId);
+        return chatMessageMapper.selectList(
+                new LambdaQueryWrapper<ChatMessage>()
+                        .eq(ChatMessage::getSessionId, sessionId)
+                        .orderByAsc(ChatMessage::getId)
+        );
+    }
+
+    /**
+     * 查询当前用户的会话摘要，供聊天页左侧会话列表使用。
+     */
+    public List<ChatSessionSummary> listSessions(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId不能为空");
+        }
+        return chatSessionMapper.selectList(new LambdaQueryWrapper<ChatSession>()
+                        .eq(ChatSession::getUserId, userId)
+                        .eq(ChatSession::getStatus, SESSION_ACTIVE)
+                        .orderByDesc(ChatSession::getUpdateTime)
+                        .orderByDesc(ChatSession::getId))
+                .stream()
+                .map(session -> new ChatSessionSummary(
+                        session.getId(), session.getCharacterId(), session.getUserRoleVersionId(), session.getUpdateTime()))
+                .toList();
     }
 
     /**
@@ -185,33 +230,12 @@ public class ChatService {
     }
 
     /**
-     * 按插入顺序返回会话内的全部消息。
+     * 校验用户输入后立即保存，使后续记忆构建能够读到本轮消息。
      */
-    public List<ChatMessage> listMessages(Long userId, Long sessionId) {
-        requireOwnedSession(sessionId, userId);
-        return chatMessageMapper.selectList(
-                new LambdaQueryWrapper<ChatMessage>()
-                        .eq(ChatMessage::getSessionId, sessionId)
-                        .orderByAsc(ChatMessage::getId)
-        );
-    }
-
-    /**
-     * 查询当前用户的会话摘要，供聊天页左侧会话列表使用。
-     */
-    public List<ChatSessionSummary> listSessions(Long userId) {
-        if (userId == null) {
-            throw new IllegalArgumentException("userId不能为空");
-        }
-        return chatSessionMapper.selectList(new LambdaQueryWrapper<ChatSession>()
-                        .eq(ChatSession::getUserId, userId)
-                        .eq(ChatSession::getStatus, SESSION_ACTIVE)
-                        .orderByDesc(ChatSession::getUpdateTime)
-                        .orderByDesc(ChatSession::getId))
-                .stream()
-                .map(session -> new ChatSessionSummary(
-                        session.getId(), session.getCharacterId(), session.getUserRoleVersionId(), session.getUpdateTime()))
-                .toList();
+    private String saveUserMessageAndReturnContent(ChatSession session, String content) {
+        String userContent = requireContent(content);
+        saveMessage(session.getId(), ROLE_USER, userContent);
+        return userContent;
     }
 
     /**
@@ -250,64 +274,6 @@ public class ChatService {
         return content.trim();
     }
 
-    /**
-     * 使用角色系统提示词、最近对话和RAG上下文请求 LLM 生成角色回复。
-     *
-     * @param systemPrompt 角色系统提示词
-     * @param memoryContext 该会话的长期摘要与最近对话
-     * @param ragPrompt RAG召回上下文提示词
-     * @return LLM生成的角色回复
-     */
-    private String requestAssistantReply(String systemPrompt,
-                                         ChatMemoryContext memoryContext,
-                                         String ragPrompt) {
-        long start = System.currentTimeMillis();
-        try {
-            String content = chatClient
-                    .prompt()
-                    .system(systemPrompt)
-                    .user(formatConversation(memoryContext, ragPrompt))
-                    .call()
-                    .content();
-            log.info("角色聊天LLM调用完成，recentMessageCount: {}, memoryEnabled: {}, ragEnabled: {}, costMs: {}",
-                    memoryContext.recentMessages().size(), !memoryContext.summaryContent().isBlank(),
-                    ragPrompt != null && !ragPrompt.isBlank(),
-                    System.currentTimeMillis() - start);
-            return content;
-        } catch (RuntimeException e) {
-            log.warn("角色聊天LLM调用失败，recentMessageCount: {}, memoryEnabled: {}, ragEnabled: {}, costMs: {}",
-                    memoryContext.recentMessages().size(), !memoryContext.summaryContent().isBlank(),
-                    ragPrompt != null && !ragPrompt.isBlank(),
-                    System.currentTimeMillis() - start, e);
-            throw e;
-        }
-    }
-
-    /**
-     * 将长期摘要、最近原文和 RAG 上下文折叠成普通文本，兼容当前 ChatClient API。
-     */
-    private String formatConversation(ChatMemoryContext memoryContext, String ragPrompt) {
-        StringBuilder builder = new StringBuilder();
-        if (!memoryContext.summaryContent().isBlank()) {
-            builder.append("【长期记忆】\n")
-                    .append(memoryContext.summaryContent())
-                    .append("\n\n");
-        }
-        builder.append("【最近对话】\n");
-        for (var message : memoryContext.recentMessages()) {
-            if (ROLE_USER.equals(message.role())) {
-                builder.append("用户：").append(message.content()).append('\n');
-            } else if (ROLE_ASSISTANT.equals(message.role())) {
-                builder.append("你：").append(message.content()).append('\n');
-            }
-        }
-
-        if (ragPrompt != null && !ragPrompt.isBlank()) {
-            builder.append("\n").append(ragPrompt).append("\n");
-        }
-        builder.append("\n请继续回复最后一条用户消息，只输出角色本人的回复。");
-        return builder.toString();
-    }
 }
 
 
