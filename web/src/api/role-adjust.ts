@@ -1,5 +1,5 @@
 import { authenticatedRequest } from '@/api/http'
-import type { CreateRoleAdjustInput, RoleAdjustRequestDetail, RoleAdjustRequestSummary, RoleAdjustReviewResult, ReviewRoleAdjustItemInput } from '@/types/role-adjust'
+import type { CreateRoleAdjustInput, RoleAdjustEvidence, RoleAdjustRequestDetail, RoleAdjustRequestSummary, RoleAdjustReviewResult, ReviewRoleAdjustItemInput } from '@/types/role-adjust'
 
 const basePath = '/role-adjust/requests'
 
@@ -33,4 +33,9 @@ export function reviewRoleAdjustItems(requestId: string | number, items: ReviewR
 /** 根据用户反馈重新生成处于 REVISING 状态的候选项。 */
 export function reviseRoleAdjustItems(requestId: string | number) {
   return authenticatedRequest<void>(`${basePath}/${requestId}/revision`, { method: 'POST' })
+}
+
+/** 读取当前调整请求中一个候选项关联的受限原文证据。 */
+export function getRoleAdjustItemEvidences(requestId: string | number, itemId: number) {
+  return authenticatedRequest<RoleAdjustEvidence[]>(`${basePath}/${requestId}/items/${itemId}/evidences`)
 }

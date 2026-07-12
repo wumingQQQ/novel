@@ -5,12 +5,15 @@ import com.wuming.common.exception.BusinessException;
 import com.wuming.common.exception.ErrorCode;
 import com.wuming.novel.domain.dto.RoleAdjustRequestDetailResponse;
 import com.wuming.novel.domain.dto.RoleAdjustRequestSummaryResponse;
+import com.wuming.novel.domain.dto.RoleAdjustEvidenceResponse;
 import com.wuming.novel.domain.entity.RoleAdjustEvidence;
 import com.wuming.novel.domain.entity.RoleAdjustItem;
 import com.wuming.novel.domain.entity.RoleAdjustRequest;
+import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.infrastructure.mapper.RoleAdjustEvidenceMapper;
 import com.wuming.novel.infrastructure.mapper.RoleAdjustItemMapper;
 import com.wuming.novel.infrastructure.mapper.RoleAdjustRequestMapper;
+import com.wuming.novel.infrastructure.mapper.NovelPassageMapper;
 import com.wuming.novel.service.publicrole.RolePublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,25 @@ public class RoleAdjustQueryService {
     private final RoleAdjustItemMapper itemMapper;
     private final RoleAdjustEvidenceMapper evidenceMapper;
     private final RolePublicService rolePublicService;
+    private final NovelPassageMapper novelPassageMapper;
+
+    /** 查询当前请求中一个候选项关联的原文证据。 */
+    public List<RoleAdjustEvidenceResponse> getItemEvidences(Long userId, Long requestId, Long itemId) {
+        requireOwnedRequest(userId, requestId);
+        RoleAdjustItem item = itemMapper.selectById(itemId);
+        if (item == null || !Objects.equals(item.getRequestId(), requestId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "候选调整项不存在: " + itemId);
+        }
+        List<RoleAdjustEvidence> evidences = evidenceMapper.selectList(new LambdaQueryWrapper<RoleAdjustEvidence>()
+                .eq(RoleAdjustEvidence::getItemId, itemId));
+        List<Long> passageIds = evidenceMap(evidences).getOrDefault(itemId, List.of());
+        if (passageIds.isEmpty()) return List.of();
+        Map<Long, NovelPassage> passages = new LinkedHashMap<>();
+        for (NovelPassage passage : novelPassageMapper.selectBatchIds(passageIds)) passages.put(passage.getId(), passage);
+        return passageIds.stream().map(passages::get).filter(Objects::nonNull)
+                .map(passage -> new RoleAdjustEvidenceResponse(passage.getId(), passage.getChapterId(),
+                        passage.getStartParagraph(), passage.getEndParagraph(), passage.getContent())).toList();
+    }
 
     /**
      * 查询当前用户创建的角色调整请求摘要，按最近更新时间倒序排列。

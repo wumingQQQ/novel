@@ -8,6 +8,7 @@ import com.wuming.novel.domain.dto.ReviewRoleAdjustResult;
 import com.wuming.novel.domain.dto.ReviseRoleAdjustResult;
 import com.wuming.novel.domain.dto.RoleAdjustRequestDetailResponse;
 import com.wuming.novel.domain.dto.RoleAdjustRequestSummaryResponse;
+import com.wuming.novel.domain.dto.RoleAdjustEvidenceResponse;
 import com.wuming.novel.domain.entity.RoleAdjustRequest;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.service.adjust.RoleAdjustService;
@@ -94,6 +95,13 @@ public class RoleAdjustController {
         try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId)) {
             return ApiResponse.success(queryService.getDetail(userId, requestId));
         }
+    }
+
+    @GetMapping("/{requestId}/items/{itemId}/evidences")
+    public ApiResponse<List<RoleAdjustEvidenceResponse>> getItemEvidences(@PathVariable Long requestId,
+            @PathVariable Long itemId, Authentication authentication) {
+        Long userId = jwtUserIdExtractor.requireUserId(authentication);
+        return ApiResponse.success(queryService.getItemEvidences(userId, requestId, itemId));
     }
 
     /**
