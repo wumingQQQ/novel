@@ -14,7 +14,7 @@ export default createRouter({
     { path: '/roles/:id', name: 'role-preview', component: RolePreviewPage, props: true },
     { path: '/my-roles', name: 'my-roles', component: MyRolesPage },
     { path: '/my-evaluations', name: 'my-evaluations', component: MyEvaluationsPage },
-    { path: '/my-evaluations/:characterId', name: 'evaluation-workspace', component: EvaluationWorkspacePage, props: true },
+    { path: '/my-evaluations/:requestId', name: 'evaluation-workspace', component: EvaluationWorkspacePage, props: true },
     { path: '/chat/:sessionId', name: 'chat', component: ChatPage, props: true },
   ],
 })

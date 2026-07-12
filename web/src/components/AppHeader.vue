@@ -15,7 +15,7 @@ const isMyEvaluations = computed(() => route.name === 'my-evaluations' || route.
     <nav class="main-nav" aria-label="主导航">
       <RouterLink :class="{ active: isHall }" to="/">角色大厅</RouterLink>
       <RouterLink :class="{ active: isMyRoles }" to="/my-roles">我的角色</RouterLink>
-      <RouterLink :class="{ active: isMyEvaluations }" to="/my-evaluations">我的评测</RouterLink>
+      <RouterLink :class="{ active: isMyEvaluations }" to="/my-evaluations">我的调整</RouterLink>
     </nav>
     <button class="account" type="button" aria-label="打开账户菜单">
       <span class="account-mark">镜</span>

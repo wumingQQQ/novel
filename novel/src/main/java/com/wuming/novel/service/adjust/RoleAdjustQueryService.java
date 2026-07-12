@@ -4,12 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.common.exception.BusinessException;
 import com.wuming.common.exception.ErrorCode;
 import com.wuming.novel.domain.dto.RoleAdjustRequestDetailResponse;
+import com.wuming.novel.domain.dto.RoleAdjustRequestSummaryResponse;
 import com.wuming.novel.domain.entity.RoleAdjustEvidence;
 import com.wuming.novel.domain.entity.RoleAdjustItem;
 import com.wuming.novel.domain.entity.RoleAdjustRequest;
 import com.wuming.novel.infrastructure.mapper.RoleAdjustEvidenceMapper;
 import com.wuming.novel.infrastructure.mapper.RoleAdjustItemMapper;
 import com.wuming.novel.infrastructure.mapper.RoleAdjustRequestMapper;
+import com.wuming.novel.service.publicrole.RolePublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +30,29 @@ public class RoleAdjustQueryService {
     private final RoleAdjustRequestMapper requestMapper;
     private final RoleAdjustItemMapper itemMapper;
     private final RoleAdjustEvidenceMapper evidenceMapper;
+    private final RolePublicService rolePublicService;
+
+    /**
+     * 查询当前用户创建的角色调整请求摘要，按最近更新时间倒序排列。
+     *
+     * <p>摘要不包含候选项、证据或个人版本调整补丁，详情由单请求查询接口按需返回。</p>
+     *
+     * @param userId 当前认证用户主键
+     * @return 调整请求摘要列表
+     */
+    public List<RoleAdjustRequestSummaryResponse> listRequests(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId不能为空");
+        }
+        List<RoleAdjustRequest> requests = requestMapper.selectList(new LambdaQueryWrapper<RoleAdjustRequest>()
+                .eq(RoleAdjustRequest::getUserId, userId)
+                .orderByDesc(RoleAdjustRequest::getUpdateTime)
+                .orderByDesc(RoleAdjustRequest::getId));
+        if (requests == null || requests.isEmpty()) {
+            return List.of();
+        }
+        return requests.stream().map(this::toSummary).toList();
+    }
 
     /**
      * 查询当前用户拥有的角色调整请求详情。
@@ -129,6 +154,22 @@ public class RoleAdjustQueryService {
                 request.getUpdateTime(),
                 itemResponses
         );
+    }
+
+    /**
+     * 组合调整请求状态和公共角色脱敏侧影，供列表快速扫描。
+     */
+    private RoleAdjustRequestSummaryResponse toSummary(RoleAdjustRequest request) {
+        return new RoleAdjustRequestSummaryResponse(
+                request.getId(),
+                rolePublicService.getPreview(request.getCharacterId()),
+                request.getBaseVersionId(),
+                request.getRequirement(),
+                request.getStatus(),
+                request.getFailureReason(),
+                request.getCreatedVersionId(),
+                request.getCreateTime(),
+                request.getUpdateTime());
     }
 
     /**

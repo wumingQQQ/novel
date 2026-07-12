@@ -7,6 +7,7 @@ import com.wuming.novel.domain.dto.ReviewRoleAdjustRequest;
 import com.wuming.novel.domain.dto.ReviewRoleAdjustResult;
 import com.wuming.novel.domain.dto.ReviseRoleAdjustResult;
 import com.wuming.novel.domain.dto.RoleAdjustRequestDetailResponse;
+import com.wuming.novel.domain.dto.RoleAdjustRequestSummaryResponse;
 import com.wuming.novel.domain.entity.RoleAdjustRequest;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.service.adjust.RoleAdjustService;
@@ -26,6 +27,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * 个人角色调整接口。
  */
@@ -41,6 +44,20 @@ public class RoleAdjustController {
     private final RoleAdjustVersionService versionService;
     private final RoleAdjustWorkflowService workflowService;
     private final JwtUserIdExtractor jwtUserIdExtractor;
+
+    /**
+     * 查询当前用户创建的角色调整请求摘要。
+     *
+     * @param authentication 当前认证上下文
+     * @return 按最近更新时间排列的调整请求列表
+     */
+    @GetMapping
+    public ApiResponse<List<RoleAdjustRequestSummaryResponse>> listRequests(Authentication authentication) {
+        Long userId = jwtUserIdExtractor.requireUserId(authentication);
+        try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId)) {
+            return ApiResponse.success(queryService.listRequests(userId));
+        }
+    }
 
     /**
      * 创建当前用户的个人角色调整请求。
