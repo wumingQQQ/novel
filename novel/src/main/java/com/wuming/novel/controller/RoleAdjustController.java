@@ -5,12 +5,14 @@ import com.wuming.common.web.ApiResponse;
 import com.wuming.novel.domain.dto.CreateRoleAdjustRequest;
 import com.wuming.novel.domain.dto.ReviewRoleAdjustRequest;
 import com.wuming.novel.domain.dto.ReviewRoleAdjustResult;
+import com.wuming.novel.domain.dto.ReviseRoleAdjustResult;
 import com.wuming.novel.domain.dto.RoleAdjustRequestDetailResponse;
 import com.wuming.novel.domain.entity.RoleAdjustRequest;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.service.adjust.RoleAdjustService;
 import com.wuming.novel.service.adjust.RoleAdjustQueryService;
 import com.wuming.novel.service.adjust.RoleAdjustReviewService;
+import com.wuming.novel.service.adjust.RoleAdjustRevisionService;
 import com.wuming.novel.service.adjust.RoleAdjustWorkflowService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ public class RoleAdjustController {
     private final RoleAdjustService roleAdjustService;
     private final RoleAdjustQueryService queryService;
     private final RoleAdjustReviewService reviewService;
+    private final RoleAdjustRevisionService revisionService;
     private final RoleAdjustWorkflowService workflowService;
     private final JwtUserIdExtractor jwtUserIdExtractor;
 
@@ -92,6 +95,28 @@ public class RoleAdjustController {
             workflowService.generate(userId, requestId);
             log.debug("角色调整候选生成完成，requestId: {}", requestId);
             return ApiResponse.success();
+        }
+    }
+
+    /**
+     * 按用户反馈修订当前请求下所有 REVISING 候选项。
+     *
+     * @param requestId 调整请求主键
+     * @param authentication 当前认证上下文
+     * @return 逐项修订处理结果
+     */
+    @PostMapping("/{requestId}/revision")
+    public ApiResponse<ReviseRoleAdjustResult> revise(
+            @PathVariable Long requestId,
+            Authentication authentication) {
+        Long userId = jwtUserIdExtractor.requireUserId(authentication);
+        try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId)) {
+            ReviseRoleAdjustResult result = revisionService.revise(userId, requestId);
+            log.debug("角色调整候选修订完成，requestId: {}, revisedCount: {}, errorCount: {}",
+                    requestId,
+                    result.getRevisedItemIds().size(),
+                    result.getItemErrors().size());
+            return ApiResponse.success(result);
         }
     }
 

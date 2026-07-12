@@ -1,6 +1,7 @@
 package com.wuming.novel.service.adjust;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.wuming.novel.domain.dto.ReviewRoleAdjustItemRequest;
 import com.wuming.novel.domain.dto.ReviewRoleAdjustRequest;
 import com.wuming.novel.domain.dto.ReviewRoleAdjustResult;
@@ -176,6 +177,20 @@ public class RoleAdjustReviewService {
         update.setRevisionFeedback(trimRevisionFeedback(review));
         update.setRevisionError(null);
         itemMapper.updateById(update);
+        clearReviewState(itemId, review.getStatus());
+    }
+
+    /**
+     * MyBatis-Plus 默认不会通过 updateById 写入 null，这里显式清理评审状态字段。
+     */
+    private void clearReviewState(Long itemId, RoleAdjustStatus status) {
+        UpdateWrapper<RoleAdjustItem> wrapper = new UpdateWrapper<RoleAdjustItem>()
+                .eq("id", itemId)
+                .set("revision_error", null);
+        if (status != RoleAdjustStatus.REVISING) {
+            wrapper.set("revision_feedback", null);
+        }
+        itemMapper.update(null, wrapper);
     }
 
     /**
