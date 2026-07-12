@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -22,6 +24,25 @@ public class RoleAdjustWorkflowService {
      */
     public void generate(Long requestId) {
         RoleAdjustRequest request = requirePendingRequest(requestId);
+        generate(request);
+    }
+
+    /**
+     * 为当前用户拥有的待处理请求生成候选调整项。
+     *
+     * @param userId 当前认证用户主键
+     * @param requestId 调整请求主键
+     */
+    public void generate(Long userId, Long requestId) {
+        RoleAdjustRequest request = requirePendingRequest(requestId);
+        requireOwnedRequest(userId, request);
+        generate(request);
+    }
+
+    /**
+     * 执行候选生成和状态流转。
+     */
+    private void generate(RoleAdjustRequest request) {
         markGenerating(request.getId());
         try {
             RoleAdjustGenerationService.RoleAdjustGenerationResult result = generationService.generateCandidates(request);
@@ -53,6 +74,18 @@ public class RoleAdjustWorkflowService {
             throw new IllegalStateException("只有PENDING状态的角色调整请求可以生成候选项");
         }
         return request;
+    }
+
+    /**
+     * 校验调整请求属于当前用户，避免用户触发他人的候选生成流程。
+     */
+    private void requireOwnedRequest(Long userId, RoleAdjustRequest request) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId不能为空");
+        }
+        if (!Objects.equals(request.getUserId(), userId)) {
+            throw new IllegalStateException("角色调整请求不属于当前用户");
+        }
     }
 
     /**
