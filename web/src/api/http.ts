@@ -25,7 +25,17 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
       ...options?.headers,
     },
   })
-  const body = (await response.json()) as ApiResponse<T>
+  const text = await response.text()
+  let body: ApiResponse<T> | undefined
+  if (text) {
+    try { body = JSON.parse(text) as ApiResponse<T> } catch {
+      if (!response.ok) throw new Error('服务暂时不可用，请确认对应服务已经启动')
+      throw new Error('服务返回了无法识别的数据')
+    }
+  }
+  if (!body) {
+    throw new Error(response.ok ? '服务返回为空' : '服务暂时不可用，请确认对应服务已经启动')
+  }
   if (!response.ok || body.code !== 200) {
     throw new Error(body.message || '请求暂时无法完成')
   }
