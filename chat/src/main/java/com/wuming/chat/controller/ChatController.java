@@ -1,5 +1,6 @@
 package com.wuming.chat.controller;
 
+import com.wuming.chat.domain.dto.CreateChatSessionResponse;
 import com.wuming.chat.domain.dto.SendChatMessageRequest;
 import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.dto.CreateChatSessionRequest;
@@ -9,6 +10,7 @@ import com.wuming.chat.service.ChatService;
 import com.wuming.chat.sse.ChatSseEmitterService;
 import com.wuming.common.security.JwtUserIdExtractor;
 import com.wuming.common.web.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,27 +33,19 @@ public class ChatController {
     private final JwtUserIdExtractor jwtUserIdExtractor;
 
     /**
-     * 基于当前登录用户和已完成画像构建的角色创建一个新的聊天会话。
-     */
-    @PostMapping("/sessions/{characterId}")
-    public ApiResponse<Long> createSession(
-            @PathVariable Long characterId,
-            Authentication authentication
-    ) {
-        Long userId = jwtUserIdExtractor.requireUserId(authentication);
-        Long sessionId = chatService.createSession(userId, characterId);
-        return ApiResponse.success(sessionId);
-    }
-
-    /**
-     * 创建可选绑定个人角色版本的聊天会话。
+     * 创建聊天会话。
+     *
+     * <p>公共角色和个人版本角色统一使用该入口：userRoleVersionId为空时创建公共角色会话，
+     * 非空时创建绑定当前用户个人角色版本的会话。</p>
      */
     @PostMapping("/sessions")
-    public ApiResponse<Long> createVersionedSession(
-            @RequestBody CreateChatSessionRequest request, Authentication authentication) {
+    public ApiResponse<CreateChatSessionResponse> createVersionedSession(
+            @Valid @RequestBody CreateChatSessionRequest request, Authentication authentication) {
         Long userId = jwtUserIdExtractor.requireUserId(authentication);
-        return ApiResponse.success(chatService.createSession(
-                userId, request.getCharacterId(), request.getUserRoleVersionId()));
+        Long sessionId = chatService.createSession(
+                userId, request.getCharacterId(), request.getUserRoleVersionId());
+        return ApiResponse.success(CreateChatSessionResponse.of(
+                sessionId, request.getCharacterId(), request.getUserRoleVersionId()));
     }
 
     /** 查询当前用户的聊天会话摘要。 */
