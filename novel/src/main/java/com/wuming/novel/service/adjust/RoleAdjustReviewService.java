@@ -33,6 +33,7 @@ public class RoleAdjustReviewService {
 
     private final RoleAdjustRequestMapper requestMapper;
     private final RoleAdjustItemMapper itemMapper;
+    private final RoleAdjustVersionService versionService;
 
     /**
      * 提交一次调整请求下部分或全部候选项的用户评审结果。
@@ -68,6 +69,11 @@ public class RoleAdjustReviewService {
         if (!validReviewsByItemId.isEmpty() && allItemsFinalized(items, validReviewsByItemId)) {
             markConfirmed(request.getId());
             result.setConfirmed(true);
+            if (hasAcceptedItem(items, validReviewsByItemId)) {
+                // 评审闭环后立即生成个人版本，避免前端再补一次/version调用。
+                Long versionId = versionService.createVersion(userId, requestId);
+                result.setCreatedVersionId(versionId);
+            }
         }
         return result;
     }
@@ -217,7 +223,20 @@ public class RoleAdjustReviewService {
     }
 
     /**
-     * 标记请求评审完成，等待后续创建个人角色版本。
+     * 判断最终评审结果中是否存在需要落地的有效调整项。
+     */
+    private boolean hasAcceptedItem(List<RoleAdjustItem> items,
+                                    Map<Long, ReviewRoleAdjustItemRequest> reviewsByItemId) {
+        for (RoleAdjustItem item : items) {
+            if (finalStatus(item, reviewsByItemId) == RoleAdjustStatus.ACCEPTED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 标记请求评审完成；存在已接受项时会在同一事务内继续创建个人角色版本。
      */
     private void markConfirmed(Long requestId) {
         RoleAdjustRequest update = new RoleAdjustRequest();

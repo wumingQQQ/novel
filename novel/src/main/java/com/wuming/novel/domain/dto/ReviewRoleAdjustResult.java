@@ -12,6 +12,7 @@ import java.util.List;
 public class ReviewRoleAdjustResult {
     private Long requestId;
     private boolean confirmed;
+    private Long createdVersionId;
     private List<Long> reviewedItemIds = new ArrayList<>();
     private List<ItemError> itemErrors = new ArrayList<>();
 
