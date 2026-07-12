@@ -21,12 +21,12 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Comparator;
 import java.util.StringJoiner;
 
 @Slf4j
@@ -56,15 +56,16 @@ public class RoleAdjustGenerationService {
      *
      * <p>该方法只返回 LLM 候选结果，不写入 role_adjust_items，也不修改请求状态。</p>
      */
-    public List<RoleAdjustCandidate> generateCandidates(RoleAdjustRequest request) {
+    public RoleAdjustGenerationResult generateCandidates(RoleAdjustRequest request) {
         validateRequest(request);
         RoleCharacter character = requireCharacter(request.getCharacterId());
         List<NovelPassage> evidences = loadEvidence(request, character);
         if (evidences.isEmpty()) {
             log.debug("角色调整候选生成跳过，characterId: {}, reason: {}", request.getCharacterId(), "没有可用原作证据");
-            return List.of();
+            return RoleAdjustGenerationResult.empty();
         }
 
+        List<BaselineAdjustment> baselineAdjustments = loadBaselineAdjustments(request);
         PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
                 SYSTEM_TEMPLATE_PATH,
                 USER_TEMPLATE_PATH,
@@ -73,7 +74,7 @@ public class RoleAdjustGenerationService {
                         "novelName", blankToDefault(character.getNovelName(), "未知小说"),
                         "requirement", request.getRequirement(),
                         "chatText", blankToDefault(request.getChatText(), "无"),
-                        "baselineAdjustments", formatBaselineAdjustments(loadBaselineAdjustments(request)),
+                        "baselineAdjustments", formatBaselineAdjustments(baselineAdjustments),
                         "evidences", formatEvidences(evidences)
                 )
         );
@@ -82,7 +83,9 @@ public class RoleAdjustGenerationService {
                 .user(dualPrompt.userPrompt())
                 .call()
                 .entity(RoleAdjustCandidateResult.class));
-        return result == null ? List.of() : result.candidates();
+        return result == null ?
+                RoleAdjustGenerationResult.empty() :
+                new RoleAdjustGenerationResult(result.candidates(), evidences, baselineAdjustments);
     }
 
     /**
@@ -246,7 +249,6 @@ public class RoleAdjustGenerationService {
         StringJoiner joiner = new StringJoiner("\n\n");
         for (BaselineAdjustment adjustment : adjustments) {
             joiner.add("baselineRef=" + adjustment.ref()
-                    + "\nadjustmentId=" + blankToDefault(adjustment.adjustmentId(), "无")
                     + "\n适用场景：" + blankToDefault(adjustment.applicability(), "未填写")
                     + "\n期望行为：" + blankToDefault(adjustment.expectedBehavior(), "未填写")
                     + "\n禁止行为：" + blankToDefault(adjustment.forbiddenBehavior(), "未填写"));
@@ -280,11 +282,30 @@ public class RoleAdjustGenerationService {
     /**
      * 单次候选生成中传递给模型的既有行为调整投影。
      */
-    record BaselineAdjustment(
+    public record BaselineAdjustment(
             int ref,
             String adjustmentId,
             String applicability,
             String expectedBehavior,
             String forbiddenBehavior) {
+    }
+
+    /**
+     * 最终返回给外界的上下文对象
+     */
+    public record RoleAdjustGenerationResult(
+            List<RoleAdjustCandidate> candidates,
+            List<NovelPassage> evidences,
+            List<BaselineAdjustment> baselineAdjustments
+    ){
+        public RoleAdjustGenerationResult {
+            candidates = candidates == null ? List.of() : List.copyOf(candidates);
+            evidences = evidences == null ? List.of() : List.copyOf(evidences);
+            baselineAdjustments = baselineAdjustments == null ? List.of() : List.copyOf(baselineAdjustments);
+        }
+
+        public static RoleAdjustGenerationResult empty() {
+            return new RoleAdjustGenerationResult(List.of(), List.of(), List.of());
+        }
     }
 }
