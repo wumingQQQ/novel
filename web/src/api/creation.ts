@@ -1,7 +1,11 @@
-import { authenticatedRequest } from '@/api/http'
+import { authenticatedRequest, request } from '@/api/http'
 import type { JobProgress } from '@/types/creation'
+import type { NovelDetail, NovelSummary, PageResponse } from '@/types/novel'
 
 const base = '/novel'
+export function listNovels(scope: 'ALL' | 'MINE', page = 1, size = 12, keyword = '') { const params = new URLSearchParams({ page: String(page), size: String(size), scope }); if (keyword.trim()) params.set('keyword', keyword.trim()); const path = `/novels?${params}`; return scope === 'MINE' ? authenticatedRequest<PageResponse<NovelSummary>>(path) : request<PageResponse<NovelSummary>>(path) }
+/** 读取一部公开小说的详情；详情字段可独立于列表继续扩展。 */
+export function getNovelDetail(novelId: number | string) { return request<NovelDetail>(`/novels/${novelId}`) }
 export function uploadNovel(file: File) { const body = new FormData(); body.append('file', file); return authenticatedRequest<number>(base, { method: 'POST', body }) }
 export function createJob(novelId: number, protagonistName: string, targetName: string) { return authenticatedRequest<number>(`${base}/createJob`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ novelId, protagonistName, targetName }) }) }
 export function processJob(jobId: number) { return authenticatedRequest<string>(`${base}/process/${jobId}`, { method: 'POST' }) }
