@@ -6,9 +6,11 @@ import com.wuming.common.exception.ErrorCode;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
+import com.wuming.novel.domain.enums.NovelPreprocessStage;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.support.ChapterAnalysisService;
+import com.wuming.novel.service.support.NovelPreprocessCoordinator;
 import com.wuming.novel.sse.JobProgressService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +31,7 @@ public class ChapterAnalysisStep implements PipelineStep {
     private final IJobService jobService;
     private final IChapterService chapterService;
     private final ChapterAnalysisService chapterAnalysisService;
+    private final NovelPreprocessCoordinator preprocessCoordinator;
     private final RedisStageFailureStore redisStageFailureStore;
     private final JobProgressService jobProgressService;
     @Resource(name = "llmExecutor")
@@ -47,6 +50,12 @@ public class ChapterAnalysisStep implements PipelineStep {
     @Override
     public void execute(Long jobId) {
         Job job = requireJob(jobId);
+        preprocessCoordinator.execute(job.getNovelId(), NovelPreprocessStage.CHAPTER_ANALYSIS,
+                () -> analyzeChapters(jobId, job));
+    }
+
+    /** 仅由取得小说预处理锁的 job 运行章节分析子任务。 */
+    private void analyzeChapters(Long jobId, Job job) {
         List<Chapter> chapters = targetChapters(jobId, job);
         int completedCount = redisStageFailureStore.completedLongItems(jobId, stage()).size();
         jobProgressService.setStageItemCounts(jobId, stage(), completedCount + chapters.size(), completedCount, 0);
@@ -61,6 +70,10 @@ public class ChapterAnalysisStep implements PipelineStep {
                 .sum();
         log.info("章节分析执行完成，jobId: {}, novelId: {}, requestCount: {}, successCount: {}",
                 jobId, job.getNovelId(), chapters.size(), successCount);
+        if (successCount != chapters.size()) {
+            throw new IllegalStateException("章节分析存在失败项，successCount: " + successCount
+                    + ", requestCount: " + chapters.size());
+        }
     }
 
     /**

@@ -7,10 +7,12 @@ import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.domain.enums.JobStage;
+import com.wuming.novel.domain.enums.NovelPreprocessStage;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelPassageService;
 import com.wuming.novel.service.IPassageCharacterService;
+import com.wuming.novel.service.support.NovelPreprocessCoordinator;
 import com.wuming.novel.sse.JobProgressService;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class PassageBuildStep implements PipelineStep {
     private final IChapterService chapterService;
     private final INovelPassageService novelPassageService;
     private final IPassageCharacterService passageCharacterService;
+    private final NovelPreprocessCoordinator preprocessCoordinator;
     private final RedisStageFailureStore redisStageFailureStore;
     private final JobProgressService jobProgressService;
     @Resource(name = "llmExecutor")
@@ -50,6 +53,12 @@ public class PassageBuildStep implements PipelineStep {
     @Override
     public void execute(Long jobId) {
         Job job = requireJob(jobId);
+        preprocessCoordinator.execute(job.getNovelId(), NovelPreprocessStage.PASSAGE_BUILD,
+                () -> buildPassages(jobId, job));
+    }
+
+    /** 仅由取得小说预处理锁的 job 构建并索引 Passage。 */
+    private void buildPassages(Long jobId, Job job) {
         List<Chapter> chapters = targetChapters(jobId, job);
         int completedCount = redisStageFailureStore.completedLongItems(jobId, stage()).size();
         jobProgressService.setStageItemCounts(jobId, stage(), completedCount + chapters.size(), completedCount, 0);
@@ -64,6 +73,10 @@ public class PassageBuildStep implements PipelineStep {
                 .sum();
         log.info("小说Passage构建执行完成，jobId: {}, novelId: {}, requestCount: {}, successCount: {}",
                 job.getId(), job.getNovelId(), chapters.size(), successCount);
+        if (successCount != chapters.size()) {
+            throw new IllegalStateException("Passage构建存在失败项，successCount: " + successCount
+                    + ", requestCount: " + chapters.size());
+        }
     }
 
     /**

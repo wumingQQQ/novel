@@ -11,6 +11,22 @@ create table if not exists novels(
     key idx_novels_uploader_id(uploader_id)
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
 
+create table if not exists novel_preprocesses(
+    id bigint primary key auto_increment comment '小说预处理状态主键',
+    novel_id bigint not null comment '小说主键',
+    status varchar(20) not null default 'PENDING' comment 'PENDING/RUNNING/READY/FAILED',
+    current_stage varchar(30) comment '当前执行的预处理阶段',
+    completed_stage varchar(30) not null default 'NONE' comment '最后成功完成的预处理阶段',
+    chapter_count int not null default 0 comment '最近完成切分的章节数量',
+    passage_count int not null default 0 comment '最近完成构建的Passage数量',
+    failure_reason text comment '最近一次失败原因',
+    started_time datetime comment '当前预处理轮次开始时间',
+    completed_time datetime comment 'Passage构建完成时间',
+    create_time datetime default current_timestamp comment '创建时间',
+    update_time datetime default current_timestamp on update current_timestamp comment '更新时间',
+    unique key uk_novel_preprocesses_novel_id (novel_id)
+) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
+
 create table if not exists chapters(
     id bigint primary key auto_increment comment '章节主键',
     novel_id bigint not null comment '小说主键',
