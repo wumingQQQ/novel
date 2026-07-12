@@ -1,11 +1,13 @@
 package com.wuming.novel.service.adjust;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.wuming.novel.domain.dto.PersonalRoleSummaryResponse;
 import com.wuming.novel.domain.dto.PersonalRoleVersionResponse;
 import com.wuming.novel.domain.entity.PersonalRoleTrack;
 import com.wuming.novel.domain.entity.PersonalRoleVersion;
 import com.wuming.novel.infrastructure.mapper.PersonalRoleTrackMapper;
 import com.wuming.novel.infrastructure.mapper.PersonalRoleVersionMapper;
+import com.wuming.novel.service.publicrole.RolePublicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +23,33 @@ import java.util.Objects;
 public class PersonalRoleQueryService {
     private final PersonalRoleTrackMapper trackMapper;
     private final PersonalRoleVersionMapper versionMapper;
+    private final RolePublicService rolePublicService;
+
+    /**
+     * 按个人角色轨迹聚合当前用户的最新个人版本，用于“我的角色”列表。
+     *
+     * <p>列表只返回创建聊天所需的版本标识和公共角色脱敏侧影；完整调整补丁仍由按角色查询版本接口提供。</p>
+     *
+     * @param userId 当前认证用户主键
+     * @return 按轨迹最近更新时间倒序排列的个人角色摘要
+     */
+    public List<PersonalRoleSummaryResponse> listLatestRoles(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId不能为空");
+        }
+        List<PersonalRoleTrack> tracks = trackMapper.selectList(new LambdaQueryWrapper<PersonalRoleTrack>()
+                .eq(PersonalRoleTrack::getUserId, userId)
+                .isNotNull(PersonalRoleTrack::getLatestVersionId)
+                .orderByDesc(PersonalRoleTrack::getUpdateTime)
+                .orderByDesc(PersonalRoleTrack::getId));
+        if (tracks == null || tracks.isEmpty()) {
+            return List.of();
+        }
+        return tracks.stream()
+                .map(this::toLatestRoleSummary)
+                .filter(Objects::nonNull)
+                .toList();
+    }
 
     /**
      * 查询当前用户在指定公共角色下的全部个人版本，按版本号倒序返回。
@@ -103,6 +132,22 @@ public class PersonalRoleQueryService {
                 version.getCreateTime(),
                 toBehaviorAdjustments(version.getBehaviorAdjustmentsSnapshot())
         );
+    }
+
+    /**
+     * 读取轨迹最新版本并组合公共角色脱敏侧影；异常或脏轨迹不会返回半成品列表项。
+     */
+    private PersonalRoleSummaryResponse toLatestRoleSummary(PersonalRoleTrack track) {
+        PersonalRoleVersion version = loadLatestVersion(track);
+        if (version == null) {
+            return null;
+        }
+        return new PersonalRoleSummaryResponse(
+                rolePublicService.getPreview(track.getCharacterId()),
+                version.getId(),
+                version.getVersionNo(),
+                version.getSourceRequestId(),
+                version.getCreateTime());
     }
 
     private List<PersonalRoleVersionResponse.BehaviorAdjustment> toBehaviorAdjustments(

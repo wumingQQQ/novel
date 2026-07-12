@@ -2,6 +2,7 @@ package com.wuming.novel.controller;
 
 import com.wuming.common.security.JwtUserIdExtractor;
 import com.wuming.common.web.ApiResponse;
+import com.wuming.novel.domain.dto.PersonalRoleSummaryResponse;
 import com.wuming.novel.domain.dto.PersonalRoleVersionResponse;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.service.adjust.PersonalRoleQueryService;
@@ -23,6 +24,20 @@ import java.util.List;
 public class PersonalRoleController {
     private final PersonalRoleQueryService personalRoleQueryService;
     private final JwtUserIdExtractor jwtUserIdExtractor;
+
+    /**
+     * 查询当前用户已创建个人版本的角色列表。
+     *
+     * @param authentication 当前认证上下文
+     * @return 每个公共角色对应的最新个人版本摘要
+     */
+    @GetMapping
+    public ApiResponse<List<PersonalRoleSummaryResponse>> listLatestRoles(Authentication authentication) {
+        Long userId = jwtUserIdExtractor.requireUserId(authentication);
+        try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId)) {
+            return ApiResponse.success(personalRoleQueryService.listLatestRoles(userId));
+        }
+    }
 
     /**
      * 查询当前用户在指定公共角色下的全部个人版本。
