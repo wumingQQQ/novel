@@ -18,7 +18,7 @@ public class SecurityConfig {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(registry -> registry
-                        .requestMatchers(HttpMethod.GET, "/roles", "/roles/*")
+                        .requestMatchers(HttpMethod.GET, "/roles", "/roles/*", "/novels", "/novels/*")
                         .permitAll()
                         .anyRequest()
                         .authenticated()

@@ -45,9 +45,7 @@ public class JobService extends ServiceImpl<JobMapper, Job> implements IJobServi
         if (novel == null) {
             throw new BusinessException(ErrorCode.NOVEL_NOT_FOUND, "您指定的小说不存在");
         }
-        if (!userId.equals(novel.getUploaderId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "不能基于其他用户的小说创建任务");
-        }
+        // 小说是公共构建素材；任务归属创建它的用户，而不是小说上传者。
         userContextService.requireUser(userId);
 
         Job job = new Job();
