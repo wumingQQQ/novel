@@ -20,8 +20,8 @@ onMounted(() => void initializeAuth())
   <header class="app-header">
     <RouterLink class="brand" to="/">镜中角色</RouterLink>
     <nav class="main-nav" aria-label="主导航">
+      <RouterLink :class="{ active: isCreation }" to="/creation">创作大厅</RouterLink>
       <RouterLink :class="{ active: isHall }" to="/">角色大厅</RouterLink>
-      <RouterLink :class="{ active: isCreation }" to="/creation">创作任务</RouterLink>
       <RouterLink :class="{ active: isMyRoles }" to="/my-roles">我的角色</RouterLink>
       <RouterLink :class="{ active: isMyEvaluations }" to="/my-evaluations">我的调整</RouterLink>
     </nav>

@@ -5,7 +5,7 @@ const { openAuthDialog } = useAuth()
 </script>
 
 <template>
-  <section class="auth-state"><p class="eyebrow">SIGN IN REQUIRED</p><h1>这里收纳的是你的角色轨迹。</h1><p>登录后可以继续查看个人角色、调整请求和创作任务。</p><button type="button" @click="openAuthDialog">登录或注册</button></section>
+  <section class="auth-state"><p class="eyebrow">SIGN IN REQUIRED</p><h1>这里收纳的是你的角色轨迹。</h1><p>登录后可以继续查看个人角色、调整请求和创作大厅。</p><button type="button" @click="openAuthDialog">登录或注册</button></section>
 </template>
 
 <style scoped>
