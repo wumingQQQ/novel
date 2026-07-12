@@ -155,7 +155,6 @@ create table if not exists role_adjust_items(
     applicability text comment '适用条件',
     expected_behavior text comment '应当表现',
     forbidden_behavior text comment '不应表现',
-    intent_narrowing text comment '原作范围内的意图收窄说明',
     status varchar(20) not null default 'PENDING' comment 'PENDING/ACCEPTED/REJECTED/REVISING',
     revision_feedback text comment '用户改写意见',
     revision_error text comment '单项改写失败原因',
@@ -170,12 +169,9 @@ create table if not exists role_adjust_items(
 create table if not exists role_adjust_evidences(
     id bigint primary key auto_increment comment '个人角色调整原作证据主键',
     item_id bigint not null comment '所属调整候选项主键',
-    passage_id bigint not null comment '原作Passage主键',
-    quote_text text not null comment '引用原文',
-    relevance_explanation text not null comment '原作支持说明',
+    passage_ids json not null comment '原作Passage主键列表',
     create_time datetime default current_timestamp comment '创建时间',
-    key idx_role_adjust_evidences_item (item_id),
-    key idx_role_adjust_evidences_passage (passage_id)
+    unique key uk_role_adjust_evidences_item (item_id)
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
 
 create table if not exists personal_role_track(

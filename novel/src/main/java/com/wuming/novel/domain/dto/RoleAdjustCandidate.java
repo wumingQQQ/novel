@@ -24,9 +24,6 @@ public record RoleAdjustCandidate(
         @JsonPropertyDescription("该场景下角色应该避免的行为或表达边界；没有明确边界时返回空字符串。")
         String forbiddenBehavior,
 
-        @JsonPropertyDescription("对用户调整意图的收窄说明，用于避免偏离原著。示例：只增强关心表达，不改变角色冷静克制的底色。")
-        String intentNarrowing,
-
         @JsonPropertyDescription("支撑该候选的原文证据临时编号列表，编号来自本次输入中的 evidenceRef。至少引用 1 条证据。示例：[1,3]")
         List<Integer> evidenceRefs
 ) {

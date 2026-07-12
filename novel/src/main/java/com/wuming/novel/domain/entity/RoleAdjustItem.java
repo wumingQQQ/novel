@@ -31,7 +31,6 @@ public class RoleAdjustItem implements Serializable {
     private String applicability;  // 场景
     private String expectedBehavior;
     private String forbiddenBehavior;
-    private String intentNarrowing;   // 收窄的用户意图，避免用户意图偏离原著
     private RoleAdjustStatus status;          // 用户评审结果：拒绝、接受
     private String revisionFeedback;  // 用户要求改写时填写的意见
     private String revisionError;
