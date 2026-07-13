@@ -17,7 +17,7 @@ public class UserContextService {
     private final RpcResultCacheService rpcResultCacheService;
 
     @DubboReference(
-            url = "tri://127.0.0.1:50052",
+            url = "${USER_SERVICE_URL:tri://127.0.0.1:50052}",
             timeout = 15000
     )
     private UserFacade userFacade;

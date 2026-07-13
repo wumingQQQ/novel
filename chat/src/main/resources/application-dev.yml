@@ -18,11 +18,11 @@ spring:
       password: ${REDIS_PWD:}
 
 llm:
-  temperature: 0.6
+  temperature: ${CHAT_LLM_TEMPERATURE:0.6}
   deepseek:
     base-url: ${DS_BASE_URL:https://api.deepseek.com}
     api-key: ${DS_API_KEY:}
-    model: deepseek-v4-flash
+    model: ${DS_MODEL:deepseek-v4-flash}
 
 rocketmq:
   name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}

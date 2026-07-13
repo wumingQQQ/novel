@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class UserContextService {
     @DubboReference(
-            url = "tri://127.0.0.1:50052",
+            url = "${USER_SERVICE_URL:tri://127.0.0.1:50052}",
             timeout = 5000
     )
     private UserFacade userFacade;

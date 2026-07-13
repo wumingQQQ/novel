@@ -27,17 +27,17 @@ spring:
       password: ${REDIS_PWD:}
 
 llm:
-  temperature: 0.0
+  temperature: ${NOVEL_LLM_TEMPERATURE:0.0}
   deepseek:
     base-url: ${DS_BASE_URL:https://api.deepseek.com}
     api-key: ${DS_API_KEY:}
-    model: deepseek-v4-flash
+    model: ${DS_MODEL:deepseek-v4-flash}
 
 rocketmq:
   name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
   producer:
     group: novel-producer-group
-    send-message-timeout: 3000
+    send-message-timeout: ${ROCKETMQ_SEND_MESSAGE_TIMEOUT:3000}
 
 novel:
   mq:

@@ -31,12 +31,12 @@ rag:
       min-idle: ${RAG_REDIS_POOL_MIN_IDLE:2}
   embedding:
     api-key: ${EMBEDDING_API_KEY:}
-    base-url: https://api.siliconflow.cn
-    model: BAAI/bge-m3
-    dimensions: 1024
+    base-url: ${EMBEDDING_BASE_URL:https://api.siliconflow.cn}
+    model: ${EMBEDDING_MODEL:BAAI/bge-m3}
+    dimensions: ${EMBEDDING_DIMENSIONS:1024}
   reranker:
     api-key: ${EMBEDDING_API_KEY:}
-    base-url: https://api.siliconflow.cn
-    model: BAAI/bge-reranker-v2-m3
-    path: /v1/rerank
-  definition-prefix: "rag:index-definition:"
+    base-url: ${RERANKER_BASE_URL:https://api.siliconflow.cn}
+    model: ${RERANKER_MODEL:BAAI/bge-reranker-v2-m3}
+    path: ${RERANKER_PATH:/v1/rerank}
+  definition-prefix: ${RAG_DEFINITION_PREFIX:rag:index-definition:}

@@ -52,8 +52,8 @@ auth:
   jwt:
     enabled: ${AUTH_JWT_ENABLED:true}
     secret: ${JWT_SECRET:}
-    expires-minutes: 120
-    issuer: https://novel-latest.local
+    expires-minutes: ${JWT_EXPIRES_MINUTES:120}
+    issuer: ${JWT_ISSUER:https://novel-latest.local}
 
 user:
   mail:

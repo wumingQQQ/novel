@@ -55,7 +55,7 @@ novel:
     default-page-size: 5
     max-page-size: 8
   llm:
-    max-concurrency: 2000   #  deepseek-v4-flash 限流2500
+    max-concurrency: ${NOVEL_LLM_MAX_CONCURRENCY:2000} # deepseek-v4-flash 限流2500
   passage:
     split-strategy: SLIDING_WINDOW
     window-size: 15
@@ -65,16 +65,16 @@ novel:
     min-confidence: 0.6
   rag:
     url: ${RAG_SERVICE_URL:tri://127.0.0.1:50053}
-    passage-index-name: novel_passage
-    role-example-index-name: role_example
-    reaction-rule-index-name: reaction_rule
-    vector-batch-size: 32
+    passage-index-name: ${NOVEL_PASSAGE_INDEX_NAME:novel_passage}
+    role-example-index-name: ${ROLE_EXAMPLE_INDEX_NAME:role_example}
+    reaction-rule-index-name: ${REACTION_RULE_INDEX_NAME:reaction_rule}
+    vector-batch-size: ${NOVEL_VECTOR_BATCH_SIZE:32}
 
 auth:
   jwt:
     enabled: ${AUTH_JWT_ENABLED:true}
     secret: ${JWT_SECRET:}
-    expires-minutes: 120
-    issuer: https://novel-latest.local
+    expires-minutes: ${JWT_EXPIRES_MINUTES:120}
+    issuer: ${JWT_ISSUER:https://novel-latest.local}
 
 

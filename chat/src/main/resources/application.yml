@@ -30,13 +30,13 @@ dubbo:
 
 chat:
   sse:
-    timeout: 10m
-    max-concurrent-streams: 32
+    timeout: ${CHAT_SSE_TIMEOUT:10m}
+    max-concurrent-streams: ${CHAT_SSE_MAX_CONCURRENT_STREAMS:32}
   memory:
-    recent-message-limit: 16
-    summary-trigger-message-count: 24
-  message-cache-ttl: 3d
-  rpc-cache-ttl: 2h
+    recent-message-limit: ${CHAT_MEMORY_RECENT_MESSAGE_LIMIT:16}
+    summary-trigger-message-count: ${CHAT_MEMORY_SUMMARY_TRIGGER_MESSAGE_COUNT:24}
+  message-cache-ttl: ${CHAT_MESSAGE_CACHE_TTL:3d}
+  rpc-cache-ttl: ${CHAT_RPC_CACHE_TTL:2h}
   role-runtime:
     url: ${NOVEL_SERVICE_URL:tri://127.0.0.1:50051}
   rag:
@@ -52,6 +52,6 @@ auth:
   jwt:
     enabled: ${AUTH_JWT_ENABLED:true}
     secret: ${JWT_SECRET:}
-    expires-minutes: 120
-    issuer: https://novel-latest.local
+    expires-minutes: ${JWT_EXPIRES_MINUTES:120}
+    issuer: ${JWT_ISSUER:https://novel-latest.local}
 
