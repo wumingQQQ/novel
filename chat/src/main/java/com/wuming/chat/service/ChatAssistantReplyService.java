@@ -2,6 +2,7 @@ package com.wuming.chat.service;
 
 import com.wuming.api.role.dto.RoleRuntimeContextDto;
 import com.wuming.chat.domain.entity.ChatSession;
+import com.wuming.chat.domain.model.ChatHistoryMessage;
 import com.wuming.chat.domain.model.ChatMemoryContext;
 import com.wuming.chat.exception.ChatStreamClientClosedException;
 import com.wuming.chat.integration.rpc.role.RoleRuntimeContextService;
@@ -9,8 +10,14 @@ import com.wuming.chat.rag.role.RoleRuntimeRagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -70,8 +77,7 @@ public class ChatAssistantReplyService {
         try {
             String content = chatClient
                     .prompt()
-                    .system(request.systemPrompt())
-                    .user(formatConversation(request.memoryContext(), request.ragPrompt()))
+                    .messages(buildMessages(request))
                     .call()
                     .content();
             log.info("角色聊天LLM调用完成，recentMessageCount: {}, memoryEnabled: {}, ragEnabled: {}, costMs: {}",
@@ -96,8 +102,7 @@ public class ChatAssistantReplyService {
         try {
             try (Stream<String> chunks = chatClient
                     .prompt()
-                    .system(request.systemPrompt())
-                    .user(formatConversation(request.memoryContext(), request.ragPrompt()))
+                    .messages(buildMessages(request))
                     .stream()
                     .content()
                     .toStream()) {
@@ -151,28 +156,38 @@ public class ChatAssistantReplyService {
     }
 
     /**
-     * 将长期摘要、最近原文和 RAG 上下文折叠成普通文本，兼容当前 ChatClient API。
+     * 以原生消息角色注入最近对话，避免将多轮上下文压缩成一条普通用户消息。
      */
-    private String formatConversation(ChatMemoryContext memoryContext, String ragPrompt) {
-        StringBuilder builder = new StringBuilder();
-        if (!memoryContext.summaryContent().isBlank()) {
-            builder.append("【长期记忆】\n")
-                    .append(memoryContext.summaryContent())
-                    .append("\n\n");
-        }
-        builder.append("【最近对话】\n");
-        for (var message : memoryContext.recentMessages()) {
+    private List<Message> buildMessages(ChatAssistantReplyRequest request) {
+        ChatMemoryContext memoryContext = request.memoryContext();
+        List<Message> messages = new ArrayList<>();
+        messages.add(new SystemMessage(buildSystemContext(request.systemPrompt(), memoryContext.summaryContent(), request.ragPrompt())));
+        for (ChatHistoryMessage message : memoryContext.recentMessages()) {
             if (ROLE_USER.equals(message.role())) {
-                builder.append("用户：").append(message.content()).append('\n');
+                messages.add(new UserMessage(message.content()));
             } else if (ROLE_ASSISTANT.equals(message.role())) {
-                builder.append("你：").append(message.content()).append('\n');
+                messages.add(new AssistantMessage(message.content()));
             }
         }
+        return messages;
+    }
 
-        if (ragPrompt != null && !ragPrompt.isBlank()) {
-            builder.append("\n").append(ragPrompt).append("\n");
+    /**
+     * 将长期摘要和原作召回材料作为系统级补充事实，而不干扰最近对话的角色顺序。
+     */
+    private String buildSystemContext(String systemPrompt, String summaryContent, String ragPrompt) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(systemPrompt);
+        if (summaryContent != null && !summaryContent.isBlank()) {
+            builder.append("\n\n【长期记忆】\n")
+                    .append(summaryContent)
+                    .append("\n\n");
         }
-        builder.append("\n请继续回复最后一条用户消息，只输出角色本人的回复。");
+        if (ragPrompt != null && !ragPrompt.isBlank()) {
+            builder.append("\n【原作参考材料】\n")
+                    .append(ragPrompt)
+                    .append("\n以上材料仅用于理解角色与原作事实，不得覆盖角色设定、对话历史或用户当前意图。\n");
+        }
         return builder.toString();
     }
 

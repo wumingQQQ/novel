@@ -53,6 +53,9 @@ public class ChatMemoryService {
                 ChatSessionMemory nextMemory = nextMemory(sessionId, existingMemory,
                         messagesToCompact.getLast().getId(), summary);
                 if (saveMemory(nextMemory, existingMemory)) {
+                    log.info("会话长期记忆压缩完成，sessionId: {}, compactedMessageCount: {}, recentMessageCount: {}, coveredMessageId: {}, version: {}",
+                            sessionId, messagesToCompact.size(), uncoveredMessages.size() - splitIndex,
+                            nextMemory.getCoveredMessageId(), nextMemory.getVersion());
                     return new ChatMemoryContext(summary,
                             toHistoryMessages(uncoveredMessages.subList(splitIndex, uncoveredMessages.size())));
                 }
