@@ -23,9 +23,11 @@
 ### 核心能力
 
 - **小说上传**：支持本地文件存储，按配置可切换到腾讯云 COS。
-- **角色构建 Pipeline**：围绕章节分析、Passage 切分、角色样本、反应规则和画像构建组织异步任务。
+- **角色构建 Pipeline**：围绕章节分析、Passage 切分、角色样本、反应规则和画像构建组织异步任务；章节、分析和 Passage 产物按小说共享复用。
 - **RAG 服务**：使用 Redis Stack Vector Store 保存 Passage、角色样本和反应规则向量。
-- **角色聊天**：chat 模块通过 Dubbo 获取角色运行时上下文，并结合 RAG 内容请求 LLM。
+- **角色聊天**：chat 模块通过 Dubbo 获取公共或个人版本的角色运行时上下文，结合 RAG、长期记忆和原生多轮消息请求 LLM。
+- **创作与任务中心**：公共小说库支持上传、检索、创建任务、实时进度、失败重做与个人任务分页查询。
+- **会话中心**：前端提供已有聊天会话入口、最近消息摘要和最近活跃排序。
 - **用户认证**：user 模块签发 JWT，novel/chat 使用同一 `JWT_SECRET` 校验 Bearer Token。
 - **任务通知**：Pipeline 完成后通过 RocketMQ 通知 user 模块，可按配置发送邮件。
 
@@ -48,7 +50,7 @@
 | `rag` | `8083` | `50053` | Embedding、Redis Vector Store、Rerank |
 | `novel` | `8080` | `50051` | 小说上传、画像构建任务、进度查询 |
 | `chat` | `8081` | 无 | 会话、消息、角色上下文聊天 |
-| `web` | `5173`（开发） | 无 | 角色大厅、个人评测与沉浸式聊天前端 |
+| `web` | `5173`（开发） | 无 | 创作大厅、角色大厅、任务中心、个人调整与聊天前端 |
 
 ### 本地依赖
 
@@ -244,7 +246,7 @@ npm run dev
 
 浏览器访问 `http://localhost:5173`。Vite 会将 `/api/` 自动代理到 `http://localhost:8080`，并将 `/api/chat/` 自动代理到 `http://localhost:8081`；公共大厅只请求脱敏角色预览数据，不会展示完整画像、反应规则或原作样本。
 
-个人角色和评测页面复用已有登录服务签发的 JWT。当前前端不提供登录页；完成登录后，将 token 写入浏览器控制台中的 `localStorage.access_token`，刷新页面即可联调受认证的工作区和评测操作。
+前端提供登录和注册弹窗。登录后 JWT 会保存在浏览器本地存储；创作、任务、个人角色、个人调整和聊天入口会自动使用该凭证。
 
 生产静态镜像可独立构建，Nginx 会将 `/api/` 代理到同一 Docker 网络中的 `novel:8080`，并将 `/api/chat/` 代理到 `chat:8081`：
 
@@ -309,8 +311,10 @@ curl http://localhost:8080/novel/progress/1 `
 创建聊天会话并发送消息：
 
 ```powershell
-curl -X POST http://localhost:8081/chat/sessions/1 `
-  -H "Authorization: Bearer $token"
+curl -X POST http://localhost:8081/chat/sessions `
+  -H "Authorization: Bearer $token" `
+  -H "Content-Type: application/json" `
+  -d '{"characterId":1}'
 
 curl -X POST http://localhost:8081/chat/sessions/1/messages `
   -H "Authorization: Bearer $token" `
@@ -320,7 +324,7 @@ curl -X POST http://localhost:8081/chat/sessions/1/messages `
 
 聊天依赖角色画像已经构建完成；如果角色仍不可用，`chat` 会拒绝创建会话。
 
-聊天前端当前使用同步回复接口，同时已预留 `POST /chat/sessions/{sessionId}/messages/stream` 的 SSE 通道，后端切换为 token 流后前端无需改变请求路径。针对已完成评测生成的个人版本，聊天会话会记录对应版本 ID 并在创建时校验归属；当前运行时仍使用公共角色基线。
+聊天前端默认使用 `POST /chat/sessions/{sessionId}/messages/stream` 的 SSE 流式回复，并以打字机效果呈现内容；同步接口保留为后端降级通道。针对已完成调整生成的个人版本，聊天会话会记录对应版本 ID、校验归属，并在运行时注入该个人版本。
 
 ---
 
@@ -377,6 +381,35 @@ CREATE TABLE chat_session_memories (
   update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
+
+小说公共预处理与任务中心已增加状态表和字段；已有数据库执行：
+
+```sql
+CREATE TABLE novel_preprocesses (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '小说预处理状态主键',
+  novel_id BIGINT NOT NULL COMMENT '小说主键',
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/RUNNING/READY/FAILED',
+  current_stage VARCHAR(30) NULL COMMENT '当前执行阶段',
+  completed_stage VARCHAR(30) NOT NULL DEFAULT 'NONE' COMMENT '最后成功完成阶段',
+  chapter_count INT NOT NULL DEFAULT 0 COMMENT '章节数量',
+  passage_count INT NOT NULL DEFAULT 0 COMMENT 'Passage数量',
+  failure_reason TEXT NULL COMMENT '最近失败原因',
+  started_time DATETIME NULL COMMENT '开始时间',
+  completed_time DATETIME NULL COMMENT '完成时间',
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_novel_preprocesses_novel_id (novel_id)
+) ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE jobs
+  ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/RUNNING/DONE/FAILED' AFTER stage,
+  ADD COLUMN failure_reason TEXT NULL COMMENT '最近一次失败原因' AFTER status,
+  ADD COLUMN started_time DATETIME NULL COMMENT '最近一次开始执行时间' AFTER failure_reason,
+  ADD COLUMN finished_time DATETIME NULL COMMENT '最近一次结束执行时间' AFTER started_time,
+  ADD KEY idx_jobs_user_create_time (user_id, create_time);
+```
+
+任务列表分页可通过 `novel.task.default-page-size` 和 `novel.task.max-page-size` 配置默认值与上限。
 
 ### 测试策略
 
