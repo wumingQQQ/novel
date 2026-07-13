@@ -22,9 +22,9 @@ onMounted(() => void initializeAuth())
     <RouterLink class="brand" to="/">镜中角色</RouterLink>
     <nav class="main-nav" aria-label="主导航">
       <RouterLink :class="{ active: isCreation }" to="/creation">创作大厅</RouterLink>
-      <RouterLink :class="{ active: isMyJobs }" to="/my-jobs">我的任务</RouterLink>
       <RouterLink :class="{ active: isHall }" to="/">角色大厅</RouterLink>
       <RouterLink :class="{ active: isMyRoles }" to="/my-roles">我的角色</RouterLink>
+      <RouterLink :class="{ active: isMyJobs }" to="/my-jobs">我的任务</RouterLink>
       <RouterLink :class="{ active: isMyEvaluations }" to="/my-evaluations">我的调整</RouterLink>
     </nav>
     <button class="account" type="button" aria-label="打开账户菜单" @click="currentUser ? accountMenuVisible = !accountMenuVisible : openAuthDialog()">
