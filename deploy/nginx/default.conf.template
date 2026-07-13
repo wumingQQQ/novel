@@ -1,0 +1,74 @@
+server {
+    listen 80;
+    server_name _;
+
+    # Docker 内置 DNS 会在服务容器重建后重新解析其地址。
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $user_upstream ${USER_UPSTREAM};
+    set $novel_upstream ${NOVEL_UPSTREAM};
+    set $chat_upstream ${CHAT_UPSTREAM};
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location /api/auth/ {
+        proxy_pass http://$user_upstream/auth/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /api/ {
+        proxy_pass http://$novel_upstream/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /api/chat/ {
+        proxy_pass http://$chat_upstream/chat/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ~ ^/api/novel/progress/[0-9]+/stream$ {
+        rewrite ^/api/(.*)$ /$1 break;
+        proxy_pass http://$novel_upstream;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+        add_header X-Accel-Buffering no;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ~ ^/api/chat/sessions/[0-9]+/messages/stream$ {
+        rewrite ^/api/chat/(.*)$ /chat/$1 break;
+        proxy_pass http://$chat_upstream;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_request_buffering off;
+        proxy_read_timeout 1h;
+        proxy_set_header Connection "";
+        add_header X-Accel-Buffering no;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

@@ -71,5 +71,9 @@ web/node_modules/
 web/dist/
 web/.vite/
 
+# 服务器部署包中的构建产物和密钥
+deploy/artifacts/
+deploy/.env
+
 # 开发过程文档不提交；项目说明仅保留 README.md
 /docs/

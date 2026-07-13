@@ -38,8 +38,25 @@ services:
     ports:
       - "10911:10911"
     volumes:
-      - ./deploy/rocketmq/broker.conf:/home/rocketmq/broker.conf:ro
+      - ./deploy/rocketmq/broker.local.conf:/home/rocketmq/broker.conf:ro
       - novel-rocketmq-store:/home/rocketmq/store
+
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile.local
+    container_name: novel-nginx
+    profiles:
+      - web
+    ports:
+      - "8088:80"
+    environment:
+      USER_UPSTREAM: host.docker.internal:8082
+      NOVEL_UPSTREAM: host.docker.internal:8080
+      CHAT_UPSTREAM: host.docker.internal:8081
+    # 让 Linux Docker 与 Docker Desktop 均可通过相同主机名访问宿主机 Java 服务。
+    extra_hosts:
+      - host.docker.internal:host-gateway
 
 volumes:
   novel-mysql-data:

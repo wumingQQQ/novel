@@ -1,0 +1,160 @@
+services:
+  rocketmq-namesrv:
+    image: "apache/rocketmq:5.3.2"
+    restart: unless-stopped
+    command: sh mqnamesrv
+    environment:
+      JAVA_OPT_EXT: "-Xms128m -Xmx256m -Xmn128m"
+
+  rocketmq-broker:
+    image: "apache/rocketmq:5.3.2"
+    restart: unless-stopped
+    depends_on:
+      - rocketmq-namesrv
+    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/broker.conf
+    environment:
+      JAVA_OPT_EXT: "-Xms256m -Xmx768m -Xmn256m"
+    volumes:
+      - ./rocketmq/broker.conf:/home/rocketmq/broker.conf:ro
+      - rocketmq-store:/home/rocketmq/store
+
+  rocketmq-init:
+    image: "apache/rocketmq:5.3.2"
+    depends_on:
+      - rocketmq-broker
+    command:
+      - sh
+      - -c
+      - |
+        until sh mqadmin updateTopic -n rocketmq-namesrv:9876 -b rocketmq-broker:10911 -t novel -r 8 -w 8; do sleep 3; done
+    restart: "no"
+
+  user:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+      args: { MODULE: user }
+    restart: unless-stopped
+    depends_on:
+      rocketmq-init:
+        condition: service_completed_successfully
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      MYSQL_HOST: "${MYSQL_HOST}"
+      MYSQL_PORT: "${MYSQL_PORT}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE}"
+      MYSQL_USERNAME: "${MYSQL_USERNAME}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+      ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
+      JWT_SECRET: "${JWT_SECRET}"
+      JWT_ISSUER: "${JWT_ISSUER}"
+      USER_MAIL_ENABLED: "${USER_MAIL_ENABLED:-false}"
+      RESEND_API_KEY: "${RESEND_API_KEY:-}"
+      RESEND_MAIL_FROM: "${RESEND_MAIL_FROM:-}"
+
+  rag:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+      args: { MODULE: rag }
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      REDIS_HOST: "${REDIS_HOST}"
+      REDIS_PORT: "${REDIS_PORT}"
+      REDIS_PWD: "${REDIS_PWD:-}"
+      EMBEDDING_API_KEY: "${EMBEDDING_API_KEY}"
+      EMBEDDING_BASE_URL: "${EMBEDDING_BASE_URL}"
+      EMBEDDING_MODEL: "${EMBEDDING_MODEL}"
+      RERANKER_BASE_URL: "${RERANKER_BASE_URL}"
+      RERANKER_MODEL: "${RERANKER_MODEL}"
+
+  novel:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+      args: { MODULE: novel }
+    restart: unless-stopped
+    depends_on:
+      rocketmq-init:
+        condition: service_completed_successfully
+      rag:
+        condition: service_started
+      user:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      MYSQL_HOST: "${MYSQL_HOST}"
+      MYSQL_PORT: "${MYSQL_PORT}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE}"
+      MYSQL_USERNAME: "${MYSQL_USERNAME}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+      REDIS_HOST: "${REDIS_HOST}"
+      REDIS_PORT: "${REDIS_PORT}"
+      REDIS_PWD: "${REDIS_PWD:-}"
+      ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
+      USER_SERVICE_URL: tri://user:50052
+      RAG_SERVICE_URL: tri://rag:50053
+      JWT_SECRET: "${JWT_SECRET}"
+      JWT_ISSUER: "${JWT_ISSUER}"
+      DS_API_KEY: "${DS_API_KEY}"
+      DS_BASE_URL: "${DS_BASE_URL}"
+      DS_MODEL: "${DS_MODEL}"
+      NOVEL_LLM_MAX_CONCURRENCY: "${NOVEL_LLM_MAX_CONCURRENCY:-20}"
+    volumes:
+      - novel-data:/app/data/novel
+
+  chat:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+      args: { MODULE: chat }
+    restart: unless-stopped
+    depends_on:
+      rocketmq-init:
+        condition: service_completed_successfully
+      user:
+        condition: service_started
+      rag:
+        condition: service_started
+      novel:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      MYSQL_HOST: "${MYSQL_HOST}"
+      MYSQL_PORT: "${MYSQL_PORT}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE}"
+      MYSQL_USERNAME: "${MYSQL_USERNAME}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+      REDIS_HOST: "${REDIS_HOST}"
+      REDIS_PORT: "${REDIS_PORT}"
+      REDIS_PWD: "${REDIS_PWD:-}"
+      ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
+      USER_SERVICE_URL: tri://user:50052
+      NOVEL_SERVICE_URL: tri://novel:50051
+      RAG_SERVICE_URL: tri://rag:50053
+      JWT_SECRET: "${JWT_SECRET}"
+      JWT_ISSUER: "${JWT_ISSUER}"
+      DS_API_KEY: "${DS_API_KEY}"
+      DS_BASE_URL: "${DS_BASE_URL}"
+      DS_MODEL: "${DS_MODEL}"
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - user
+      - novel
+      - chat
+    environment:
+      USER_UPSTREAM: user:8082
+      NOVEL_UPSTREAM: novel:8080
+      CHAT_UPSTREAM: chat:8081
+    ports:
+      - "${HTTP_PORT:-80}:80"
+
+volumes:
+  rocketmq-store:
+  novel-data:

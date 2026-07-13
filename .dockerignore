@@ -1,0 +1,13 @@
+.git
+.claude
+.idea
+**/target
+**/src/test
+web/node_modules
+web/dist
+deploy/artifacts
+deploy/certs
+deploy/.env
+untrack
+novel/data
+*.log
