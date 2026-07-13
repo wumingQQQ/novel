@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuming.chat.infrastructure.mapper.ChatSessionMapper">
+    <select id="selectActiveSessionSummaries" resultType="com.wuming.chat.domain.dto.ChatSessionSummary">
+        select session.id as session_id, session.character_id, session.user_role_version_id,
+               message.role as last_message_role,
+               left(replace(replace(message.content, '\r', ' '), '\n', ' '), 80) as last_message_preview,
+               session.update_time
+        from chat_sessions session
+        left join chat_messages message on message.id = (
+            select max(latest.id) from chat_messages latest where latest.session_id = session.id
+        )
+        where session.user_id = #{userId} and session.status = 'ACTIVE'
+        order by session.update_time desc, session.id desc
+    </select>
+</mapper>

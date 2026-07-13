@@ -9,6 +9,7 @@ import CreationPage from '@/views/CreationPage.vue'
 import CreationJobPage from '@/views/CreationJobPage.vue'
 import NovelDetailPage from '@/views/NovelDetailPage.vue'
 import MyJobsPage from '@/views/MyJobsPage.vue'
+import MyChatsPage from '@/views/MyChatsPage.vue'
 
 export default createRouter({
   history: createWebHistory(),
@@ -17,6 +18,7 @@ export default createRouter({
     { path: '/', name: 'role-hall', component: RoleHallPage },
     { path: '/creation', name: 'creation', component: CreationPage },
     { path: '/my-jobs', name: 'my-jobs', component: MyJobsPage },
+    { path: '/my-chats', name: 'my-chats', component: MyChatsPage },
     { path: '/creation/novels/:id', name: 'novel-detail', component: NovelDetailPage, props: true },
     { path: '/creation/jobs/:jobId', name: 'creation-job', component: CreationJobPage, props: true },
     { path: '/roles/:id', name: 'role-preview', component: RolePreviewPage, props: true },

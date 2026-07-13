@@ -10,6 +10,7 @@ const isMyRoles = computed(() => route.name === 'my-roles')
 const isMyEvaluations = computed(() => route.name === 'my-evaluations' || route.name === 'evaluation-workspace')
 const isCreation = computed(() => route.name === 'creation' || route.name === 'creation-job' || route.name === 'novel-detail')
 const isMyJobs = computed(() => route.name === 'my-jobs')
+const isMyChats = computed(() => route.name === 'my-chats' || route.name === 'chat')
 const accountMenuVisible = ref(false)
 const { currentUser, initializeAuth, openAuthDialog, logout } = useAuth()
 const accountLabel = computed(() => currentUser.value?.nickname || currentUser.value?.username || '登录')
@@ -25,6 +26,7 @@ onMounted(() => void initializeAuth())
       <RouterLink :class="{ active: isHall }" to="/">角色大厅</RouterLink>
       <RouterLink :class="{ active: isMyRoles }" to="/my-roles">我的角色</RouterLink>
       <RouterLink :class="{ active: isMyJobs }" to="/my-jobs">我的任务</RouterLink>
+      <RouterLink :class="{ active: isMyChats }" to="/my-chats">我的聊天</RouterLink>
       <RouterLink :class="{ active: isMyEvaluations }" to="/my-evaluations">我的调整</RouterLink>
     </nav>
     <button class="account" type="button" aria-label="打开账户菜单" @click="currentUser ? accountMenuVisible = !accountMenuVisible : openAuthDialog()">

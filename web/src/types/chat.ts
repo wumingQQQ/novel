@@ -2,6 +2,8 @@ export interface ChatSessionSummary {
   sessionId: number
   characterId: number
   userRoleVersionId: number | null
+  lastMessageRole: 'user' | 'assistant' | null
+  lastMessagePreview: string | null
   updateTime: string | null
 }
 

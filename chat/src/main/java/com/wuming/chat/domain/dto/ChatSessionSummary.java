@@ -9,6 +9,8 @@ public record ChatSessionSummary(
         Long sessionId,
         Long characterId,
         Long userRoleVersionId,
+        String lastMessageRole,
+        String lastMessagePreview,
         LocalDateTime updateTime
 ) {
 }

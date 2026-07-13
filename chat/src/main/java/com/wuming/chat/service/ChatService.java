@@ -155,15 +155,7 @@ public class ChatService {
         if (userId == null) {
             throw new IllegalArgumentException("userId不能为空");
         }
-        return chatSessionMapper.selectList(new LambdaQueryWrapper<ChatSession>()
-                        .eq(ChatSession::getUserId, userId)
-                        .eq(ChatSession::getStatus, SESSION_ACTIVE)
-                        .orderByDesc(ChatSession::getUpdateTime)
-                        .orderByDesc(ChatSession::getId))
-                .stream()
-                .map(session -> new ChatSessionSummary(
-                        session.getId(), session.getCharacterId(), session.getUserRoleVersionId(), session.getUpdateTime()))
-                .toList();
+        return chatSessionMapper.selectActiveSessionSummaries(userId);
     }
 
     /**
@@ -225,6 +217,10 @@ public class ChatService {
         message.setRole(role);
         message.setContent(content);
         chatMessageMapper.insert(message);
+        // 刷新排序时间，使会话列表始终按最近互动排列。
+        ChatSession session = new ChatSession();
+        session.setId(sessionId);
+        chatSessionMapper.updateById(session);
         chatMessageCacheService.append(message);
         return message;
     }
