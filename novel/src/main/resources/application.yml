@@ -51,6 +51,9 @@ novel:
       socket-timeout-ms: ${TENCENT_COS_SOCKET_TIMEOUT_MS:30000}
   analysis:
     batch-size: 10
+  task:
+    default-page-size: 5
+    max-page-size: 8
   llm:
     max-concurrency: 2000   #  deepseek-v4-flash 限流2500
   passage:

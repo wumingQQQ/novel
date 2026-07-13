@@ -50,10 +50,14 @@ create table if not exists jobs(
     protagonist_name varchar(50) not null comment '用户扮演角色',
     target_name varchar(50) not null comment 'LLM扮演角色',
     stage tinyint not null default 0 comment '任务阶段',
+    status varchar(20) not null default 'PENDING' comment 'PENDING/RUNNING/DONE/FAILED',
+    failure_reason text comment '最近一次失败原因',
+    started_time datetime comment '最近一次开始执行时间',
+    finished_time datetime comment '最近一次结束执行时间',
     create_time datetime default current_timestamp comment '创建时间',
     update_time datetime default current_timestamp on update current_timestamp comment '更新时间',
     key idx_jobs_novel_id (novel_id),
-    key idx_jobs_user_id(user_id)
+    key idx_jobs_user_create_time(user_id, create_time)
 ) engine = InnoDB charset = utf8mb4 collate = utf8mb4_unicode_ci;
 
 create table if not exists role_characters(

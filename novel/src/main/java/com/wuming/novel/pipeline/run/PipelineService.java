@@ -45,6 +45,7 @@ public class PipelineService {
             long start = System.currentTimeMillis();
             log.info("任务流程开始，currentStage: {}, targetName: {}",
                     job.getStage(), job.getTargetName());
+            jobService.markRunning(jobId);
             jobProgressService.initJob(jobId);
             jobProgressService.startJob(jobId);
 
@@ -54,12 +55,14 @@ public class PipelineService {
                     runStepIfNeeded(jobId, job, step);
                 }
                 jobService.advanceStage(jobId, JobStage.COMPLETE);
+                jobService.markDone(jobId);
                 jobProgressService.completeJob(jobId);
                 log.info("任务流程完成，finalStage: {}, costMs: {}",
                         JobStage.COMPLETE, System.currentTimeMillis() - start);
                 return true;
             } catch (RuntimeException e) {
                 failReason = e.getMessage();
+                jobService.markFailed(jobId, failReason);
                 jobProgressService.failJob(jobId, e.getMessage());
                 log.warn("任务流程失败，currentStage: {}, costMs: {}, errorType: {}, errorMessage: {}",
                         job.getStage(), System.currentTimeMillis() - start,

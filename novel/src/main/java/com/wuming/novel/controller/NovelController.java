@@ -2,7 +2,9 @@ package com.wuming.novel.controller;
 
 import com.wuming.common.security.JwtUserIdExtractor;
 import com.wuming.common.web.ApiResponse;
+import com.wuming.common.web.PageResponse;
 import com.wuming.novel.domain.dto.CreateJobRequest;
+import com.wuming.novel.domain.dto.MyJobResponse;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.pipeline.run.JobSubmitStatus;
 import com.wuming.novel.pipeline.run.PipelineJobRunner;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -48,6 +51,19 @@ public class NovelController {
         this.pipelineJobRunner = pipelineJobRunner;
         this.jobProgressService = jobProgressService;
         this.jwtUserIdExtractor = jwtUserIdExtractor;
+    }
+
+    /** 分页查询当前登录用户创建的角色构建任务。 */
+    @GetMapping("/jobs")
+    public ApiResponse<PageResponse<MyJobResponse>> listMyJobs(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String status,
+            Authentication authentication) {
+        Long userId = jwtUserIdExtractor.requireUserId(authentication);
+        try (TraceContext.MdcScope ignoredUser = TraceContext.putUserId(userId)) {
+            return ApiResponse.success(jobService.listMyJobs(userId, page, size, status));
+        }
     }
 
     /**

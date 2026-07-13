@@ -1,9 +1,9 @@
 package com.wuming.novel.pipeline.run;
 
 import com.wuming.novel.infrastructure.observability.TraceContext;
-import com.wuming.novel.sse.JobProgress;
-import com.wuming.novel.sse.JobProgressService;
-import com.wuming.novel.sse.TaskState;
+import com.wuming.novel.domain.entity.Job;
+import com.wuming.novel.domain.enums.JobStatus;
+import com.wuming.novel.service.IJobService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -16,18 +16,18 @@ import java.util.concurrent.Executor;
 public class PipelineJobRunner {
     private final PipelineService pipelineService;
     private final JobRunLock jobRunLock;
-    private final JobProgressService jobProgressService;
+    private final IJobService jobService;
     private final Executor pipelineExecutor;
 
     public PipelineJobRunner(
             PipelineService pipelineService,
             JobRunLock jobRunLock,
-            JobProgressService jobProgressService,
+            IJobService jobService,
             @Qualifier("pipelineExecutor") Executor pipelineExecutor
     ) {
         this.pipelineService = pipelineService;
         this.jobRunLock = jobRunLock;
-        this.jobProgressService = jobProgressService;
+        this.jobService = jobService;
         this.pipelineExecutor = pipelineExecutor;
     }
 
@@ -45,17 +45,9 @@ public class PipelineJobRunner {
      */
     public JobSubmitStatus redo(Long jobId) {
         try (TraceContext.MdcScope ignoredJob = TraceContext.putJobId(jobId)) {
-            JobProgress progress = jobProgressService.getProgress(jobId);
-            if (progress == null) {
-                log.info("任务不允许重跑，reason: progressNotFound");
-                return JobSubmitStatus.NOT_RESTARTABLE;
-            }
-            if (progress.getState() == TaskState.RUNNING) {
-                log.info("任务不重复提交，reason: alreadyRunning");
-                return JobSubmitStatus.ALREADY_RUNNING;
-            }
-            if (progress.getState() != TaskState.FAILED) {
-                log.info("任务不允许重跑，state: {}", progress.getState());
+            Job job = jobService.getById(jobId);
+            if (job == null || job.getStatus() != JobStatus.FAILED) {
+                log.info("任务不允许重跑，reason: statusNotFailed");
                 return JobSubmitStatus.NOT_RESTARTABLE;
             }
             return submitWithLock(jobId);

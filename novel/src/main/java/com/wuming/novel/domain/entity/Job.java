@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.wuming.novel.domain.enums.JobStage;
+import com.wuming.novel.domain.enums.JobStatus;
 import lombok.Data;
 
 import java.io.Serial;
@@ -22,6 +23,10 @@ public class Job implements Serializable {
     private String protagonistName;      // 用户将会扮演的角色
     private String targetName;      // llm将会扮演的角色
     private JobStage stage;
+    private JobStatus status;
+    private String failureReason;
+    private LocalDateTime startedTime;
+    private LocalDateTime finishedTime;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableField(fill = FieldFill.INSERT_UPDATE)

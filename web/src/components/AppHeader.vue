@@ -8,7 +8,8 @@ const route = useRoute()
 const isHall = computed(() => route.name === 'role-hall' || route.name === 'role-preview')
 const isMyRoles = computed(() => route.name === 'my-roles')
 const isMyEvaluations = computed(() => route.name === 'my-evaluations' || route.name === 'evaluation-workspace')
-const isCreation = computed(() => route.name === 'creation' || route.name === 'creation-job')
+const isCreation = computed(() => route.name === 'creation' || route.name === 'creation-job' || route.name === 'novel-detail')
+const isMyJobs = computed(() => route.name === 'my-jobs')
 const accountMenuVisible = ref(false)
 const { currentUser, initializeAuth, openAuthDialog, logout } = useAuth()
 const accountLabel = computed(() => currentUser.value?.nickname || currentUser.value?.username || '登录')
@@ -21,6 +22,7 @@ onMounted(() => void initializeAuth())
     <RouterLink class="brand" to="/">镜中角色</RouterLink>
     <nav class="main-nav" aria-label="主导航">
       <RouterLink :class="{ active: isCreation }" to="/creation">创作大厅</RouterLink>
+      <RouterLink :class="{ active: isMyJobs }" to="/my-jobs">我的任务</RouterLink>
       <RouterLink :class="{ active: isHall }" to="/">角色大厅</RouterLink>
       <RouterLink :class="{ active: isMyRoles }" to="/my-roles">我的角色</RouterLink>
       <RouterLink :class="{ active: isMyEvaluations }" to="/my-evaluations">我的调整</RouterLink>
