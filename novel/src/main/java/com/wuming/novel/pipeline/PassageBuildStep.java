@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -62,21 +63,49 @@ public class PassageBuildStep implements PipelineStep {
         List<Chapter> chapters = targetChapters(jobId, job);
         int completedCount = redisStageFailureStore.completedLongItems(jobId, stage()).size();
         jobProgressService.setStageItemCounts(jobId, stage(), completedCount + chapters.size(), completedCount, 0);
-        int successCount = chapters.stream()
-                .map(chapter -> CompletableFuture
-                        .runAsync(() -> buildOneChapter(job, chapter), llmExecutor)
-                        .handle((ignored, throwable) -> finishOneChapter(jobId, job, chapter, throwable)))
+
+        // Passage替换会同时改写多个二级索引，按章节串行执行以避免同一小说内的事务死锁。
+        List<ChapterPassages> persistedChapters = persistPassages(jobId, job, chapters);
+        int recognitionSuccessCount = persistedChapters.stream()
+                .map(chapterPassages -> CompletableFuture
+                        .runAsync(() -> recognizeCharacters(chapterPassages.passages()), llmExecutor)
+                        .handle((ignored, throwable) -> finishOneChapter(
+                                jobId, job, chapterPassages.chapter(), throwable)))
                 .toList()
                 .stream()
                 .map(CompletableFuture::join)
                 .mapToInt(success -> success ? 1 : 0)
                 .sum();
+        int successCount = recognitionSuccessCount;
         log.info("小说Passage构建执行完成，jobId: {}, novelId: {}, requestCount: {}, successCount: {}",
                 job.getId(), job.getNovelId(), chapters.size(), successCount);
         if (successCount != chapters.size()) {
             throw new IllegalStateException("Passage构建存在失败项，successCount: " + successCount
                     + ", requestCount: " + chapters.size());
         }
+    }
+
+    /**
+     * 逐章写入 Passage，避免并发删除和批量插入竞争同一小说的二级索引锁。
+     */
+    private List<ChapterPassages> persistPassages(Long jobId, Job job, List<Chapter> chapters) {
+        List<ChapterPassages> persistedChapters = new ArrayList<>(chapters.size());
+        for (Chapter chapter : chapters) {
+            try {
+                persistedChapters.add(new ChapterPassages(chapter,
+                        novelPassageService.splitPassage(job.getId(), chapter.getId())));
+            } catch (RuntimeException e) {
+                finishOneChapter(jobId, job, chapter, e);
+            }
+        }
+        return persistedChapters;
+    }
+
+    /**
+     * Passage全部落库后再进行人物识别，使外部 LLM 调用仍可并发，而数据库写入保持串行。
+     */
+    private void recognizeCharacters(List<NovelPassage> passages) {
+        passageCharacterService.recognizeAndSave(passages);
     }
 
     /**
@@ -133,22 +162,14 @@ public class PassageBuildStep implements PipelineStep {
         return chapterService.list(queryWrapper);
     }
 
-    /**
-     * 构建单章Passage并识别Passage中的角色。
-     *
-     * @param job 任务实体
-     * @param chapter 章节实体
-     */
-    private void buildOneChapter(Job job, Chapter chapter) {
-        List<NovelPassage> passages = novelPassageService.splitPassage(job.getId(), chapter.getId());
-        passageCharacterService.recognizeAndSave(passages);
-    }
-
     private Job requireJob(Long jobId) {
         Job job = jobService.getById(jobId);
         if (job == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND, "任务不存在: " + jobId);
         }
         return job;
+    }
+
+    private record ChapterPassages(Chapter chapter, List<NovelPassage> passages) {
     }
 }
