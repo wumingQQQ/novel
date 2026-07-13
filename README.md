@@ -10,7 +10,7 @@
 
 **小说角色画像构建与角色聊天系统 | Spring Boot + Dubbo + RAG + LLM + Vue**
 
-[项目概述](#项目概述) • [快速开始](#快速开始) • [架构说明](#架构说明) • [本地验证](#本地验证) • [常见问题](#常见问题)
+[项目概述](#项目概述) • [快速开始](#快速开始) • [架构说明](#架构说明) • [本地验证](#本地验证)
 
 </div>
 
@@ -33,7 +33,7 @@
 
 ### 当前边界
 
-- 本地基础设施由 Compose 提供；四个 Java 应用不放进 Compose。
+- 本地基础设施由根目录 Compose 提供；服务器全服务 Compose 部署见 [`deploy/README.md`](deploy/README.md)。
 - 数据库初始化使用手工 `schema.sql`。
 - `src/test` 当前只作为本地回归资产维护，不提交 Git。
 - LLM、Embedding、Reranker、COS、邮件等真实外部能力只在调用对应功能时需要配置密钥。
@@ -101,9 +101,9 @@ novel-latest/
 ├── rag/                         # Embedding、Redis Vector Store、Rerank
 ├── chat/                        # 会话、消息、角色运行时聊天
 │   └── src/main/resources/db/schema.sql
-├── web/                          # Vue 3 角色大厅，生产环境由 Nginx 托管
-├── deploy/rocketmq/broker.conf  # 本地 RocketMQ Broker 配置
-├── compose.yaml                 # 本地基础设施编排
+├── web/                          # Vue 3 源码
+├── deploy/                       # 服务器 Compose、Nginx、RocketMQ 与部署说明
+├── compose.yaml                  # 本地基础设施与前端 Nginx 编排
 └── README.md
 ```
 
@@ -248,11 +248,20 @@ npm run dev
 
 前端提供登录和注册弹窗。登录后 JWT 会保存在浏览器本地存储；创作、任务、个人角色、个人调整和聊天入口会自动使用该凭证。
 
-生产静态镜像可独立构建，Nginx 会将 `/api/` 代理到同一 Docker 网络中的 `novel:8080`，并将 `/api/chat/` 代理到 `chat:8081`：
+本地生产样式联调时，Nginx 通过 Compose 的 `web` profile 构建并代理宿主机上的 Java 服务：
 
 ```powershell
-docker build -t novel-role-hall ./web
+docker compose -f compose.yaml --profile web up -d --build nginx
+docker compose -f compose.yaml --profile web ps
 ```
+
+浏览器访问 `http://localhost:8088`。Compose 已配置 `host.docker.internal:host-gateway`，因此 Docker Desktop 与 Linux Docker 都可访问宿主机上的 `user:8082`、`novel:8080`、`chat:8081`。停止前端代理：
+
+```powershell
+docker compose -f compose.yaml --profile web stop nginx
+```
+
+服务器部署使用 `deploy/` 中的独立运行时 Compose，不依赖源码构建。外部 MySQL、Redis Stack 与模型服务的环境变量、产物上传和单服务更新流程见 [`deploy/README.md`](deploy/README.md)。
 
 ---
 
@@ -422,31 +431,3 @@ ALTER TABLE jobs
 - 不提交真实密钥、token、本地 properties、日志、data 或 target 输出。
 - 本地敏感配置优先使用环境变量。
 - 已被忽略的 `tencent-cos.properties` 和 `resend.properties` 不应复制到文档、提交或日志。
-
----
-
-## 常见问题
-
-### Q1: 为什么服务默认激活 `dev` profile？
-
-这样可以减少本地联调的环境变量配置。部署时可通过 `SPRING_PROFILES_ACTIVE` 显式覆盖为目标环境。
-
-### Q2: 为什么四个服务必须使用同一个 `JWT_SECRET`？
-
-`user` 使用该密钥签发 JWT，`novel` 和 `chat` 使用同一密钥校验 JWT。如果不一致，登录成功后访问其他服务会被判定为无效 token。
-
-### Q3: 不配置 LLM、Embedding、Reranker 能启动吗？
-
-基础编译和部分服务启动可以不配置真实模型密钥。真正执行画像构建、RAG 检索或聊天生成时，需要配置对应外部模型服务。
-
-### Q4: 数据库结构怎么变更？
-
-所有表结构变化都应同步到正式 `schema.sql`，并为已有数据库提供手工 SQL。
-
-### Q5: 为什么 Git 不提交 `src/test`？
-
-这是当前仓库策略：测试先作为本地回归资产维护。后续如需纳入版本控制，需要先明确调整该策略。
-
-### Q6: user 已收到任务完成消息，为什么没有邮件？
-
-邮件通知默认关闭。设置 `USER_MAIL_ENABLED=true`、`RESEND_API_KEY` 和 `RESEND_MAIL_FROM` 后重启 user 服务；还需要确认用户状态为 `ACTIVE` 且邮箱非空。
