@@ -22,6 +22,22 @@ export type ChatStreamEvent =
   | { name: 'complete'; payload: string }
   | { name: 'error'; payload: string }
 
+/** 读取非 SSE 响应中的标准业务错误，避免将代理或路由错误误判为流中断。 */
+async function resolveStreamResponseError(response: Response) {
+  const text = await response.text()
+  if (text) {
+    try {
+      const body = JSON.parse(text) as { message?: unknown }
+      if (typeof body.message === 'string' && body.message.trim()) {
+        return body.message
+      }
+    } catch {
+      // 非 JSON 错误响应使用下面的通用提示。
+    }
+  }
+  return response.ok ? '流式消息通道返回了非 SSE 响应' : '流式消息通道暂时不可用'
+}
+
 /** 发送消息并逐段读取角色回复；仅 delta、complete、error 是公开事件。 */
 export async function streamChatMessage(
   sessionId: string | number,
@@ -33,7 +49,11 @@ export async function streamChatMessage(
   const response = await fetch(`/api/chat/sessions/${sessionId}/messages/stream`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ content }),
   })
-  if (!response.ok || !response.body) throw new Error('流式消息通道暂时不可用')
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!response.ok || !contentType.includes('text/event-stream')) {
+    throw new Error(await resolveStreamResponseError(response))
+  }
+  if (!response.body) throw new Error('流式消息通道暂时不可用')
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
