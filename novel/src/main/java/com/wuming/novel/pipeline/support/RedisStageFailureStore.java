@@ -1,4 +1,4 @@
-package com.wuming.novel.pipeline;
+package com.wuming.novel.pipeline.support;
 
 import com.wuming.common.cache.redis.RedisListOps;
 import com.wuming.novel.domain.enums.JobStage;

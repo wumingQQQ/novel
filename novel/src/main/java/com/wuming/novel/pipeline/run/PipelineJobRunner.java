@@ -3,6 +3,7 @@ package com.wuming.novel.pipeline.run;
 import com.wuming.novel.infrastructure.observability.TraceContext;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStatus;
+import com.wuming.novel.pipeline.lock.JobRunLock;
 import com.wuming.novel.service.IJobService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;

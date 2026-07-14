@@ -1,8 +1,10 @@
-package com.wuming.novel.pipeline;
+package com.wuming.novel.pipeline.step;
 
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.RoleReactionRule;
 import com.wuming.novel.domain.enums.JobStage;
+import com.wuming.novel.pipeline.PipelineStep;
+import com.wuming.novel.pipeline.support.PipelineJobSupport;
 import com.wuming.novel.service.IRoleProfileService;
 import com.wuming.novel.service.IRoleReactionRuleService;
 import lombok.RequiredArgsConstructor;

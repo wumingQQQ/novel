@@ -1,8 +1,10 @@
-package com.wuming.novel.pipeline;
+package com.wuming.novel.pipeline.step;
 
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.NovelPreprocessStage;
+import com.wuming.novel.pipeline.PipelineStep;
+import com.wuming.novel.pipeline.support.PipelineJobSupport;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.support.NovelPreprocessCoordinator;
 import lombok.RequiredArgsConstructor;

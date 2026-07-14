@@ -1,4 +1,4 @@
-package com.wuming.novel.pipeline;
+package com.wuming.novel.pipeline.step;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.novel.domain.entity.Chapter;
@@ -6,11 +6,15 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.NovelPreprocessStage;
+import com.wuming.novel.pipeline.PipelineStep;
+import com.wuming.novel.pipeline.support.AsyncStageItemRunner;
+import com.wuming.novel.pipeline.support.PipelineJobSupport;
+import com.wuming.novel.pipeline.support.StageItemRecorder;
+import com.wuming.novel.pipeline.support.StageItemSelector;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.INovelPassageService;
 import com.wuming.novel.service.IPassageCharacterService;
 import com.wuming.novel.service.support.NovelPreprocessCoordinator;
-import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -34,8 +38,7 @@ public class PassageBuildStep implements PipelineStep {
     private final INovelPassageService novelPassageService;
     private final IPassageCharacterService passageCharacterService;
     private final NovelPreprocessCoordinator preprocessCoordinator;
-    @Resource(name = "llmExecutor")
-    private Executor llmExecutor;
+    private final Executor llmExecutor;
 
     @Override
     public JobStage stage() {
@@ -61,7 +64,7 @@ public class PassageBuildStep implements PipelineStep {
 
         // Passage替换会同时改写多个二级索引，按章节串行执行以避免同一小说内的事务死锁。
         List<ChapterPassages> persistedChapters = persistPassages(jobId, job, chapters);
-        int recognitionSuccessCount = asyncStageItemRunner.run(
+        int successCount = asyncStageItemRunner.run(
                         persistedChapters,
                         llmExecutor,
                         chapterPassages -> recognizeCharacters(chapterPassages.passages()),
@@ -71,7 +74,6 @@ public class PassageBuildStep implements PipelineStep {
                 .stream()
                 .mapToInt(success -> success ? 1 : 0)
                 .sum();
-        int successCount = recognitionSuccessCount;
         log.info("小说Passage构建执行完成，jobId: {}, novelId: {}, requestCount: {}, successCount: {}",
                 job.getId(), job.getNovelId(), chapters.size(), successCount);
         if (successCount != chapters.size()) {

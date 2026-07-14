@@ -1,4 +1,4 @@
-package com.wuming.novel.pipeline;
+package com.wuming.novel.pipeline.support;
 
 import org.springframework.stereotype.Component;
 

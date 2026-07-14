@@ -1,9 +1,13 @@
-package com.wuming.novel.pipeline;
+package com.wuming.novel.pipeline.step;
 
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
+import com.wuming.novel.pipeline.PipelineStep;
+import com.wuming.novel.pipeline.support.AsyncStageItemRunner;
+import com.wuming.novel.pipeline.support.PipelineJobSupport;
+import com.wuming.novel.pipeline.support.StageItemRecorder;
+import com.wuming.novel.pipeline.support.StageItemSelector;
 import com.wuming.novel.service.IRoleExampleService;
-import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -24,8 +28,7 @@ public class RoleExampleBuildStep implements PipelineStep {
     private final StageItemRecorder stageItemRecorder;
     private final AsyncStageItemRunner asyncStageItemRunner;
     private final IRoleExampleService roleExampleService;
-    @Resource(name = "llmExecutor")
-    private Executor llmExecutor;
+    private final Executor llmExecutor;
 
     @Override
     public JobStage stage() {

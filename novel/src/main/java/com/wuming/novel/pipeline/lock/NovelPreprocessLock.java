@@ -1,4 +1,4 @@
-package com.wuming.novel.pipeline.run;
+package com.wuming.novel.pipeline.lock;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;

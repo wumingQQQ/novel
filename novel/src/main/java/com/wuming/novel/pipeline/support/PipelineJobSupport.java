@@ -1,4 +1,4 @@
-package com.wuming.novel.pipeline;
+package com.wuming.novel.pipeline.support;
 
 import com.wuming.common.exception.BusinessException;
 import com.wuming.common.exception.ErrorCode;

@@ -7,7 +7,7 @@ import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.domain.enums.NovelPreprocessStage;
 import com.wuming.novel.domain.enums.NovelPreprocessStatus;
 import com.wuming.novel.infrastructure.mapper.NovelPreprocessMapper;
-import com.wuming.novel.pipeline.run.NovelPreprocessLock;
+import com.wuming.novel.pipeline.lock.NovelPreprocessLock;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.INovelPassageService;
 import lombok.RequiredArgsConstructor;

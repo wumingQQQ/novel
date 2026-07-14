@@ -1,5 +1,6 @@
-package com.wuming.novel.pipeline;
+package com.wuming.novel.pipeline.support;
 
+import com.wuming.novel.pipeline.PipelineStep;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
