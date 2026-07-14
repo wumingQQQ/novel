@@ -45,6 +45,18 @@ public class NovelPassageVectorIndexService {
         return ragService.deleteDocuments(passageIndexName, documentIds);
     }
 
+    public int updateCharacterNames(Long novelId, Long passageId, List<String> characterNames) {
+        if (novelId == null || passageId == null || characterNames == null || characterNames.isEmpty()) {
+            return 0;
+        }
+        String documentId = passageDocumentId(novelId, passageId);
+        return ragService.updateDocumentMetadata(
+                passageIndexName,
+                documentId,
+                Map.of("character_names", characterNames)
+        );
+    }
+
     /**
      * 按Passage主键写入向量库，并回写索引状态。
      *

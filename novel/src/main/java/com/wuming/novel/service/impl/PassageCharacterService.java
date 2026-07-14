@@ -6,6 +6,7 @@ import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.domain.entity.PassageCharacter;
 import com.wuming.novel.infrastructure.mapper.PassageCharacterMapper;
 import com.wuming.novel.infrastructure.prompt.PromptTemplateRenderer;
+import com.wuming.novel.integration.rpc.rag.NovelPassageVectorIndexService;
 import com.wuming.novel.llm.LlmConcurrencyLimiter;
 import com.wuming.novel.service.IPassageCharacterService;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class PassageCharacterService
     private final ChatClient chatClient;
     private final PromptTemplateRenderer renderer;
     private final LlmConcurrencyLimiter llmConcurrencyLimiter;
+    private final NovelPassageVectorIndexService novelPassageVectorIndexService;
 
     @Lazy
     @Autowired
@@ -51,7 +53,9 @@ public class PassageCharacterService
         }
         List<PassageCharacter> passageCharacters = new ArrayList<>();
         for (NovelPassage passage : passages) {
-            passageCharacters.addAll(passageCharacter(passage.getId(), recognizeOnePassage(passage)));
+            List<String> characterNames = recognizeOnePassage(passage);
+            passageCharacters.addAll(passageCharacter(passage.getId(), characterNames));
+            updatePassageCharacterTag(passage, characterNames);
         }
         if (!passageCharacters.isEmpty()) {
             self.saveBatch(passageCharacters);
@@ -101,5 +105,24 @@ public class PassageCharacterService
         return characterName.stream()
                 .map(name -> new PassageCharacter(passageId, name))
                 .toList();
+    }
+
+    private void updatePassageCharacterTag(NovelPassage passage, List<String> characterNames) {
+        if (characterNames == null || characterNames.isEmpty()) {
+            return;
+        }
+        try {
+            int updatedCount = novelPassageVectorIndexService.updateCharacterNames(
+                    passage.getNovelId(),
+                    passage.getId(),
+                    characterNames
+            );
+            log.debug("Passage人物标签已同步到RAG，passageId: {}, characterCount: {}, updatedCount: {}",
+                    passage.getId(), characterNames.size(), updatedCount);
+        } catch (RuntimeException e) {
+            log.warn("Passage人物标签同步到RAG失败，passageId: {}, characterCount: {}, errorType: {}, errorMessage: {}",
+                    passage.getId(), characterNames.size(), e.getClass().getSimpleName(), e.getMessage());
+            log.debug("Passage人物标签同步到RAG异常堆栈，passageId: {}", passage.getId(), e);
+        }
     }
 }
