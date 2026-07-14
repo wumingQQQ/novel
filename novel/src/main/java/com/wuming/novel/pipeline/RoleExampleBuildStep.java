@@ -1,12 +1,8 @@
 package com.wuming.novel.pipeline;
 
-import com.wuming.common.exception.BusinessException;
-import com.wuming.common.exception.ErrorCode;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
-import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.IRoleExampleService;
-import com.wuming.novel.sse.JobProgressService;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +10,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
@@ -24,10 +19,11 @@ import java.util.concurrent.Executor;
 @Component
 @RequiredArgsConstructor
 public class RoleExampleBuildStep implements PipelineStep {
-    private final IJobService jobService;
+    private final PipelineJobSupport pipelineJobSupport;
+    private final StageItemSelector stageItemSelector;
+    private final StageItemRecorder stageItemRecorder;
+    private final AsyncStageItemRunner asyncStageItemRunner;
     private final IRoleExampleService roleExampleService;
-    private final RedisStageFailureStore redisStageFailureStore;
-    private final JobProgressService jobProgressService;
     @Resource(name = "llmExecutor")
     private Executor llmExecutor;
 
@@ -43,21 +39,17 @@ public class RoleExampleBuildStep implements PipelineStep {
 
     @Override
     public void execute(Long jobId) {
-        Job job = requireJob(jobId);
-        String targetName = requireText(job.getTargetName(), "targetName不能为空");
+        Job job = pipelineJobSupport.requireJob(jobId);
+        String targetName = pipelineJobSupport.requireTargetName(job);
         roleExampleService.startExampleExtraction(job.getNovelId(), targetName);
         List<Long> passageIds = targetPassageIds(jobId, job, targetName);
-        int completedCount = redisStageFailureStore.completedLongItems(jobId, stage()).size();
-        jobProgressService.setStageItemCounts(jobId, stage(), completedCount + passageIds.size(), completedCount, 0);
-        List<PassageExampleBuildResult> results = passageIds.stream()
-                .map(passageId -> CompletableFuture
-                        .supplyAsync(() -> roleExampleService.extractExamplesFromPassage(job.getNovelId(), targetName, passageId), llmExecutor)
-                        .handle((result, throwable) -> finishOnePassage(jobId, job, targetName, passageId, result, throwable))
-                )
-                .toList()
-                .stream()
-                .map(CompletableFuture::join)
-                .toList();
+        stageItemRecorder.initLongItemCounts(jobId, stage(), passageIds.size());
+        List<PassageExampleBuildResult> results = asyncStageItemRunner.supply(
+                passageIds,
+                llmExecutor,
+                passageId -> roleExampleService.extractExamplesFromPassage(job.getNovelId(), targetName, passageId),
+                (passageId, result, throwable) -> finishOnePassage(jobId, job, targetName, passageId, result, throwable)
+        );
         int savedCount = results.stream().mapToInt(PassageExampleBuildResult::savedCount).sum();
         int failedCount = (int) results.stream().filter(result -> !result.success()).count();
         Long characterId = results.stream()
@@ -86,13 +78,11 @@ public class RoleExampleBuildStep implements PipelineStep {
                                                        IRoleExampleService.ExtractExamplesResult result,
                                                        Throwable throwable) {
         if (throwable == null) {
-            redisStageFailureStore.recordSuccess(jobId, stage(), passageId);
-            jobProgressService.recordItemSuccess(jobId, stage());
+            stageItemRecorder.recordLongSuccess(jobId, stage(), passageId);
             return new PassageExampleBuildResult(true, result.characterId(), result.savedCount());
         }
-        redisStageFailureStore.recordFailure(jobId, stage(), passageId);
-        jobProgressService.recordItemFailure(jobId, stage());
-        Throwable cause = logCause(throwable);
+        stageItemRecorder.recordLongFailure(jobId, stage(), passageId);
+        Throwable cause = pipelineJobSupport.rootCause(throwable);
         log.warn("Passage角色样本构建失败，已记录失败项，jobId: {}, novelId: {}, passageId: {}, targetName: {}, errorType: {}, errorMessage: {}",
                 jobId, job.getNovelId(), passageId, targetName,
                 cause.getClass().getSimpleName(), cause.getMessage());
@@ -101,46 +91,15 @@ public class RoleExampleBuildStep implements PipelineStep {
         return new PassageExampleBuildResult(false, null, 0);
     }
 
-    private Throwable logCause(Throwable throwable) {
-        return throwable.getCause() == null ? throwable : throwable.getCause();
-    }
-
     /**
      * 获取本次需要抽取角色样本的Passage；存在失败项时只重试失败项，否则跳过已完成项。
      */
     private List<Long> targetPassageIds(Long jobId, Job job, String targetName) {
-        List<Long> failedPassageIds = redisStageFailureStore.consumeFailedLongItems(jobId, stage());
-        if (!failedPassageIds.isEmpty()) {
-            log.info("重试角色样本构建失败Passage，jobId: {}, novelId: {}, failedCount: {}",
-                    jobId, job.getNovelId(), failedPassageIds.size());
-            return failedPassageIds;
-        }
-
-        List<Long> completedPassageIds = redisStageFailureStore.completedLongItems(jobId, stage());
-        List<Long> candidatePassageIds = roleExampleService.candidatePassageIds(job.getNovelId(), targetName);
-        if (completedPassageIds.isEmpty()) {
-            return candidatePassageIds;
-        }
-        log.debug("跳过已完成角色样本构建Passage，jobId: {}, novelId: {}, completedCount: {}",
-                jobId, job.getNovelId(), completedPassageIds.size());
-        return candidatePassageIds.stream()
-                .filter(passageId -> !completedPassageIds.contains(passageId))
-                .toList();
-    }
-
-    private Job requireJob(Long jobId) {
-        Job job = jobService.getById(jobId);
-        if (job == null) {
-            throw new BusinessException(ErrorCode.JOB_NOT_FOUND, "任务不存在: " + jobId);
-        }
-        return job;
-    }
-
-    private String requireText(String value, String message) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(message);
-        }
-        return value.trim();
+        return stageItemSelector.selectLongBackedItems(
+                jobId, stage(), failedPassageIds -> failedPassageIds,
+                () -> roleExampleService.candidatePassageIds(job.getNovelId(), targetName),
+                passageId -> passageId
+        );
     }
 
     private record PassageExampleBuildResult(boolean success, Long characterId, int savedCount) {

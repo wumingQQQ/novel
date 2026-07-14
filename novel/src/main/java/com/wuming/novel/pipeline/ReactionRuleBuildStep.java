@@ -1,21 +1,14 @@
 package com.wuming.novel.pipeline;
 
-import com.wuming.common.exception.BusinessException;
-import com.wuming.common.exception.ErrorCode;
 import com.wuming.novel.domain.entity.Job;
-import com.wuming.novel.domain.entity.RoleCharacter;
 import com.wuming.novel.domain.enums.JobStage;
-import com.wuming.novel.service.IJobService;
-import com.wuming.novel.service.IRoleCharacterService;
 import com.wuming.novel.service.IRoleReactionRuleService;
-import com.wuming.novel.sse.JobProgressService;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
@@ -25,11 +18,11 @@ import java.util.concurrent.Executor;
 @Component
 @RequiredArgsConstructor
 public class ReactionRuleBuildStep implements PipelineStep {
-    private final IJobService jobService;
-    private final IRoleCharacterService roleCharacterService;
+    private final PipelineJobSupport pipelineJobSupport;
+    private final StageItemSelector stageItemSelector;
+    private final StageItemRecorder stageItemRecorder;
+    private final AsyncStageItemRunner asyncStageItemRunner;
     private final IRoleReactionRuleService roleReactionRuleService;
-    private final RedisStageFailureStore redisStageFailureStore;
-    private final JobProgressService jobProgressService;
     @Resource(name = "llmExecutor")
     private Executor llmExecutor;
 
@@ -45,9 +38,9 @@ public class ReactionRuleBuildStep implements PipelineStep {
 
     @Override
     public void execute(Long jobId) {
-        Job job = requireJob(jobId);
-        String targetName = requireText(job.getTargetName(), "targetName不能为空");
-        Long characterId = targetCharacterId(job, targetName);
+        Job job = pipelineJobSupport.requireJob(jobId);
+        String targetName = pipelineJobSupport.requireTargetName(job);
+        Long characterId = pipelineJobSupport.targetCharacterId(job, targetName);
         if (characterId == null) {
             log.info("目标角色不存在，跳过反应规则构建，jobId: {}, novelId: {}, targetName: {}",
                     job.getId(), job.getNovelId(), targetName);
@@ -55,19 +48,14 @@ public class ReactionRuleBuildStep implements PipelineStep {
         }
 
         List<String> situationKeys = targetSituationKeys(jobId, characterId);
-        int completedCount = redisStageFailureStore.completedItems(jobId, stage()).size();
-        jobProgressService.setStageItemCounts(jobId, stage(), completedCount + situationKeys.size(), completedCount, 0);
-        List<SituationRuleBuildResult> results = situationKeys.stream()
-                .map(situationKey -> CompletableFuture
-                        .supplyAsync(
-                                () -> roleReactionRuleService.buildRule(characterId, situationKey),
-                                llmExecutor)
-                        .handle((savedCount, throwable) ->
-                                finishOneSituation(jobId, job, characterId, situationKey, savedCount, throwable)))
-                .toList()
-                .stream()
-                .map(CompletableFuture::join)
-                .toList();
+        stageItemRecorder.initStringItemCounts(jobId, stage(), situationKeys.size());
+        List<SituationRuleBuildResult> results = asyncStageItemRunner.supply(
+                situationKeys,
+                llmExecutor,
+                situationKey -> roleReactionRuleService.buildRule(characterId, situationKey),
+                (situationKey, savedCount, throwable) ->
+                        finishOneSituation(jobId, job, characterId, situationKey, savedCount, throwable)
+        );
         int savedCount = results.stream().mapToInt(SituationRuleBuildResult::savedCount).sum();
         int failedCount = (int) results.stream().filter(result -> !result.success()).count();
         if (failedCount == 0) {
@@ -91,13 +79,11 @@ public class ReactionRuleBuildStep implements PipelineStep {
                                                         Integer savedCount,
                                                         Throwable throwable) {
         if (throwable == null) {
-            redisStageFailureStore.recordSuccess(jobId, stage(), situationKey);
-            jobProgressService.recordItemSuccess(jobId, stage());
+            stageItemRecorder.recordStringSuccess(jobId, stage(), situationKey);
             return new SituationRuleBuildResult(true, savedCount);
         }
-        redisStageFailureStore.recordFailure(jobId, stage(), situationKey);
-        jobProgressService.recordItemFailure(jobId, stage());
-        Throwable cause = logCause(throwable);
+        stageItemRecorder.recordStringFailure(jobId, stage(), situationKey);
+        Throwable cause = pipelineJobSupport.rootCause(throwable);
         log.warn("情境反应规则构建失败，已记录失败项，jobId: {}, novelId: {}, characterId: {}, situationKey: {}, errorType: {}, errorMessage: {}",
                 jobId, job.getNovelId(), characterId, situationKey,
                 cause.getClass().getSimpleName(), cause.getMessage());
@@ -106,55 +92,15 @@ public class ReactionRuleBuildStep implements PipelineStep {
         return new SituationRuleBuildResult(false, 0);
     }
 
-    private Throwable logCause(Throwable throwable) {
-        return throwable.getCause() == null ? throwable : throwable.getCause();
-    }
-
     /**
      * 获取本次需要构建反应规则的情境；存在失败项时只重试失败项，否则跳过已完成项。
      */
     private List<String> targetSituationKeys(Long jobId, Long characterId) {
-        List<String> failedSituationKeys = redisStageFailureStore.consumeFailedItems(jobId, stage());
-        if (!failedSituationKeys.isEmpty()) {
-            log.info("重试反应规则构建失败情境，jobId: {}, characterId: {}, failedCount: {}",
-                    jobId, characterId, failedSituationKeys.size());
-            return failedSituationKeys;
-        }
-
-        List<String> completedSituationKeys = redisStageFailureStore.completedItems(jobId, stage());
-        List<String> situationKeys = roleReactionRuleService.situationKeys(characterId);
-        if (completedSituationKeys.isEmpty()) {
-            return situationKeys;
-        }
-        log.debug("跳过已完成反应规则构建情境，jobId: {}, characterId: {}, completedCount: {}",
-                jobId, characterId, completedSituationKeys.size());
-        return situationKeys.stream()
-                .filter(situationKey -> !completedSituationKeys.contains(situationKey))
-                .toList();
-    }
-
-    private Long targetCharacterId(Job job, String targetName) {
-        return roleCharacterService.lambdaQuery()
-                .eq(RoleCharacter::getNovelId, job.getNovelId())
-                .eq(RoleCharacter::getCharacterName, targetName)
-                .oneOpt()
-                .map(RoleCharacter::getId)
-                .orElse(null);
-    }
-
-    private Job requireJob(Long jobId) {
-        Job job = jobService.getById(jobId);
-        if (job == null) {
-            throw new BusinessException(ErrorCode.JOB_NOT_FOUND, "任务不存在: " + jobId);
-        }
-        return job;
-    }
-
-    private String requireText(String value, String message) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(message);
-        }
-        return value.trim();
+        return stageItemSelector.selectStringItems(
+                jobId,
+                stage(),
+                () -> roleReactionRuleService.situationKeys(characterId)
+        );
     }
 
     private record SituationRuleBuildResult(boolean success, int savedCount) {

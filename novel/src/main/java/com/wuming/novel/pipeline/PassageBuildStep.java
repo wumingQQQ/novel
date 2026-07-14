@@ -1,19 +1,15 @@
 package com.wuming.novel.pipeline;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.wuming.common.exception.BusinessException;
-import com.wuming.common.exception.ErrorCode;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.NovelPreprocessStage;
 import com.wuming.novel.service.IChapterService;
-import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelPassageService;
 import com.wuming.novel.service.IPassageCharacterService;
 import com.wuming.novel.service.support.NovelPreprocessCoordinator;
-import com.wuming.novel.sse.JobProgressService;
 import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +17,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
@@ -31,13 +26,14 @@ import java.util.concurrent.Executor;
 @Component
 @RequiredArgsConstructor
 public class PassageBuildStep implements PipelineStep {
-    private final IJobService jobService;
+    private final PipelineJobSupport pipelineJobSupport;
+    private final StageItemSelector stageItemSelector;
+    private final StageItemRecorder stageItemRecorder;
+    private final AsyncStageItemRunner asyncStageItemRunner;
     private final IChapterService chapterService;
     private final INovelPassageService novelPassageService;
     private final IPassageCharacterService passageCharacterService;
     private final NovelPreprocessCoordinator preprocessCoordinator;
-    private final RedisStageFailureStore redisStageFailureStore;
-    private final JobProgressService jobProgressService;
     @Resource(name = "llmExecutor")
     private Executor llmExecutor;
 
@@ -53,7 +49,7 @@ public class PassageBuildStep implements PipelineStep {
 
     @Override
     public void execute(Long jobId) {
-        Job job = requireJob(jobId);
+        Job job = pipelineJobSupport.requireJob(jobId);
         preprocessCoordinator.execute(job.getNovelId(), NovelPreprocessStage.PASSAGE_BUILD,
                 () -> buildPassages(jobId, job));
     }
@@ -61,19 +57,18 @@ public class PassageBuildStep implements PipelineStep {
     /** 仅由取得小说预处理锁的 job 构建并索引 Passage。 */
     private void buildPassages(Long jobId, Job job) {
         List<Chapter> chapters = targetChapters(jobId, job);
-        int completedCount = redisStageFailureStore.completedLongItems(jobId, stage()).size();
-        jobProgressService.setStageItemCounts(jobId, stage(), completedCount + chapters.size(), completedCount, 0);
+        stageItemRecorder.initLongItemCounts(jobId, stage(), chapters.size());
 
         // Passage替换会同时改写多个二级索引，按章节串行执行以避免同一小说内的事务死锁。
         List<ChapterPassages> persistedChapters = persistPassages(jobId, job, chapters);
-        int recognitionSuccessCount = persistedChapters.stream()
-                .map(chapterPassages -> CompletableFuture
-                        .runAsync(() -> recognizeCharacters(chapterPassages.passages()), llmExecutor)
-                        .handle((ignored, throwable) -> finishOneChapter(
-                                jobId, job, chapterPassages.chapter(), throwable)))
-                .toList()
+        int recognitionSuccessCount = asyncStageItemRunner.run(
+                        persistedChapters,
+                        llmExecutor,
+                        chapterPassages -> recognizeCharacters(chapterPassages.passages()),
+                        (chapterPassages, throwable) -> finishOneChapter(
+                                jobId, job, chapterPassages.chapter(), throwable)
+                )
                 .stream()
-                .map(CompletableFuture::join)
                 .mapToInt(success -> success ? 1 : 0)
                 .sum();
         int successCount = recognitionSuccessCount;
@@ -113,23 +108,17 @@ public class PassageBuildStep implements PipelineStep {
      */
     private boolean finishOneChapter(Long jobId, Job job, Chapter chapter, Throwable throwable) {
         if (throwable == null) {
-            redisStageFailureStore.recordSuccess(jobId, stage(), chapter.getId());
-            jobProgressService.recordItemSuccess(jobId, stage());
+            stageItemRecorder.recordLongSuccess(jobId, stage(), chapter.getId());
             return true;
         }
-        redisStageFailureStore.recordFailure(jobId, stage(), chapter.getId());
-        jobProgressService.recordItemFailure(jobId, stage());
-        Throwable cause = logCause(throwable);
+        stageItemRecorder.recordLongFailure(jobId, stage(), chapter.getId());
+        Throwable cause = pipelineJobSupport.rootCause(throwable);
         log.warn("章节Passage构建失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}, errorType: {}, errorMessage: {}",
                 job.getId(), job.getNovelId(), chapter.getId(),
                 cause.getClass().getSimpleName(), cause.getMessage());
         log.debug("章节Passage构建失败堆栈，jobId: {}, novelId: {}, chapterId: {}",
                 job.getId(), job.getNovelId(), chapter.getId(), throwable);
         return false;
-    }
-
-    private Throwable logCause(Throwable throwable) {
-        return throwable.getCause() == null ? throwable : throwable.getCause();
     }
 
     /**
@@ -140,34 +129,19 @@ public class PassageBuildStep implements PipelineStep {
      * @return 本次需要构建Passage的章节列表
      */
     private List<Chapter> targetChapters(Long jobId, Job job) {
-        List<Long> failedChapterIds = redisStageFailureStore.consumeFailedLongItems(jobId, stage());
-        if (!failedChapterIds.isEmpty()) {
-            log.info("重试Passage构建失败章节，jobId: {}, novelId: {}, failedCount: {}",
-                    jobId, job.getNovelId(), failedChapterIds.size());
-            return chapterService.list(new LambdaQueryWrapper<Chapter>()
-                    .eq(Chapter::getNovelId, job.getNovelId())
-                    .in(Chapter::getId, failedChapterIds)
-                    .orderByAsc(Chapter::getSequence));
-        }
-        List<Long> completedChapterIds = redisStageFailureStore.completedLongItems(jobId, stage());
-        LambdaQueryWrapper<Chapter> queryWrapper = new LambdaQueryWrapper<Chapter>()
-                .eq(Chapter::getNovelId, job.getNovelId())
-                .orderByAsc(Chapter::getSequence);
-        if (!completedChapterIds.isEmpty()) {
-            // 如果已完成部分不为空，说明已经处理过且存在失败
-            queryWrapper.notIn(Chapter::getId, completedChapterIds);
-            log.debug("跳过已完成Passage构建章节，jobId: {}, novelId: {}, completedCount: {}",
-                    jobId, job.getNovelId(), completedChapterIds.size());
-        }
-        return chapterService.list(queryWrapper);
+        return stageItemSelector.selectLongBackedItems(
+                jobId,
+                stage(),
+                failedChapterIds -> chapterService.list(chapterQuery(job).in(Chapter::getId, failedChapterIds)),
+                () -> chapterService.list(chapterQuery(job)),
+                Chapter::getId
+        );
     }
 
-    private Job requireJob(Long jobId) {
-        Job job = jobService.getById(jobId);
-        if (job == null) {
-            throw new BusinessException(ErrorCode.JOB_NOT_FOUND, "任务不存在: " + jobId);
-        }
-        return job;
+    private LambdaQueryWrapper<Chapter> chapterQuery(Job job) {
+        return new LambdaQueryWrapper<Chapter>()
+                .eq(Chapter::getNovelId, job.getNovelId())
+                .orderByAsc(Chapter::getSequence);
     }
 
     private record ChapterPassages(Chapter chapter, List<NovelPassage> passages) {

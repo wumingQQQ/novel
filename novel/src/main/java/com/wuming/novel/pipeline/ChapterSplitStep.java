@@ -4,7 +4,6 @@ import com.wuming.novel.domain.entity.Job;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.domain.enums.NovelPreprocessStage;
 import com.wuming.novel.service.IChapterService;
-import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.support.NovelPreprocessCoordinator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -12,8 +11,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class ChapterSplitStep implements PipelineStep {
+    private final PipelineJobSupport pipelineJobSupport;
     private final IChapterService chapterService;
-    private final IJobService jobService;
     private final NovelPreprocessCoordinator preprocessCoordinator;
 
     @Override
@@ -28,10 +27,7 @@ public class ChapterSplitStep implements PipelineStep {
 
     @Override
     public void execute(Long jobId) {
-        Job job = jobService.getById(jobId);
-        if (job == null) {
-            throw new IllegalArgumentException("任务不存在: " + jobId);
-        }
+        Job job = pipelineJobSupport.requireJob(jobId);
         preprocessCoordinator.execute(job.getNovelId(), NovelPreprocessStage.CHAPTER_SPLIT,
                 () -> chapterService.splitChapter(jobId));
     }
