@@ -1,4 +1,4 @@
-package com.wuming.chat.service;
+package com.wuming.chat.service.memory;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.chat.config.ChatMemoryProperties;

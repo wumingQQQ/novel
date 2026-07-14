@@ -1,4 +1,4 @@
-package com.wuming.chat.service;
+package com.wuming.chat.service.memory;
 
 import com.wuming.chat.domain.model.ChatHistoryMessage;
 import lombok.RequiredArgsConstructor;

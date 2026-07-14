@@ -1,4 +1,4 @@
-package com.wuming.chat.service;
+package com.wuming.chat.service.reply;
 
 import com.wuming.api.role.dto.RoleRuntimeContextDto;
 import com.wuming.chat.domain.entity.ChatSession;
@@ -7,6 +7,7 @@ import com.wuming.chat.domain.model.ChatMemoryContext;
 import com.wuming.chat.exception.ChatStreamClientClosedException;
 import com.wuming.chat.integration.rpc.role.RoleRuntimeContextService;
 import com.wuming.chat.rag.role.RoleRuntimeRagService;
+import com.wuming.chat.service.memory.ChatMemoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -41,14 +42,14 @@ public class ChatAssistantReplyService {
     /**
      * 使用当前会话、用户输入和角色上下文同步请求角色回复。
      */
-    String generateCompleteReply(ChatSession session, String userContent) {
+    public String generateCompleteReply(ChatSession session, String userContent) {
         return requestWithContext(prepare(session, userContent));
     }
 
     /**
      * 使用当前会话、用户输入和角色上下文流式请求角色回复。
      */
-    String generateStreamingReply(ChatSession session, String userContent, Predicate<String> chunkConsumer) {
+    public String generateStreamingReply(ChatSession session, String userContent, Predicate<String> chunkConsumer) {
         return requestStreamWithContext(prepare(session, userContent), chunkConsumer);
     }
 

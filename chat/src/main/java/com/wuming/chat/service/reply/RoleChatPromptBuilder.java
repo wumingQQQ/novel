@@ -1,4 +1,4 @@
-package com.wuming.chat.service;
+package com.wuming.chat.service.reply;
 
 import com.wuming.api.role.dto.RoleRuntimeContextDto;
 import org.springframework.ai.chat.prompt.PromptTemplate;

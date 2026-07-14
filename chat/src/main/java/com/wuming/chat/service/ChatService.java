@@ -16,6 +16,7 @@ import com.wuming.chat.infrastructure.mapper.ChatSessionMapper;
 import com.wuming.chat.infrastructure.observability.TraceContext;
 import com.wuming.chat.integration.rpc.user.UserContextService;
 import com.wuming.chat.infrastructure.cache.ChatMessageCacheService;
+import com.wuming.chat.service.reply.ChatAssistantReplyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
