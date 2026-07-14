@@ -2,6 +2,7 @@ package com.wuming.chat.infrastructure.cache;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wuming.chat.config.ChatMemoryProperties;
 import com.wuming.chat.domain.entity.ChatMessage;
 import com.wuming.common.cache.redis.RedisKey;
 import com.wuming.common.cache.redis.RedisListOps;
@@ -24,9 +25,7 @@ public class ChatMessageCacheService {
 
     private final RedisListOps redisListOps;
     private final ObjectMapper objectMapper;
-
-    @Value("${chat.memory.recent-message-limit:16}")
-    private int recentMessageLimit;
+    private final ChatMemoryProperties memoryProperties;
 
     @Value("${chat.message-cache-ttl:3d}")
     private Duration messageCacheTtl;
@@ -101,7 +100,7 @@ public class ChatMessageCacheService {
     }
 
     private int limit() {
-        return Math.max(1, recentMessageLimit);
+        return memoryProperties.recentLimit();
     }
 }
 
