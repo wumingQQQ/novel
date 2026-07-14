@@ -1,6 +1,7 @@
 package com.wuming.rag.service;
 
 import com.wuming.api.rag.dto.SearchHit;
+import com.wuming.rag.model.RagQueryTransformCommand;
 import com.wuming.rag.model.RagRetrievalCommand;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
@@ -11,10 +12,9 @@ import dev.langchain4j.rag.content.aggregator.ContentAggregator;
 import dev.langchain4j.rag.content.aggregator.ReRankingContentAggregator;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.query.Query;
-import dev.langchain4j.rag.query.transformer.DefaultQueryTransformer;
-import dev.langchain4j.rag.query.transformer.QueryTransformer;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -24,10 +24,12 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RagRetrieveService {
     private final EmbeddingStoreRegistry registry;
     private final EmbeddingModel embeddingModel;
     private final ScoringModel scoringModel;
+    private final RagQueryTransformer queryTransformer;
 
     public List<SearchHit> retrieve(RagRetrievalCommand command){
         EmbeddingStore<TextSegment> store = registry.getRequired(command.indexName());
@@ -39,9 +41,7 @@ public class RagRetrieveService {
                 command.topK()
         );
 
-        // TODO 定义多query查询与重写通道
-        QueryTransformer transformer = new DefaultQueryTransformer();
-        Collection<Query> queries = transformer.transform(Query.from(command.query()));
+        Collection<Query> queries = resolveQueries(command);
 
         Map<Query, Collection<List<Content>>> queryToContents = new LinkedHashMap<>();
         for (Query query : queries) {
@@ -54,9 +54,22 @@ public class RagRetrieveService {
                 .minScore(0.6)
                 .build();
 
-        return aggregator.aggregate(queryToContents).stream()
+        List<SearchHit> hits = aggregator.aggregate(queryToContents).stream()
                 .map(this::toSearchHit)
                 .toList();
+        log.debug("RAG召回聚合完成，indexName: {}, queryCount: {}, topK: {}, topN: {}, hitCount: {}",
+                command.indexName(), queries.size(), command.topK(), command.topN(), hits.size());
+        return hits;
+    }
+
+    private Collection<Query> resolveQueries(RagRetrievalCommand command) {
+        Collection<Query> queries = queryTransformer.transform(new RagQueryTransformCommand(
+                command.query(),
+                command.multiQuery()
+        ));
+        log.debug("RAG查询重写完成，originalQuery: {}, transformedQueryCount: {}",
+                command.query(), queries.size());
+        return queries;
     }
 
     private SearchHit toSearchHit(Content content) {

@@ -12,10 +12,9 @@ public class SearchRequest implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String indexName;
-    private String query;       // 主查询文本，用于单路召回和重排序
-    private List<String> queries;   // 多路召回查询文本，非空时优先用于向量召回
+    private String query;       // 主查询文本，RAG模块会根据multiQuery决定是否扩展为多路查询
+    private boolean multiQuery; // 是否由RAG模块基于query生成多路召回查询
     private List<SearchFilter> filters;  // 元数据过滤条件，由业务模块构造，RAG模块转换执行
     private Integer topK;       // 向量召回候选数量
-    private boolean rerank = true;  // 是否重排序
     private Integer topN;       // 最终返回数量
 }

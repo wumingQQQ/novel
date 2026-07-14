@@ -21,6 +21,13 @@ dubbo:
   registry:
     address: N/A
 
+llm:
+  temperature: ${NOVEL_LLM_TEMPERATURE:0.0}
+  deepseek:
+    base-url: ${DS_BASE_URL:https://api.deepseek.com}
+    api-key: ${DS_API_KEY:}
+    model: ${DS_MODEL:deepseek-v4-flash}
+
 rag:
   redis:
     host: ${REDIS_HOST:localhost}
@@ -43,6 +50,11 @@ rag:
     base-url: ${RERANKER_BASE_URL:https://api.siliconflow.cn}
     model: ${RERANKER_MODEL:BAAI/bge-reranker-v2-m3}
     path: ${RERANKER_PATH:/v1/rerank}
+  query-rewrite:
+    enabled: ${RAG_QUERY_REWRITE_ENABLED:true}
+    timeout: ${RAG_QUERY_REWRITE_TIMEOUT:30s}
+    max-retries: ${RAG_QUERY_REWRITE_MAX_RETRIES:1}
+    multi-query-max-count: ${RAG_MULTI_QUERY_MAX_COUNT:4}
   indexes:
     novel_passage:
       physical-index-name: "idx:novel_passage"

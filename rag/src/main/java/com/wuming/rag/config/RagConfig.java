@@ -2,9 +2,14 @@ package com.wuming.rag.config;
 
 
 import com.wuming.rag.service.EmbeddingStoreRegistry;
+import com.wuming.rag.service.DefaultRagQueryTransformer;
+import com.wuming.rag.service.LlmRagQueryTransformer;
+import com.wuming.rag.service.RagQueryTransformer;
 import dev.langchain4j.community.store.embedding.redis.RedisEmbeddingStore;
 import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Configuration
-@EnableConfigurationProperties(RagProperties.class)
+@EnableConfigurationProperties({RagProperties.class, LlmProperties.class})
 @Slf4j
 public class RagConfig {
 
@@ -38,6 +43,36 @@ public class RagConfig {
                 .modelName(embedding.getModel())
                 .dimensions(embedding.getDimensions())
                 .build();
+    }
+
+    @Bean
+    public RagQueryTransformer queryTransformer(RagProperties ragProperties, LlmProperties llmProperties) {
+        RagProperties.QueryRewrite queryRewrite = ragProperties.getQueryRewrite();
+        if (queryRewrite == null || !queryRewrite.isEnabled()) {
+            log.info("RAG查询重写未启用，使用默认查询转换器");
+            return new DefaultRagQueryTransformer();
+        }
+
+        LlmProperties.DeepSeek deepSeek = llmProperties.getDeepseek();
+        if (deepSeek == null
+                || !hasText(deepSeek.getBaseUrl())
+                || !hasText(deepSeek.getApiKey())
+                || !hasText(deepSeek.getModel())) {
+            log.warn("RAG查询重写配置不完整，使用默认查询转换器，请检查 llm.deepseek.base-url、api-key、model");
+            return new DefaultRagQueryTransformer();
+        }
+
+        ChatModel chatModel = OpenAiChatModel.builder()
+                .baseUrl(deepSeek.getBaseUrl())
+                .apiKey(deepSeek.getApiKey())
+                .modelName(deepSeek.getModel())
+                .temperature(llmProperties.getTemperature())
+                .timeout(queryRewrite.getTimeout())
+                .maxRetries(queryRewrite.getMaxRetries())
+                .build();
+        log.info("RAG查询重写已启用，model: {}, timeout: {}, maxRetries: {}",
+                deepSeek.getModel(), queryRewrite.getTimeout(), queryRewrite.getMaxRetries());
+        return new LlmRagQueryTransformer(chatModel, queryRewrite);
     }
 
     @Bean(destroyMethod = "close")
@@ -121,6 +156,10 @@ public class RagConfig {
             result.put(name, field);
         });
         return result;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     @Bean

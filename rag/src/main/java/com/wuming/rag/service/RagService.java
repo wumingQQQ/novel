@@ -25,7 +25,6 @@ import redis.clients.jedis.UnifiedJedis;
 import redis.clients.jedis.json.Path2;
 
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -139,23 +138,19 @@ public class RagService implements RagFacade {
         validateSearchRequest(request);
 
         String indexName = request.getIndexName().trim();
-        List<String> searchQueries = searchQueries(request.getQuery(), request.getQueries());
-        if (searchQueries.isEmpty()) {
-            throw new IllegalArgumentException("RAG检索query和queries不能同时为空");
-        }
-        String retrievalQuery = hasText(request.getQuery()) ? request.getQuery().trim() : searchQueries.getFirst();
+        String retrievalQuery = request.getQuery().trim();
         Filter filter = toFilter(indexName, request.getFilters());
 
         List<SearchHit> hits = retrieveService.retrieve(new RagRetrievalCommand(
                 indexName,
                 retrievalQuery,
-                searchQueries,
+                request.isMultiQuery(),
                 filter,
                 normalizeTopK(request.getTopK()),
                 normalizeTopN(request.getTopN(), request.getTopK())
         ));
-        log.debug("RAG通用召回完成，indexName: {}, queryCount: {}, filterCount: {}, topK: {}, topN: {}, hitCount: {}",
-                indexName, searchQueries.size(),
+        log.debug("RAG通用召回完成，indexName: {}, multiQuery: {}, filterCount: {}, topK: {}, topN: {}, hitCount: {}",
+                indexName, request.isMultiQuery(),
                 request.getFilters() == null ? 0 : request.getFilters().size(),
                 normalizeTopK(request.getTopK()), normalizeTopN(request.getTopN(), request.getTopK()), hits.size());
         return hits;
@@ -171,8 +166,8 @@ public class RagService implements RagFacade {
         if (!ragProperties.getIndexes().containsKey(request.getIndexName().trim())) {
             throw new IllegalArgumentException("未配置的RAG索引: " + request.getIndexName());
         }
-        if (!hasText(request.getQuery()) && (request.getQueries() == null || request.getQueries().isEmpty())) {
-            throw new IllegalArgumentException("RAG检索query和queries不能同时为空");
+        if (!hasText(request.getQuery())) {
+            throw new IllegalArgumentException("RAG检索query不能为空");
         }
     }
 
@@ -245,25 +240,6 @@ public class RagService implements RagFacade {
                 }
             }
         }
-    }
-
-    private List<String> searchQueries(String query, List<String> queries) {
-        List<String> result = new ArrayList<>();
-        if (queries != null) {
-            for (String item : queries) {
-                if (!hasText(item)) {
-                    continue;
-                }
-                String normalized = item.trim();
-                if (!result.contains(normalized)) {
-                    result.add(normalized);
-                }
-            }
-        }
-        if (result.isEmpty() && hasText(query)) {
-            result.add(query.trim());
-        }
-        return result;
     }
 
     private boolean hasText(String value) {

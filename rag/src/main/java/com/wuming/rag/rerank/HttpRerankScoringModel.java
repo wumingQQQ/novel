@@ -32,10 +32,6 @@ public class HttpRerankScoringModel implements ScoringModel {
         }
 
         RagProperties.Reranker config = ragProperties.getReranker();
-        if (!config.isEnabled()) {
-            log.debug("跳过RAG重排序请求，重排序配置未启用，documentCount: {}", segments.size());
-            return Response.from(scores);
-        }
 
         RerankRequest request = new RerankRequest(
                 config.getModel(),
