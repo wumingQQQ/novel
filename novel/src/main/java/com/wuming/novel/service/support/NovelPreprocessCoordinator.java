@@ -19,7 +19,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 
 /**
- * 协调同一小说的章节、章节分析与 Passage 公共预处理。
+ * 协调同一小说的章节与 Passage 公共预处理。
  *
  * <p>job 仍保有自身阶段与进度；此协调器只决定该阶段实际构建还是复用既有产物。</p>
  */
@@ -101,13 +101,12 @@ public class NovelPreprocessCoordinator {
         }
     }
 
-    /** 仅允许按章节切分、章节分析、Passage构建的顺序生成共享产物。 */
+    /** 仅允许按章节切分、Passage构建的顺序生成共享产物。 */
     private boolean canStart(NovelPreprocess preprocess, NovelPreprocessStage stage) {
         NovelPreprocessStage completedStage = preprocess.getCompletedStage();
         return switch (stage) {
             case CHAPTER_SPLIT -> completedStage == NovelPreprocessStage.NONE;
-            case CHAPTER_ANALYSIS -> completedStage == NovelPreprocessStage.CHAPTER_SPLIT;
-            case PASSAGE_BUILD -> completedStage == NovelPreprocessStage.CHAPTER_ANALYSIS;
+            case PASSAGE_BUILD -> completedStage == NovelPreprocessStage.CHAPTER_SPLIT;
             case NONE -> false;
         };
     }

@@ -28,7 +28,6 @@ public class JobProgress {
     public static JobProgress initJob(Long jobId){
         List<StageProgress> stages = List.of(
                 StageProgress.simple(JobStage.CHAPTER_SPLIT, "章节切分"),
-                StageProgress.counted(JobStage.CHAPTER_ANALYSIS, "章节分析"),
                 StageProgress.counted(JobStage.PASSAGE_BUILD, "Passage构建"),
                 StageProgress.counted(JobStage.ROLE_EXAMPLE_BUILD, "角色样本构建"),
                 StageProgress.counted(JobStage.REACTION_RULE_BUILD, "反应规则构建"),

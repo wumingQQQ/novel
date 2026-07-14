@@ -4,7 +4,6 @@ package com.wuming.novel.domain.enums;
 public enum NovelPreprocessStage {
     NONE(0),
     CHAPTER_SPLIT(1),
-    CHAPTER_ANALYSIS(2),
     PASSAGE_BUILD(3);
 
     private final int code;

@@ -98,9 +98,9 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         if (paragraphs.isEmpty()) {
             return List.of();
         }
-        List<Range> ranges = ranges(paragraphs.size(), chapter.getSceneBoundaries());
-        log.debug("章节Passage切分完成，chapterId: {}, splitStrategy: {}, paragraphCount: {}, passageCount: {}",
-                chapter.getId(), passageSplitProperties.getSplitStrategy(), paragraphs.size(), ranges.size());
+        List<Range> ranges = slidingWindowRanges(paragraphs.size());
+        log.debug("章节Passage切分完成，chapterId: {}, paragraphCount: {}, passageCount: {}",
+                chapter.getId(), paragraphs.size(), ranges.size());
         List<NovelPassage> passages = new ArrayList<>(ranges.size());
         for (int i = 0; i < ranges.size(); i++) {
             Range range = ranges.get(i);
@@ -139,31 +139,6 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
     }
 
     /**
-     * 根据当前切分策略生成段落范围。
-     *
-     * @param paragraphCount 章节段落数量
-     * @param sceneBoundaries LLM分析出的场景起始段落
-     * @return Passage覆盖的段落范围列表
-     */
-    private List<Range> ranges(int paragraphCount, List<Integer> sceneBoundaries) {
-        if (passageSplitProperties.getSplitStrategy() == PassageSplitProperties.SplitStrategy.SLIDING_WINDOW) {
-            return slidingWindowRanges(paragraphCount);
-        }
-        if (sceneBoundaries == null || sceneBoundaries.isEmpty()) {
-            log.debug("章节未提供场景边界，降级使用滑动窗口切分，paragraphCount: {}", paragraphCount);
-            return slidingWindowRanges(paragraphCount);
-        }
-        List<Integer> starts = new ArrayList<>();
-        starts.add(1);
-        for (Integer boundary : sceneBoundaries) {
-            if (boundary != null && boundary > 1 && boundary <= paragraphCount) {
-                starts.add(boundary);
-            }
-        }
-        return toRanges(starts, paragraphCount);
-    }
-
-    /**
      * 使用滑动窗口生成段落范围。
      *
      * @param paragraphCount 章节段落数量
@@ -185,31 +160,6 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
             ranges.add(new Range(start, end));
             if (end == paragraphCount) {
                 break;
-            }
-        }
-        return ranges;
-    }
-
-    /**
-     * 将场景起始段落转换为连续、不重叠的段落范围。
-     *
-     * @param starts 场景起始段落列表
-     * @param paragraphCount 章节段落数量
-     * @return 场景范围列表
-     */
-    private List<Range> toRanges(List<Integer> starts, int paragraphCount) {
-        List<Integer> sortedStarts = starts.stream()
-                .distinct()
-                .sorted()
-                .toList();
-        List<Range> ranges = new ArrayList<>();
-        for (int i = 0; i < sortedStarts.size(); i++) {
-            int start = sortedStarts.get(i);
-            int end = i + 1 < sortedStarts.size()
-                    ? sortedStarts.get(i + 1) - 1
-                    : paragraphCount;
-            if (start <= end) {
-                ranges.add(new Range(start, end));
             }
         }
         return ranges;

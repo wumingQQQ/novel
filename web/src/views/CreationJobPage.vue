@@ -13,7 +13,7 @@ const stageIndex = computed(() => {
   const index = progress.value?.stages.findIndex(stage => stage.jobStage === progress.value?.currentStage) ?? -1
   return index >= 0 ? index + 1 : 0
 })
-function stageLabel(stage: string) { return ({ CHAPTER_SPLIT: '章节切分', CHAPTER_ANALYSIS: '章节分析', PASSAGE_BUILD: 'Passage 构建', ROLE_EXAMPLE_BUILD: '角色样本构建', REACTION_RULE_BUILD: '反应规则构建', ROLE_PROFILE_BUILD: '角色画像构建' })[stage] ?? stage }
+function stageLabel(stage: string) { return ({ CHAPTER_SPLIT: '章节切分', PASSAGE_BUILD: 'Passage 构建', ROLE_EXAMPLE_BUILD: '角色样本构建', REACTION_RULE_BUILD: '反应规则构建', ROLE_PROFILE_BUILD: '角色画像构建' })[stage] ?? stage }
 async function load() { error.value = ''; try { progress.value = await getJobProgress(props.jobId); subscribe() } catch (e) { error.value = e instanceof Error ? e.message : '任务进度暂时无法加载' } }
 function subscribe() { controller?.abort(); controller = new AbortController(); void streamJobProgress(props.jobId, controller.signal, value => { progress.value = value }).catch(e => { if ((e as Error).name !== 'AbortError' && progress.value?.state === 'RUNNING') error.value = '实时进度连接已断开，可刷新页面重连。' }) }
 async function retry() { retrying.value = true; try { await redoJob(Number(props.jobId)); await load() } catch (e) { error.value = e instanceof Error ? e.message : '重试未完成' } finally { retrying.value = false } }

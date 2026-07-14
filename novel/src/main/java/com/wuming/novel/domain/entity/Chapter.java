@@ -28,28 +28,28 @@ public class Chapter implements Serializable {
     private String content;
 
     /**
-     * 章节摘要，供召回后补充 prompt 上下文。
+     * 历史章节摘要字段，当前构建链路不再写入。
      */
     private String summary;
 
     /**
-     * 场景切换段落号列表
+     * 历史场景切换段落号字段，当前Passage切分固定使用滑动窗口。
      */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Integer> sceneBoundaries;
 
     /**
-     * 章节分析状态：PENDING、DONE、FAILED。
+     * 历史章节分析状态字段，当前构建链路不再写入。
      */
     private String analysisStatus;
 
     /**
-     * 章节分析失败原因。
+     * 历史章节分析失败原因字段，当前构建链路不再写入。
      */
     private String analysisError;
 
     /**
-     * 章节分析完成时间。
+     * 历史章节分析完成时间字段，当前构建链路不再写入。
      */
     private LocalDateTime analyzedTime;
 

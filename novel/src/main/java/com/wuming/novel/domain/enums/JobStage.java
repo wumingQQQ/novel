@@ -8,7 +8,6 @@ import lombok.Getter;
 public enum JobStage {
     PENDING(0, "队列中"),
     CHAPTER_SPLIT(1, "章节切分"),
-    CHAPTER_ANALYSIS(2, "章节分析"),
     PASSAGE_BUILD(3, "Passage构建"),
     ROLE_EXAMPLE_BUILD(4, "角色样本构建"),
     REACTION_RULE_BUILD(5, "反应规则构建"),
