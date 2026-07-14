@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuming.api.rag.dto.SearchHit;
 import com.wuming.novel.domain.dto.ReactionSituationGroup;
-import com.wuming.novel.domain.dto.RoleReactionQueryRewriteResult;
 import com.wuming.novel.domain.dto.RoleReactionRuleBuildResult;
 import com.wuming.novel.domain.entity.RoleCharacter;
 import com.wuming.novel.domain.entity.RoleReactionRule;
@@ -42,8 +41,6 @@ import java.util.Objects;
 public class RoleReactionRuleService
         extends ServiceImpl<RoleReactionRuleMapper, RoleReactionRule>
         implements IRoleReactionRuleService {
-    private static final String QUERY_REWRITE_SYSTEM_TEMPLATE = "prompts/system/role-reaction-query-rewrite.st";
-    private static final String QUERY_REWRITE_USER_TEMPLATE = "prompts/user/role-reaction-query-rewrite.st";
     private static final String RULE_BUILD_SYSTEM_TEMPLATE = "prompts/system/role-reaction-rule-build.st";
     private static final String RULE_BUILD_USER_TEMPLATE = "prompts/user/role-reaction-rule-build.st";
     private static final String VECTOR_PENDING = "PENDING";
@@ -68,9 +65,6 @@ public class RoleReactionRuleService
 
     @Value("${novel.reaction-rule.example-top-n:5}")
     private int exampleTopN;
-
-    @Value("${novel.reaction-rule.rerank:true}")
-    private boolean rerank;
 
     @Value("${novel.reaction-rule.min-confidence:0.6}")
     private double minConfidence;
@@ -207,8 +201,7 @@ public class RoleReactionRuleService
      * @return 构建成功的规则；证据不足或构建失败时返回null
      */
     private RoleReactionRule buildOneRule(RoleCharacter character, SituationTask task) {
-        List<String> queries = rewriteQueries(character, task);
-        List<SearchHit> examples = retrieveExamples(character.getId(), queries);
+        List<SearchHit> examples = retrieveExamples(character.getId(), task.situation());
         if (examples.isEmpty()) {
             log.debug("情境未召回角色样本，characterId: {}, category: {}, situationKey: {}",
                     character.getId(), task.category(), situationKey(task));
@@ -246,52 +239,18 @@ public class RoleReactionRuleService
     }
 
     /**
-     * 将情境改写为多条检索 query，基于场景触发模式生成不同角度
-     *
-     * @param character 角色
-     * @param task 情境任务
-     * @return 用于召回角色样本的query列表
-     */
-    private List<String> rewriteQueries(RoleCharacter character, SituationTask task) {
-        PromptTemplateRenderer.DualPrompt dualPrompt = renderer.renderDual(
-                QUERY_REWRITE_SYSTEM_TEMPLATE,
-                QUERY_REWRITE_USER_TEMPLATE,
-                Map.of(
-                        "characterName", character.getCharacterName(),
-                        "category", task.category(),
-                        "situation", task.situation(),
-                        "scenePatterns", formatScenePatterns(character.getCharacterName(), task.scenePatterns())
-                )
-        );
-        RoleReactionQueryRewriteResult result = chatClient.prompt()
-                .system(dualPrompt.systemPrompt())
-                .user(dualPrompt.userPrompt())
-                .call()
-                .entity(RoleReactionQueryRewriteResult.class);
-        if (result == null || result.queries() == null || result.queries().isEmpty()) {
-            return List.of(task.situation());
-        }
-        List<String> queries = result.queries().stream()
-                .filter(q -> q != null && !q.isBlank())
-                .map(String::trim)
-                .toList();
-        return queries.isEmpty() ? List.of(task.situation()) : queries;
-    }
-
-    /**
-     * 多 query 召回由RAG服务统一完成合并、去重和重排序。
+     * 召回情境相关角色样本。查询改写、多路召回和重排序由RAG模块统一处理。
      *
      * @param characterId 角色id
-     * @param queries 召回query列表
+     * @param query 情境检索query
      * @return 召回到的角色样本
      */
-    private List<SearchHit> retrieveExamples(Long characterId, List<String> queries) {
+    private List<SearchHit> retrieveExamples(Long characterId, String query) {
         return roleExampleVectorIndexService.search(
                         characterId,
-                        null,
-                        queries,
+                        query,
+                        true,
                         exampleTopK,
-                        rerank,
                         exampleTopN
                 ).stream()
                 .filter(hit -> hit != null
@@ -326,24 +285,6 @@ public class RoleReactionRuleService
                 .user(dualPrompt.userPrompt())
                 .call()
                 .entity(RoleReactionRuleBuildResult.class);
-    }
-
-    /**
-     * 将情境触发模式格式化为提示词片段。
-     *
-     * @param characterName 角色名称
-     * @param scenePatterns 情境触发模式
-     * @return 提示词中的触发模式文本
-     */
-    private String formatScenePatterns(String characterName, List<String> scenePatterns) {
-        if (scenePatterns == null || scenePatterns.isEmpty()) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (String pattern : scenePatterns) {
-            sb.append("- ").append(pattern.replace("{characterName}", characterName)).append("\n");
-        }
-        return sb.toString().stripTrailing();
     }
 
     /**

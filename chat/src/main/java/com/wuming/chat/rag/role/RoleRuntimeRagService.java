@@ -71,10 +71,10 @@ public class RoleRuntimeRagService {
         SearchRequest request = new SearchRequest();
         request.setIndexName(roleExampleIndexName);
         request.setQuery(query);
+        request.setMultiQuery(true);
         request.setFilters(List.of(SearchFilter.eq("character_id", characterId)));
         request.setTopK(Math.max(1, roleExampleTopK));
         request.setTopN(Math.max(1, roleExampleTopN));
-        request.setRerank(true);
         return safeSearch(request, "角色样本", characterId);
     }
 
@@ -82,10 +82,10 @@ public class RoleRuntimeRagService {
         SearchRequest request = new SearchRequest();
         request.setIndexName(reactionRuleIndexName);
         request.setQuery(query);
+        request.setMultiQuery(true);
         request.setFilters(List.of(SearchFilter.eq("character_id", characterId)));
         request.setTopK(Math.max(1, reactionRuleTopK));
         request.setTopN(Math.max(1, reactionRuleTopN));
-        request.setRerank(true);
         return safeSearch(request, "角色反应规则", characterId);
     }
 

@@ -53,64 +53,24 @@ public class RoleExampleVectorIndexService {
 
     public List<SearchHit> search(Long characterId,
                                   String query,
+                                  boolean multiQuery,
                                   Integer topK,
-                                  boolean rerank,
                                   Integer topN) {
-        return search(characterId, query, null, topK, rerank, topN);
-    }
-
-    public List<SearchHit> search(Long characterId,
-                                  String query,
-                                  List<String> queries,
-                                  Integer topK,
-                                  boolean rerank,
-                                  Integer topN) {
-        return search(characterId, query, queries, topK, rerank, topN, null);
-    }
-
-    /**
-     * 按角色检索向量样本，并可在评测场景排除指定原作文本块。
-     *
-     * @param characterId 目标角色主键
-     * @param query 主检索语句
-     * @param queries 多路检索语句
-     * @param topK 初始召回数量
-     * @param rerank 是否执行重排序
-     * @param topN 最终保留数量
-     * @param excludedPassageId 需要排除的来源Passage主键，正常检索时为null
-     * @return 过滤、召回和重排序后的命中列表
-     */
-    public List<SearchHit> search(Long characterId,
-                                  String query,
-                                  List<String> queries,
-                                  Integer topK,
-                                  boolean rerank,
-                                  Integer topN,
-                                  Long excludedPassageId) {
-        if (excludedPassageId != null && excludedPassageId <= 0) {
-            throw new IllegalArgumentException("excludedPassageId必须为正数");
-        }
         SearchRequest request = new SearchRequest();
         request.setIndexName(roleExampleIndexName);
         request.setQuery(query);
-        request.setQueries(queries);
-        request.setFilters(roleExampleFilters(characterId, excludedPassageId));
+        request.setMultiQuery(multiQuery);
+        request.setFilters(roleExampleFilters(characterId));
         request.setTopK(topK);
-        request.setRerank(rerank);
         request.setTopN(topN);
         return ragService.search(request);
     }
 
-    private List<SearchFilter> roleExampleFilters(Long characterId, Long excludedPassageId) {
+    private List<SearchFilter> roleExampleFilters(Long characterId) {
         if (characterId == null) {
             throw new IllegalArgumentException("characterId不能为空");
         }
-        List<SearchFilter> filters = new java.util.ArrayList<>();
-        filters.add(SearchFilter.eq("character_id", characterId));
-        if (excludedPassageId != null) {
-            filters.add(SearchFilter.ne("passage_id", excludedPassageId));
-        }
-        return filters;
+        return List.of(SearchFilter.eq("character_id", characterId));
     }
 
     /**

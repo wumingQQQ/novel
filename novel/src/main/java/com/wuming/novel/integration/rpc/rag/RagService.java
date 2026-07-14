@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -74,10 +73,10 @@ public class RagService {
         validateParam(request);
 
         List<SearchHit> hits = ragFacade.search(request);
-        log.debug("RAG通用召回完成，indexName: {}, queryCount: {}, filterCount: {}, topK: {}, topN: {}, rerank: {}, hitCount: {}",
-                request.getIndexName(), queryCount(request),
+        log.debug("RAG通用召回完成，indexName: {}, filterCount: {}, topK: {}, topN: {}, multiQuery: {}, hitCount: {}",
+                request.getIndexName(),
                 request.getFilters() == null ? 0 : request.getFilters().size(),
-                request.getTopK(), request.getTopN(), request.isRerank(), hits.size());
+                request.getTopK(), request.getTopN(), request.isMultiQuery(), hits.size());
         return hits;
     }
 
@@ -86,10 +85,9 @@ public class RagService {
             throw new IllegalArgumentException("searchRequest不能为空");
         }
         request.setIndexName(requireText(request.getIndexName(), "indexName不能为空"));
-        request.setQueries(normalizeQueries(request.getQueries()));
         request.setQuery(normalizeQuery(request.getQuery()));
-        if (request.getQuery() == null && request.getQueries() == null) {
-            throw new IllegalArgumentException("query和queries不能同时为空");
+        if (request.getQuery() == null) {
+            throw new IllegalArgumentException("query不能为空");
         }
         request.setTopK(normalizeTopK(request.getTopK()));
         request.setTopN(normalizeTopN(request.getTopN(), request.getTopK()));
@@ -112,29 +110,5 @@ public class RagService {
 
     private String normalizeQuery(String query) {
         return query == null || query.isBlank() ? null : query.trim();
-    }
-
-    private List<String> normalizeQueries(List<String> queries) {
-        if (queries == null || queries.isEmpty()) {
-            return null;
-        }
-        List<String> normalized = new ArrayList<>();
-        for (String query : queries) {
-            if (query == null || query.isBlank()) {
-                continue;
-            }
-            String value = query.trim();
-            if (!normalized.contains(value)) {
-                normalized.add(value);
-            }
-        }
-        return normalized.isEmpty() ? null : normalized;
-    }
-
-    private int queryCount(SearchRequest request) {
-        if (request.getQueries() != null) {
-            return request.getQueries().size();
-        }
-        return request.getQuery() == null ? 0 : 1;
     }
 }

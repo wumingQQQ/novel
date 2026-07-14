@@ -107,8 +107,8 @@ public class RoleAdjustGenerationService {
         List<SearchHit> hits = exampleRagService.search(
                 request.getCharacterId(),
                 request.getRequirement(),
-                roleExampleTopK,
                 true,
+                roleExampleTopK,
                 roleExampleTopN
         );
 
