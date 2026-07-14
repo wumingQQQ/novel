@@ -43,14 +43,16 @@ public class NovelPassage implements Serializable {
     private Integer innerSequence;
 
     /**
-     * 对应章节内起始段落编号
+     * Passage起始位置：段落策略为段落编号，字符策略为字符位置
      */
-    private Integer startParagraph;
+    @TableField("start_paragraph")
+    private Integer start;
 
     /**
-     * 对应章节内结束段落编号
+     * Passage结束位置：段落策略为段落编号，字符策略为字符位置
      */
-    private Integer endParagraph;
+    @TableField("end_paragraph")
+    private Integer end;
 
     /**
      * 向量索引状态：PENDING、INDEXED、FAILED

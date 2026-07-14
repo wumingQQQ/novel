@@ -8,6 +8,8 @@ import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.enums.JobStage;
 import com.wuming.novel.infrastructure.mapper.ChapterMapper;
 import com.wuming.novel.integration.storage.NovelFileStorageRouter;
+import com.wuming.novel.passage.split.PassageSplitStrategyRouter;
+import com.wuming.novel.passage.split.PassageSplitStrategyType;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.IJobService;
 import com.wuming.novel.service.INovelService;
@@ -32,6 +34,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
     private final INovelService novelService;
     private final IJobService jobService;
     private final NovelFileStorageRouter novelFileStorageRouter;
+    private final PassageSplitStrategyRouter passageSplitStrategyRouter;
 
     private static final Pattern CHAPTER_PATTERN = Pattern.compile(
             "^第[一二三四五六七八九十百千\\d]+章[^。！？\n]*[。！？]?\\s*$",
@@ -83,6 +86,7 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
 
             if(!chapters.isEmpty()) {
                 saveBatch(chapters);
+                recordPassageSplitStrategy(novel, chapters);
             }
             log.info("章节切分完成，jobId: {}, novelId: {}, chapterCount: {}",
                     jobId, novelId, chapters.size());
@@ -92,6 +96,16 @@ public class ChapterService extends ServiceImpl<ChapterMapper, Chapter> implemen
             log.debug("章节切分异常堆栈，jobId: {}, novelId: {}", jobId, novelId, e);
             throw new RuntimeException("章节切分失败", e);
         }
+    }
+
+    /**
+     * 在章节正则切分完成后，为整本小说固定Passage切分策略。
+     */
+    private void recordPassageSplitStrategy(Novel novel, List<Chapter> chapters) {
+        PassageSplitStrategyType splitStrategy = passageSplitStrategyRouter.resolve(novel.getId(), chapters);
+        novel.setPassageSplitStrategy(splitStrategy.name());
+        novelService.updateById(novel);
+        log.info("小说Passage切分策略已记录，novelId: {}, splitStrategy: {}", novel.getId(), splitStrategy);
     }
 
     /**

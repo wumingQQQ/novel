@@ -6,6 +6,7 @@ create table if not exists novels(
     object_key varchar(255) comment '对象存储key，LOCAL时与file_path一致',
     original_filename varchar(255) comment '上传原始文件名',
     file_size bigint comment '文件大小，单位字节',
+    passage_split_strategy varchar(30) comment 'Passage切分策略：PARAGRAPH_WINDOW/CHARACTER_OVERLAP',
     uploader_id bigint not null comment '上传者id',
     create_time datetime default current_timestamp comment '创建时间',
     key idx_novels_uploader_id(uploader_id)
@@ -82,8 +83,8 @@ create table if not exists novel_passages(
     content text not null comment '原文内容',
     sequence int not null comment '全书顺序',
     inner_sequence int not null comment '章节内顺序',
-    start_paragraph int not null comment '章节内起始段落编号',
-    end_paragraph int not null comment '章节内结束段落编号',
+    start_paragraph int not null comment 'Passage起始位置：段落策略为段落编号，字符策略为字符位置',
+    end_paragraph int not null comment 'Passage结束位置：段落策略为段落编号，字符策略为字符位置',
     vector_status varchar(20) default 'PENDING' comment 'PENDING/INDEXED/FAILED',
     vector_error text comment '向量索引失败原因',
     indexed_time datetime comment '向量索引完成时间',

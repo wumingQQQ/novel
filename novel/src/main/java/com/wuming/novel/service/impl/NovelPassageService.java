@@ -2,13 +2,18 @@ package com.wuming.novel.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.wuming.novel.config.PassageSplitProperties;
 import com.wuming.novel.domain.entity.Chapter;
+import com.wuming.novel.domain.entity.Novel;
 import com.wuming.novel.domain.entity.NovelPassage;
 import com.wuming.novel.infrastructure.mapper.NovelPassageMapper;
 import com.wuming.novel.integration.rpc.rag.NovelPassageVectorIndexService;
+import com.wuming.novel.passage.split.PassageSlice;
+import com.wuming.novel.passage.split.PassageSplitStrategy;
+import com.wuming.novel.passage.split.PassageSplitStrategyRouter;
+import com.wuming.novel.passage.split.PassageSplitStrategyType;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.INovelPassageService;
+import com.wuming.novel.service.INovelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,8 +36,9 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
     private static final String VECTOR_PENDING = "PENDING";
 
     private final IChapterService chapterService;
+    private final INovelService novelService;
     private final NovelPassageVectorIndexService passageVectorIndexService;
-    private final PassageSplitProperties passageSplitProperties;
+    private final PassageSplitStrategyRouter passageSplitStrategyRouter;
 
     /**
      * 按章节内容切分单章Passage，替换该章节旧Passage，并在事务提交后同步刷新向量索引。
@@ -94,24 +100,21 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
      * @return 待保存的Passage列表
      */
     private List<NovelPassage> splitOneChapter(Chapter chapter) {
-        List<String> paragraphs = paragraphs(chapter.getContent());
-        if (paragraphs.isEmpty()) {
-            return List.of();
-        }
-        List<Range> ranges = slidingWindowRanges(paragraphs.size());
-        log.debug("章节Passage切分完成，chapterId: {}, paragraphCount: {}, passageCount: {}",
-                chapter.getId(), paragraphs.size(), ranges.size());
-        List<NovelPassage> passages = new ArrayList<>(ranges.size());
-        for (int i = 0; i < ranges.size(); i++) {
-            Range range = ranges.get(i);
+        PassageSplitStrategy splitStrategy = splitStrategy(chapter);
+        List<PassageSlice> slices = splitStrategy.split(chapter.getContent());
+        log.debug("章节Passage切分完成，chapterId: {}, splitStrategy: {}, passageCount: {}",
+                chapter.getId(), splitStrategy.type(), slices.size());
+
+        List<NovelPassage> passages = new ArrayList<>(slices.size());
+        for (PassageSlice slice : slices) {
             NovelPassage passage = new NovelPassage();
             passage.setNovelId(chapter.getNovelId());
             passage.setChapterId(chapter.getId());
-            passage.setContent(String.join("\n", paragraphs.subList(range.start() - 1, range.end())));
-            passage.setSequence(chapter.getSequence() * CHAPTER_SEQUENCE_STEP + i + 1);
-            passage.setInnerSequence(i + 1);
-            passage.setStartParagraph(range.start());
-            passage.setEndParagraph(range.end());
+            passage.setContent(slice.content());
+            passage.setSequence(chapter.getSequence() * CHAPTER_SEQUENCE_STEP + slice.sequence());
+            passage.setInnerSequence(slice.sequence());
+            passage.setStart(slice.start());
+            passage.setEnd(slice.end());
             passage.setVectorStatus(VECTOR_PENDING);
             passages.add(passage);
         }
@@ -119,50 +122,29 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
     }
 
     /**
-     * 将章节内容按换行切分并进行trim
-     *
-     * @param content 章节正文
-     * @return 段落内容的列表
+     * 优先使用小说表中已记录的策略；缺失时兼容旧数据，按当前配置临时解析。
      */
-    private List<String> paragraphs(String content) {
-        if (content == null || content.isBlank()) {
-            return List.of();
+    private PassageSplitStrategy splitStrategy(Chapter chapter) {
+        Novel novel = novelService.getById(chapter.getNovelId());
+        String recordedStrategy = novel == null ? null : novel.getPassageSplitStrategy();
+        if (recordedStrategy != null && !recordedStrategy.isBlank()) {
+            return passageSplitStrategyRouter.current(PassageSplitStrategyType.valueOf(recordedStrategy));
         }
-        List<String> paragraphs = new ArrayList<>();
-        for (String line : content.split("\\R")) {
-            String paragraph = line.trim();
-            if (!paragraph.isEmpty()) {
-                paragraphs.add(paragraph);
-            }
-        }
-        return paragraphs;
+        return passageSplitStrategyRouter.current(
+                chapter.getNovelId(),
+                passageSplitStrategyRouter.requiresNovelSamples() ? listNovelChapters(chapter.getNovelId()) : List.of());
     }
 
     /**
-     * 使用滑动窗口生成段落范围。
-     *
-     * @param paragraphCount 章节段落数量
-     * @return 滑动窗口段落范围列表
+     * 读取同一本小说的章节，用于AUTO模式下判断整本书适合的Passage切分策略。
      */
-    private List<Range> slidingWindowRanges(int paragraphCount) {
-        List<Range> ranges = new ArrayList<>();
-        int windowSize = passageSplitProperties.getWindowSize();
-        int overlapSize = passageSplitProperties.getOverlapSize();
-        if (windowSize <= 0) {
-            throw new IllegalStateException("novel.passage.window-size 必须大于0");
+    private List<Chapter> listNovelChapters(Long novelId) {
+        if (novelId == null) {
+            return List.of();
         }
-        if (overlapSize < 0 || overlapSize >= windowSize) {
-            throw new IllegalStateException("novel.passage.overlap-size 必须大于等于0且小于window-size");
-        }
-        int step = windowSize - overlapSize;
-        for (int start = 1; start <= paragraphCount; start += step) {
-            int end = Math.min(start + windowSize - 1, paragraphCount);
-            ranges.add(new Range(start, end));
-            if (end == paragraphCount) {
-                break;
-            }
-        }
-        return ranges;
+        return chapterService.list(new LambdaQueryWrapper<Chapter>()
+                .eq(Chapter::getNovelId, novelId)
+                .orderByAsc(Chapter::getSequence));
     }
 
     /**
@@ -218,6 +200,4 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         }
     }
 
-    private record Range(int start, int end) {
-    }
 }

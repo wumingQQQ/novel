@@ -57,8 +57,17 @@ novel:
   llm:
     max-concurrency: ${NOVEL_LLM_MAX_CONCURRENCY:2000} # deepseek-v4-flash 限流2500
   passage:
-    window-size: 15
-    overlap-size: 3
+    split-strategy: ${NOVEL_PASSAGE_SPLIT_STRATEGY:AUTO}
+    auto:
+      sample-chapter-count: ${NOVEL_PASSAGE_AUTO_SAMPLE_CHAPTER_COUNT:20}
+      paragraph-count-threshold: ${NOVEL_PASSAGE_AUTO_PARAGRAPH_COUNT_THRESHOLD:80}
+      average-line-chars-threshold: ${NOVEL_PASSAGE_AUTO_AVERAGE_LINE_CHARS_THRESHOLD:50}
+    paragraph:
+      window-size: ${NOVEL_PASSAGE_PARAGRAPH_WINDOW_SIZE:15}
+      overlap-size: ${NOVEL_PASSAGE_PARAGRAPH_OVERLAP_SIZE:3}
+    character:
+      max-chars: ${NOVEL_PASSAGE_CHARACTER_MAX_CHARS:450}
+      overlap-chars: ${NOVEL_PASSAGE_CHARACTER_OVERLAP_CHARS:90}
   role-example:
     max-candidate-passages: 80
     min-confidence: 0.6

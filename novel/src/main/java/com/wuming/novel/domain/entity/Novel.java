@@ -34,6 +34,10 @@ public class Novel implements Serializable {
      * UTF-8归一化后的文件大小，单位字节。
      */
     private Long fileSize;
+    /**
+     * Passage切分策略：PARAGRAPH_WINDOW/CHARACTER_OVERLAP。
+     */
+    private String passageSplitStrategy;
     private Long uploaderId;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
