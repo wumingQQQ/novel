@@ -2,11 +2,9 @@ package com.wuming.api.rag;
 
 import com.wuming.api.rag.dto.DeleteDocumentRequest;
 import com.wuming.api.rag.dto.SearchHit;
+import com.wuming.api.rag.dto.UpdateDocumentMetadataRequest;
 import com.wuming.api.rag.dto.UpsertDocumentRequest;
-import com.wuming.api.rag.dto.RerankDocumentsRequest;
-import com.wuming.api.rag.dto.spec.PassageSearchRequest;
-import com.wuming.api.rag.dto.spec.ReactionRuleSearchRequest;
-import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
+import com.wuming.api.rag.dto.spec.SearchRequest;
 
 import java.util.List;
 
@@ -29,22 +27,12 @@ public class RagFacadeMock implements RagFacade {
     }
 
     @Override
-    public List<SearchHit> rerankDocuments(RerankDocumentsRequest request) {
-        return List.of();
+    public int updateDocumentMetadata(UpdateDocumentMetadataRequest request) {
+        return -1;
     }
 
     @Override
-    public List<SearchHit> searchPassages(PassageSearchRequest request) {
-        return List.of();
-    }
-
-    @Override
-    public List<SearchHit> searchRoleExamples(RoleExampleSearchRequest request) {
-        return List.of();
-    }
-
-    @Override
-    public List<SearchHit> searchReactionRules(ReactionRuleSearchRequest request) {
+    public List<SearchHit> search(SearchRequest request) {
         return List.of();
     }
 }

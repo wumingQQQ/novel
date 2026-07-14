@@ -2,190 +2,249 @@ package com.wuming.rag.service;
 
 import com.wuming.api.rag.RagFacade;
 import com.wuming.api.rag.dto.*;
-import com.wuming.api.rag.dto.spec.PassageSearchRequest;
-import com.wuming.api.rag.dto.spec.ReactionRuleSearchRequest;
-import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
-import com.wuming.rag.rerank.RerankService;
+import com.wuming.api.rag.dto.spec.SearchFilter;
+import com.wuming.api.rag.dto.spec.SearchRequest;
+import com.wuming.rag.config.RagProperties;
+import com.wuming.rag.model.RagRetrievalCommand;
+import dev.langchain4j.data.document.Metadata;
+import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.store.embedding.EmbeddingStore;
+import dev.langchain4j.store.embedding.filter.Filter;
+import dev.langchain4j.store.embedding.filter.comparison.ContainsString;
+import dev.langchain4j.store.embedding.filter.comparison.IsEqualTo;
+import dev.langchain4j.store.embedding.filter.comparison.IsIn;
+import dev.langchain4j.store.embedding.filter.comparison.IsNotEqualTo;
+import dev.langchain4j.store.embedding.filter.comparison.IsNotIn;
+import dev.langchain4j.store.embedding.filter.logical.And;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;
-import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.VectorStore;
+import redis.clients.jedis.UnifiedJedis;
+import redis.clients.jedis.json.Path2;
+
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 
 @Slf4j
 @DubboService
 @RequiredArgsConstructor
 public class RagService implements RagFacade {
-    private final RagVectorStoreRegistry registry;
-    private final RerankService rerankService;
+    private static final Pattern METADATA_FIELD_PATTERN = Pattern.compile("[A-Za-z0-9_]+");
+
+    private final EmbeddingStoreRegistry registry;
+    private final EmbeddingModel embeddingModel;
+    private final RagRetrieveService retrieveService;
+    private final RagProperties ragProperties;
+    private final UnifiedJedis unifiedJedis;
 
     @Override
     public int upsertDocuments(UpsertDocumentRequest request) {
         if (request.getDocuments() == null || request.getDocuments().isEmpty()) {
+            log.debug("跳过RAG文档写入，文档列表为空，indexName: {}", request.getIndexName());
             return 0;
         }
-        VectorStore store = registry.getRequired(request.getIndexName());
-        List<Document> documents = request.getDocuments().stream()
+        EmbeddingStore<TextSegment> store = registry.getRequired(request.getIndexName());
+
+        List<RagDocument> documents = request.getDocuments().stream()
                 .filter(Objects::nonNull)
-                .map(this::toSpringDocument)
+                .filter(doc -> hasText(doc.getDocumentId()) && hasText(doc.getContent()))
                 .toList();
         if (documents.isEmpty()) {
+            log.debug("跳过RAG文档写入，过滤后无有效文档，indexName: {}, originalCount: {}",
+                    request.getIndexName(), request.getDocuments().size());
             return 0;
         }
-        store.add(documents);
+        List<TextSegment> segments = documents.stream()
+                .map(this::toTextSegment)
+                .toList();
+        List<Embedding> embeddings = embeddingModel.embedAll(segments).content();
+        store.addAll(
+                documents.stream().map(RagDocument::getDocumentId).toList(),
+                embeddings,
+                segments
+        );
+
+        log.info("RAG文档写入完成，indexName: {}, documentCount: {}", request.getIndexName(), documents.size());
         return documents.size();
+    }
+
+    private TextSegment toTextSegment(RagDocument document) {
+        Map<String, Object> metadata = document.getMetadata() == null
+                ? new LinkedHashMap<>()
+                :  new LinkedHashMap<>(document.getMetadata());
+
+        return TextSegment.from(document.getContent(), Metadata.from(metadata));
     }
 
     @Override
     public int deleteDocuments(DeleteDocumentRequest request) {
         if (request.getDocumentIds() == null || request.getDocumentIds().isEmpty()) {
+            log.debug("跳过RAG文档删除，文档ID列表为空，indexName: {}", request.getIndexName());
             return 0;
         }
-        VectorStore store = registry.getRequired(request.getIndexName());
-        store.delete(request.getDocumentIds());
+        EmbeddingStore<TextSegment> store = registry.getRequired(request.getIndexName());
+        store.removeAll(request.getDocumentIds());
+        log.info("RAG文档删除完成，indexName: {}, documentCount: {}",
+                request.getIndexName(), request.getDocumentIds().size());
         return request.getDocumentIds().size();
     }
 
-    /**
-     * 对外提供有限候选文档的重排序能力，不额外访问向量索引。
-     *
-     * @param request 查询文本、候选文档与保留数量
-     * @return 按重排序分数降序排列的命中
-     */
     @Override
-    public List<SearchHit> rerankDocuments(RerankDocumentsRequest request) {
-        if (request == null || !hasText(request.getQuery())
-                || request.getDocuments() == null || request.getDocuments().isEmpty()) {
-            return List.of();
+    public int updateDocumentMetadata(UpdateDocumentMetadataRequest request) {
+        if (request == null || request.getPatches() == null || request.getPatches().isEmpty()) {
+            return 0;
         }
-        List<Document> documents = request.getDocuments().stream()
-                .filter(Objects::nonNull)
-                .filter(document -> hasText(document.getDocumentId()) && hasText(document.getContent()))
-                .map(this::toSpringDocument)
-                .toList();
-        if (documents.isEmpty()) {
-            return List.of();
+        RagProperties.Index index = ragProperties.getIndexes().get(request.getIndexName());
+        if (index == null) {
+            throw new IllegalArgumentException("未配置的RAG索引: " + request.getIndexName());
         }
-        int topN = request.getTopN() == null || request.getTopN() <= 0
-                ? documents.size() : request.getTopN();
-        return rerankService.rerank(request.getQuery().trim(), documents).stream()
-                .limit(topN)
-                .map(this::toSearchHit)
-                .toList();
+
+        int updatedCount = 0;
+        for (UpdateDocumentMetadataRequest.DocumentMetadataPatch patch : request.getPatches()) {
+            if (patch == null || !hasText(patch.getDocumentId())
+                    || patch.getMetadata() == null || patch.getMetadata().isEmpty()) {
+                continue;
+            }
+            String key = index.getKeyPrefix() + patch.getDocumentId();
+            boolean updated = false;
+            for (Map.Entry<String, Object> entry : patch.getMetadata().entrySet()) {
+                validateMetadataField(entry.getKey());
+                String result = unifiedJedis.jsonSetWithEscape(
+                        key,
+                        Path2.of("$." + entry.getKey()),
+                        entry.getValue()
+                );
+                updated = updated || "OK".equals(result);
+            }
+            if (updated) {
+                updatedCount++;
+            }
+        }
+
+        log.info("RAG文档元数据更新完成，indexName: {}, requestCount: {}, updatedCount: {}",
+                request.getIndexName(), request.getPatches().size(), updatedCount);
+        return updatedCount;
     }
 
     @Override
-    public List<SearchHit> searchPassages(PassageSearchRequest request) {
-        return search(
-                request.getIndexName(),
-                request.getQuery(),
-                request.getQueries(),
-                Map.of("novel_id", request.getNovelId()),
-                null,
-                request.getTopK(),
-                request.isRerank(),
-                request.getTopN()
-        );
-    }
+    public List<SearchHit> search(SearchRequest request) {
+        validateSearchRequest(request);
 
-    @Override
-    public List<SearchHit> searchRoleExamples(RoleExampleSearchRequest request) {
-        String exclusionExpression = request.getExcludedPassageId() == null
-                ? null
-                : "passage_id != " + filterValue(request.getExcludedPassageId());
-        return search(
-                request.getIndexName(),
-                request.getQuery(),
-                request.getQueries(),
-                Map.of("character_id", request.getCharacterId()),
-                exclusionExpression,
-                request.getTopK(),
-                request.isRerank(),
-                request.getTopN()
-        );
-    }
-
-    @Override
-    public List<SearchHit> searchReactionRules(ReactionRuleSearchRequest request) {
-        return search(
-                request.getIndexName(),
-                request.getQuery(),
-                request.getQueries(),
-                Map.of("character_id", request.getCharacterId()),
-                null,
-                request.getTopK(),
-                request.isRerank(),
-                request.getTopN()
-        );
-    }
-
-    private List<SearchHit> search(String indexName,
-                                   String query,
-                                   List<String> queries,
-                                   Map<String, Object> filters,
-                                   String exclusionExpression,
-                                   Integer topK,
-                                   boolean isRerank,
-                                   Integer topN) {
-        VectorStore store = registry.getRequired(indexName);
-        int recallCount = topK == null ? 20 : topK;
-        int rerankCount = topN == null ? recallCount : topN;
-        List<String> searchQueries = searchQueries(query, queries);
+        String indexName = request.getIndexName().trim();
+        List<String> searchQueries = searchQueries(request.getQuery(), request.getQueries());
         if (searchQueries.isEmpty()) {
-            return List.of();
+            throw new IllegalArgumentException("RAG检索query和queries不能同时为空");
+        }
+        String retrievalQuery = hasText(request.getQuery()) ? request.getQuery().trim() : searchQueries.getFirst();
+        Filter filter = toFilter(indexName, request.getFilters());
+
+        List<SearchHit> hits = retrieveService.retrieve(new RagRetrievalCommand(
+                indexName,
+                retrievalQuery,
+                searchQueries,
+                filter,
+                normalizeTopK(request.getTopK()),
+                normalizeTopN(request.getTopN(), request.getTopK())
+        ));
+        log.debug("RAG通用召回完成，indexName: {}, queryCount: {}, filterCount: {}, topK: {}, topN: {}, hitCount: {}",
+                indexName, searchQueries.size(),
+                request.getFilters() == null ? 0 : request.getFilters().size(),
+                normalizeTopK(request.getTopK()), normalizeTopN(request.getTopN(), request.getTopK()), hits.size());
+        return hits;
+    }
+
+    private void validateSearchRequest(SearchRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("RAG检索请求不能为空");
+        }
+        if (!hasText(request.getIndexName())) {
+            throw new IllegalArgumentException("RAG索引名称不能为空");
+        }
+        if (!ragProperties.getIndexes().containsKey(request.getIndexName().trim())) {
+            throw new IllegalArgumentException("未配置的RAG索引: " + request.getIndexName());
+        }
+        if (!hasText(request.getQuery()) && (request.getQueries() == null || request.getQueries().isEmpty())) {
+            throw new IllegalArgumentException("RAG检索query和queries不能同时为空");
+        }
+    }
+
+    private int normalizeTopK(Integer topK) {
+        return topK == null || topK <= 0 ? 20 : topK;
+    }
+
+    private int normalizeTopN(Integer topN, Integer topK) {
+        int normalizedTopK = normalizeTopK(topK);
+        return topN == null || topN <= 0 ? normalizedTopK : topN;
+    }
+
+    private Filter toFilter(String indexName, List<SearchFilter> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return null;
         }
 
-        String filterExpression = filterExpression(filters, exclusionExpression);
-        Map<String, Document> documentMap = new LinkedHashMap<>();
-        for (String searchQuery : searchQueries) {
-            SearchRequest.Builder builder = SearchRequest.builder()
-                    .query(searchQuery)
-                    .topK(recallCount);
-            if (filterExpression != null) {
-                builder.filterExpression(filterExpression);
-            }
-            List<Document> documents = store.similaritySearch(builder.build());
-            for (Document document : documents) {
-                if (document == null || document.getId() == null) {
-                    continue;
-                }
-                documentMap.putIfAbsent(document.getId(), document);
-            }
-        }
-
-        List<Document> documents = new ArrayList<>(documentMap.values());
-        String rerankQuery = hasText(query) ? query.trim() : String.join("\n", searchQueries);
-        List<Document> finalDocuments = isRerank
-                ? rerankService.rerank(rerankQuery, documents)
-                : documents;
-        return finalDocuments.stream()
-                .limit(rerankCount)
-                .map(this::toSearchHit)
+        List<Filter> converted = filters.stream()
+                .filter(Objects::nonNull)
+                .map(filter -> toLangChainFilter(indexName, filter))
                 .toList();
+        if (converted.isEmpty()) {
+            return null;
+        }
+        if (converted.size() == 1) {
+            return converted.getFirst();
+        }
+
+        Filter result = converted.getFirst();
+        for (int i = 1; i < converted.size(); i++) {
+            result = new And(result, converted.get(i));
+        }
+        return result;
     }
 
-    private Document toSpringDocument(RagDocument document) {
-        Map<String, Object> metadata = document.getMetadata() == null
-                ? new LinkedHashMap<>()
-                : new LinkedHashMap<>(document.getMetadata());
-        return new Document(document.getDocumentId(), document.getContent(), metadata);
+    private Filter toLangChainFilter(String indexName, SearchFilter filter) {
+        validateSearchFilter(indexName, filter);
+        return switch (filter.getOperator()) {
+            case EQ -> new IsEqualTo(filter.getField(), filter.getValue());
+            case NE -> new IsNotEqualTo(filter.getField(), filter.getValue());
+            case IN -> new IsIn(filter.getField(), filter.getValues());
+            case NOT_IN -> new IsNotIn(filter.getField(), filter.getValues());
+            case CONTAINS_STRING -> new ContainsString(filter.getField(), String.valueOf(filter.getValue()));
+            // TAG字段由索引schema决定，业务侧只表达“包含该tag”的意图。
+            case TAG_CONTAINS -> new IsEqualTo(filter.getField(), filter.getValue());
+        };
     }
 
-    private SearchHit toSearchHit(Document document) {
-        SearchHit hit = new SearchHit();
-        hit.setDocumentId(document.getId());
-        hit.setContent(document.getText());
-        hit.setScore(document.getScore() == null ? 0.0 : document.getScore());
-        hit.setMetadata(new LinkedHashMap<>(document.getMetadata()));
-        return hit;
+    private void validateSearchFilter(String indexName, SearchFilter filter) {
+        if (!hasText(filter.getField())) {
+            throw new IllegalArgumentException("RAG检索过滤字段不能为空");
+        }
+        validateMetadataField(filter.getField());
+        RagProperties.Index index = ragProperties.getIndexes().get(indexName);
+        if (!index.getMetadataFields().containsKey(filter.getField())) {
+            throw new IllegalArgumentException("RAG索引未配置过滤字段: " + indexName + "." + filter.getField());
+        }
+        if (filter.getOperator() == null) {
+            throw new IllegalArgumentException("RAG检索过滤操作符不能为空");
+        }
+        switch (filter.getOperator()) {
+            case EQ, NE, TAG_CONTAINS, CONTAINS_STRING -> {
+                if (filter.getValue() == null) {
+                    throw new IllegalArgumentException("RAG检索过滤值不能为空: " + filter.getField());
+                }
+            }
+            case IN, NOT_IN -> {
+                if (filter.getValues() == null || filter.getValues().isEmpty()) {
+                    throw new IllegalArgumentException("RAG检索过滤值列表不能为空: " + filter.getField());
+                }
+            }
+        }
     }
 
     private List<String> searchQueries(String query, List<String> queries) {
@@ -211,25 +270,9 @@ public class RagService implements RagFacade {
         return value != null && !value.isBlank();
     }
 
-    private String filterExpression(Map<String, Object> filters, String exclusionExpression) {
-        if (filters == null || filters.isEmpty()) {
-            return exclusionExpression;
+    private void validateMetadataField(String fieldName) {
+        if (!hasText(fieldName) || !METADATA_FIELD_PATTERN.matcher(fieldName).matches()) {
+            throw new IllegalArgumentException("非法RAG元数据字段名: " + fieldName);
         }
-        String equalityExpression = filters.entrySet().stream()
-                .filter(entry -> entry.getValue() != null)
-                .map(entry -> entry.getKey() + " == " + filterValue(entry.getValue()))
-                .reduce((left, right) -> left + " && " + right)
-                .orElse(null);
-        if (equalityExpression == null) {
-            return exclusionExpression;
-        }
-        return exclusionExpression == null ? equalityExpression : equalityExpression + " && " + exclusionExpression;
-    }
-
-    private String filterValue(Object value) {
-        if (value instanceof Number || value instanceof Boolean) {
-            return String.valueOf(value);
-        }
-        return "'" + String.valueOf(value).replace("'", "\\'") + "'";
     }
 }

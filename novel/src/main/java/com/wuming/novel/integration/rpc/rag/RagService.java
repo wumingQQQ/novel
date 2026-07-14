@@ -3,12 +3,9 @@ package com.wuming.novel.integration.rpc.rag;
 import com.wuming.api.rag.RagFacade;
 import com.wuming.api.rag.dto.DeleteDocumentRequest;
 import com.wuming.api.rag.dto.RagDocument;
-import com.wuming.api.rag.dto.RerankDocumentsRequest;
 import com.wuming.api.rag.dto.SearchHit;
+import com.wuming.api.rag.dto.UpdateDocumentMetadataRequest;
 import com.wuming.api.rag.dto.UpsertDocumentRequest;
-import com.wuming.api.rag.dto.spec.PassageSearchRequest;
-import com.wuming.api.rag.dto.spec.ReactionRuleSearchRequest;
-import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
 import com.wuming.api.rag.dto.spec.SearchRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -16,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -50,61 +48,36 @@ public class RagService {
         return count;
     }
 
-    /**
-     * 将有限候选文档交给 RAG 服务重排序，不触发额外向量召回。
-     *
-     * @param query 相关性查询文本
-     * @param documents 待重排序文档
-     * @return 按相关性降序排列的命中；RAG 降级时返回空列表
-     */
-    public List<SearchHit> rerankDocuments(String query, List<RagDocument> documents) {
-        String normalizedQuery = requireText(query, "query不能为空");
-        if (documents == null || documents.isEmpty()) {
-            return List.of();
+    public int updateDocumentMetadata(String indexName, String documentId, Map<String, Object> metadata) {
+        requireText(indexName, "indexName不能为空");
+        requireText(documentId, "documentId不能为空");
+        if (metadata == null || metadata.isEmpty()) {
+            return 0;
         }
-        RerankDocumentsRequest request = new RerankDocumentsRequest();
-        request.setQuery(normalizedQuery);
-        request.setDocuments(documents);
-        request.setTopN(documents.size());
-        List<SearchHit> hits = ragFacade.rerankDocuments(request);
-        log.debug("RAG有限文档重排序完成，documentCount: {}, hitCount: {}", documents.size(), hits.size());
-        return hits;
+
+        UpdateDocumentMetadataRequest.DocumentMetadataPatch patch =
+                new UpdateDocumentMetadataRequest.DocumentMetadataPatch();
+        patch.setDocumentId(documentId);
+        patch.setMetadata(metadata);
+
+        UpdateDocumentMetadataRequest request = new UpdateDocumentMetadataRequest();
+        request.setIndexName(indexName);
+        request.setPatches(List.of(patch));
+
+        int count = ragFacade.updateDocumentMetadata(request);
+        log.debug("RAG文档元数据更新完成，indexName: {}, documentId: {}, fieldCount: {}, updateCount: {}",
+                indexName, documentId, metadata.size(), count);
+        return count;
     }
 
     public List<SearchHit> search(SearchRequest request) {
         validateParam(request);
 
-        List<SearchHit> hits;
-        switch (request) {
-            case PassageSearchRequest r -> {
-                if (r.getNovelId() == null) {
-                    throw new IllegalArgumentException("novelId不能为null");
-                }
-                hits = ragFacade.searchPassages(r);
-                log.debug("RAG文档召回完成，indexName: {}, novelId: {}, queryCount: {}, topK: {}, topN: {}, rerank: {}, hitCount: {}",
-                        r.getIndexName(), r.getNovelId(), queryCount(r), r.getTopK(), r.getTopN(), r.isRerank(), hits.size());
-            }
-            case RoleExampleSearchRequest r -> {
-                if (r.getCharacterId() == null) {
-                    throw new IllegalArgumentException("characterId不能为null");
-                }
-                hits = ragFacade.searchRoleExamples(r);
-                log.debug("RAG角色样本召回完成，indexName: {}, characterId: {}, queryCount: {}, topK: {}, topN: {}, rerank: {}, hitCount: {}",
-                        r.getIndexName(), r.getCharacterId(), queryCount(r), r.getTopK(), r.getTopN(), r.isRerank(), hits.size());
-            }
-            case ReactionRuleSearchRequest r -> {
-                if (r.getCharacterId() == null) {
-                    throw new IllegalArgumentException("characterId不能为null");
-                }
-                hits = ragFacade.searchReactionRules(r);
-                log.debug("RAG角色反应规则召回完成，indexName: {}, characterId: {}, queryCount: {}, topK: {}, topN: {}, rerank: {}, hitCount: {}",
-                        r.getIndexName(), r.getCharacterId(), queryCount(r), r.getTopK(), r.getTopN(), r.isRerank(), hits.size());
-            }
-            default -> {
-                throw new IllegalArgumentException("不支持的RAG检索请求类型: " + request.getClass().getName());
-            }
-        }
-
+        List<SearchHit> hits = ragFacade.search(request);
+        log.debug("RAG通用召回完成，indexName: {}, queryCount: {}, filterCount: {}, topK: {}, topN: {}, rerank: {}, hitCount: {}",
+                request.getIndexName(), queryCount(request),
+                request.getFilters() == null ? 0 : request.getFilters().size(),
+                request.getTopK(), request.getTopN(), request.isRerank(), hits.size());
         return hits;
     }
 

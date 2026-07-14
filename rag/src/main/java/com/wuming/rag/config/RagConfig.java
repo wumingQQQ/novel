@@ -1,134 +1,126 @@
 package com.wuming.rag.config;
 
-import com.wuming.rag.service.RagVectorStoreRegistry;
-import org.springframework.ai.document.MetadataMode;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.openai.OpenAiEmbeddingModel;
-import org.springframework.ai.openai.OpenAiEmbeddingOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.ai.vectorstore.redis.RedisVectorStore;
-import org.springframework.ai.vectorstore.redis.RedisVectorStore.MetadataField;
+
+import com.wuming.rag.service.EmbeddingStoreRegistry;
+import dev.langchain4j.community.store.embedding.redis.RedisEmbeddingStore;
+import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
+import dev.langchain4j.store.embedding.EmbeddingStore;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import redis.clients.jedis.Connection;
-import redis.clients.jedis.DefaultJedisClientConfig;
-import redis.clients.jedis.HostAndPort;
-import redis.clients.jedis.JedisClientConfig;
-import redis.clients.jedis.JedisPooled;
+import redis.clients.jedis.*;
+import redis.clients.jedis.providers.PooledConnectionProvider;
+import redis.clients.jedis.search.schemafields.NumericField;
+import redis.clients.jedis.search.schemafields.SchemaField;
+import redis.clients.jedis.search.schemafields.TagField;
+import redis.clients.jedis.search.schemafields.TextField;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Configuration
 @EnableConfigurationProperties(RagProperties.class)
+@Slf4j
 public class RagConfig {
 
     @Bean
     public EmbeddingModel embeddingModel(RagProperties properties) {
         RagProperties.Embedding embedding = properties.getEmbedding();
-        OpenAiApi api = OpenAiApi.builder()
+        return OpenAiEmbeddingModel.builder()
                 .baseUrl(embedding.getBaseUrl())
                 .apiKey(embedding.getApiKey())
+                .modelName(embedding.getModel())
+                .dimensions(embedding.getDimensions())
                 .build();
-        OpenAiEmbeddingOptions options = OpenAiEmbeddingOptions.builder()
-                .model(embedding.getModel())
-                .build();
-        return new OpenAiEmbeddingModel(api, MetadataMode.NONE, options);
     }
 
-    @Bean
-    public JedisPooled jedisPooled(RedisProperties redisProperties,
-                                   @Value("${rag.redis.connection-timeout-ms:10000}") int connectionTimeoutMillis,
-                                   @Value("${rag.redis.socket-timeout-ms:60000}") int socketTimeoutMillis,
-                                   @Value("${rag.redis.pool.max-total:32}") int maxTotal,
-                                   @Value("${rag.redis.pool.max-idle:16}") int maxIdle,
-                                   @Value("${rag.redis.pool.min-idle:2}") int minIdle) {
+    @Bean(destroyMethod = "close")
+    public PooledConnectionProvider jedisPooled(RagProperties props,
+                                                @Value("${rag.redis.pool.max-total:32}") int maxTotal,
+                                                @Value("${rag.redis.pool.max-idle:16}") int maxIdle,
+                                                @Value("${rag.redis.pool.min-idle:2}") int minIdle) {
         GenericObjectPoolConfig<Connection> poolConfig = new GenericObjectPoolConfig<>();
         poolConfig.setMaxTotal(maxTotal);
         poolConfig.setMaxIdle(maxIdle);
         poolConfig.setMinIdle(minIdle);
 
-        String password = redisProperties.getPassword();
+        RagProperties.Redis redis = props.getRedis();
+
+        String password = redis.getPassword();
         if (password == null || password.isBlank()) {
             password = null;
         }
+
         JedisClientConfig clientConfig = DefaultJedisClientConfig.builder()
-                .connectionTimeoutMillis(connectionTimeoutMillis)
-                .socketTimeoutMillis(socketTimeoutMillis)
+                .connectionTimeoutMillis(redis.getConnectionTimeoutMs())
+                .socketTimeoutMillis(redis.getSocketTimeoutMs())
                 .password(password)
-                .database(redisProperties.getDatabase())
+                .database(redis.getDatabase())   // rag单独使用数据库
                 .build();
-        return new JedisPooled(
-                new HostAndPort(redisProperties.getHost(), redisProperties.getPort()),
+
+        log.info("RAG Redis连接池初始化，host: {}, port: {}, database: {}, maxTotal: {}, maxIdle: {}, minIdle: {}",
+                redis.getHost(), redis.getPort(), redis.getDatabase(), maxTotal, maxIdle, minIdle);
+
+        return new PooledConnectionProvider(
+                new HostAndPort(redis.getHost(), redis.getPort()),
                 clientConfig,
                 poolConfig
         );
     }
 
-    @Bean
-    public VectorStore novel_passage(JedisPooled jedisPool, EmbeddingModel embeddingModel) {
-        return RedisVectorStore.builder(jedisPool, embeddingModel)
-                .indexName("idx:novel_passage")
-                .prefix("rag:novel_passage:")
-                .initializeSchema(true)
-                .embeddingFieldName("vector")
-                .metadataFields(
-                        MetadataField.numeric("novel_id"),
-                        MetadataField.numeric("chapter_id"),
-                        MetadataField.numeric("passage_id"),
-                        MetadataField.numeric("passage_sequence")
-                )
-                .build();
+    @Bean(destroyMethod = "close")
+    public UnifiedJedis unifiedJedis(PooledConnectionProvider redisConnectionProvider) {
+        return new UnifiedJedis(redisConnectionProvider);
     }
 
+    /**
+     * 将已存在的Embedding store注册
+     */
     @Bean
-    public VectorStore role_example(JedisPooled jedisPool, EmbeddingModel embeddingModel) {
-        return RedisVectorStore.builder(jedisPool, embeddingModel)
-                .indexName("idx:role_example")
-                .prefix("rag:role_example:")
-                .initializeSchema(true)
-                .embeddingFieldName("vector")
-                .metadataFields(
-                        MetadataField.numeric("character_id"),
-                        MetadataField.numeric("example_id"),
-                        MetadataField.numeric("passage_id"),
-                        MetadataField.text("character_name"),
-                        MetadataField.text("sample_type")
-                )
-                .build();
-    }
+    public EmbeddingStoreRegistry registry(RagProperties props, UnifiedJedis unifiedJedis) {
+        EmbeddingStoreRegistry registry = new EmbeddingStoreRegistry();
 
-    @Bean
-    public VectorStore reaction_rule(JedisPooled jedisPool, EmbeddingModel embeddingModel) {
-        return RedisVectorStore.builder(jedisPool, embeddingModel)
-                .indexName("idx:reaction_rule")
-                .prefix("rag:reaction_rule:")
-                .initializeSchema(true)
-                .embeddingFieldName("vector")
-                .metadataFields(
-                        MetadataField.numeric("character_id"),
-                        MetadataField.numeric("rule_id"),
-                        MetadataField.text("character_name"),
-                        MetadataField.text("situation")
-                )
-                .build();
-    }
+        props.getIndexes().forEach((indexName, index) -> {
+            EmbeddingStore<TextSegment> store = RedisEmbeddingStore.builder()
+                    .unifiedJedis(unifiedJedis)
+                    .dimension(props.getEmbedding().getDimensions())
+                    .indexName(index.getPhysicalIndexName())
+                    .prefix(index.getKeyPrefix())
+                    .metadataConfig(toRedisMetadataConfig(index.getMetadataFields()))
+                    .build();
 
-    @Bean
-    public RagVectorStoreRegistry registry(
-            VectorStore novel_passage,
-            VectorStore role_example,
-            VectorStore reaction_rule
-    ){
-        RagVectorStoreRegistry registry = new RagVectorStoreRegistry();
-        registry.registerVectorStore("novel_passage", novel_passage);
-        registry.registerVectorStore("role_example", role_example);
-        registry.registerVectorStore("reaction_rule", reaction_rule);
+            registry.register(indexName, store);
+            log.info("RAG向量索引注册完成，indexName: {}, physicalIndexName: {}, keyPrefix: {}, metadataFieldCount: {}",
+                    indexName, index.getPhysicalIndexName(), index.getKeyPrefix(),
+                    index.getMetadataFields() == null ? 0 : index.getMetadataFields().size());
+        });
 
         return registry;
+    }
+
+    private Map<String, SchemaField> toRedisMetadataConfig(
+            Map<String, RagProperties.MetadataFieldType> metadataFields
+    ) {
+        if (metadataFields == null || metadataFields.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, SchemaField> result = new LinkedHashMap<>();
+        metadataFields.forEach((name, type) -> {
+            SchemaField field = switch (type) {
+                case NUMERIC -> NumericField.of("$." + name).as(name);
+                case TAG -> TagField.of("$." + name).as(name);
+                case TEXT -> TextField.of("$." + name).as(name).weight(1.0);
+            };
+            result.put(name, field);
+        });
+        return result;
     }
 
     @Bean

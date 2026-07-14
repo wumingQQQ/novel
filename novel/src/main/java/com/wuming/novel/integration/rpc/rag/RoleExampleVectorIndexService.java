@@ -3,7 +3,8 @@ package com.wuming.novel.integration.rpc.rag;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.api.rag.dto.RagDocument;
 import com.wuming.api.rag.dto.SearchHit;
-import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
+import com.wuming.api.rag.dto.spec.SearchFilter;
+import com.wuming.api.rag.dto.spec.SearchRequest;
 import com.wuming.novel.domain.entity.RoleExample;
 import com.wuming.novel.infrastructure.mapper.RoleExampleMapper;
 import lombok.RequiredArgsConstructor;
@@ -89,16 +90,27 @@ public class RoleExampleVectorIndexService {
         if (excludedPassageId != null && excludedPassageId <= 0) {
             throw new IllegalArgumentException("excludedPassageId必须为正数");
         }
-        RoleExampleSearchRequest request = new RoleExampleSearchRequest();
+        SearchRequest request = new SearchRequest();
         request.setIndexName(roleExampleIndexName);
-        request.setCharacterId(characterId);
         request.setQuery(query);
         request.setQueries(queries);
+        request.setFilters(roleExampleFilters(characterId, excludedPassageId));
         request.setTopK(topK);
         request.setRerank(rerank);
         request.setTopN(topN);
-        request.setExcludedPassageId(excludedPassageId);
         return ragService.search(request);
+    }
+
+    private List<SearchFilter> roleExampleFilters(Long characterId, Long excludedPassageId) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId不能为空");
+        }
+        List<SearchFilter> filters = new java.util.ArrayList<>();
+        filters.add(SearchFilter.eq("character_id", characterId));
+        if (excludedPassageId != null) {
+            filters.add(SearchFilter.ne("passage_id", excludedPassageId));
+        }
+        return filters;
     }
 
     /**

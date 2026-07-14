@@ -2,8 +2,8 @@ package com.wuming.chat.rag.role;
 
 import com.wuming.api.rag.RagFacade;
 import com.wuming.api.rag.dto.SearchHit;
-import com.wuming.api.rag.dto.spec.ReactionRuleSearchRequest;
-import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
+import com.wuming.api.rag.dto.spec.SearchFilter;
+import com.wuming.api.rag.dto.spec.SearchRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,8 +57,8 @@ public class RoleRuntimeRagService {
         }
 
         long start = System.currentTimeMillis();
-        List<SearchHit> examples = searchRoleExamples(characterId, query);
-        List<SearchHit> rules = searchReactionRules(characterId, query);
+        List<SearchHit> examples = retrieveRoleExamples(characterId, query);
+        List<SearchHit> rules = retrieveReactionRules(characterId, query);
         log.info("角色运行时RAG召回完成，characterId: {}, exampleCount: {}, ruleCount: {}, costMs: {}",
                 characterId, examples.size(), rules.size(), System.currentTimeMillis() - start);
         if (examples.isEmpty() && rules.isEmpty()) {
@@ -67,44 +67,34 @@ public class RoleRuntimeRagService {
         return formatPrompt(examples, rules);
     }
 
-    private List<SearchHit> searchRoleExamples(Long characterId, String query) {
-        RoleExampleSearchRequest request = new RoleExampleSearchRequest();
+    private List<SearchHit> retrieveRoleExamples(Long characterId, String query) {
+        SearchRequest request = new SearchRequest();
         request.setIndexName(roleExampleIndexName);
-        request.setCharacterId(characterId);
         request.setQuery(query);
+        request.setFilters(List.of(SearchFilter.eq("character_id", characterId)));
         request.setTopK(Math.max(1, roleExampleTopK));
         request.setTopN(Math.max(1, roleExampleTopN));
         request.setRerank(true);
-        return safeSearchRoleExamples(request);
+        return safeSearch(request, "角色样本", characterId);
     }
 
-    private List<SearchHit> searchReactionRules(Long characterId, String query) {
-        ReactionRuleSearchRequest request = new ReactionRuleSearchRequest();
+    private List<SearchHit> retrieveReactionRules(Long characterId, String query) {
+        SearchRequest request = new SearchRequest();
         request.setIndexName(reactionRuleIndexName);
-        request.setCharacterId(characterId);
         request.setQuery(query);
+        request.setFilters(List.of(SearchFilter.eq("character_id", characterId)));
         request.setTopK(Math.max(1, reactionRuleTopK));
         request.setTopN(Math.max(1, reactionRuleTopN));
         request.setRerank(true);
-        return safeSearchReactionRules(request);
+        return safeSearch(request, "角色反应规则", characterId);
     }
 
-    private List<SearchHit> safeSearchRoleExamples(RoleExampleSearchRequest request) {
+    private List<SearchHit> safeSearch(SearchRequest request, String scene, Long characterId) {
         try {
-            List<SearchHit> hits = ragFacade.searchRoleExamples(request);
+            List<SearchHit> hits = ragFacade.search(request);
             return hits == null ? List.of() : hits;
         } catch (RuntimeException e) {
-            log.warn("角色样本召回失败，characterId: {}", request.getCharacterId(), e);
-            return List.of();
-        }
-    }
-
-    private List<SearchHit> safeSearchReactionRules(ReactionRuleSearchRequest request) {
-        try {
-            List<SearchHit> hits = ragFacade.searchReactionRules(request);
-            return hits == null ? List.of() : hits;
-        } catch (RuntimeException e) {
-            log.warn("角色反应规则召回失败，characterId: {}", request.getCharacterId(), e);
+            log.warn("{}召回失败，characterId: {}, indexName: {}", scene, characterId, request.getIndexName(), e);
             return List.of();
         }
     }

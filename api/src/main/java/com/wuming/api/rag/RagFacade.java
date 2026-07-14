@@ -1,9 +1,7 @@
 package com.wuming.api.rag;
 
 import com.wuming.api.rag.dto.*;
-import com.wuming.api.rag.dto.spec.PassageSearchRequest;
-import com.wuming.api.rag.dto.spec.ReactionRuleSearchRequest;
-import com.wuming.api.rag.dto.spec.RoleExampleSearchRequest;
+import com.wuming.api.rag.dto.spec.SearchRequest;
 
 import java.util.List;
 
@@ -30,34 +28,18 @@ public interface RagFacade {
     int deleteDocuments(DeleteDocumentRequest request);
 
     /**
-     * 对调用方给定的文档集合按查询相关性执行重排序。
+     * 局部更新指定索引中文档的元数据字段，不重新生成向量。
      *
-     * @param request 待重排序文档及查询
-     * @return 按相关性降序排列的文档命中
+     * @param request 文档元数据更新请求
+     * @return 实际更新的文档数量
      */
-    List<SearchHit> rerankDocuments(RerankDocumentsRequest request);
+    int updateDocumentMetadata(UpdateDocumentMetadataRequest request);
 
     /**
-     * 按小说 ID 检索原文片段。
+     * 按指定索引和元数据过滤条件执行通用向量检索。
      *
-     * @param request 原文片段检索请求
-     * @return 排序后的原文片段命中结果
+     * @param request 通用检索请求
+     * @return 排序后的命中结果
      */
-    List<SearchHit> searchPassages(PassageSearchRequest request);
-
-    /**
-     * 按角色 ID 检索角色样例。
-     *
-     * @param request 角色样例检索请求
-     * @return 排序后的角色样例命中结果
-     */
-    List<SearchHit> searchRoleExamples(RoleExampleSearchRequest request);
-
-    /**
-     * 按角色 ID 检索角色反应规则。
-     *
-     * @param request 反应规则检索请求
-     * @return 排序后的反应规则命中结果
-     */
-    List<SearchHit> searchReactionRules(ReactionRuleSearchRequest request);
+    List<SearchHit> search(SearchRequest request);
 }

@@ -23,8 +23,12 @@ dubbo:
 
 rag:
   redis:
-    connection-timeout-ms: ${RAG_REDIS_CONNECTION_TIMEOUT_MS:10000}
-    socket-timeout-ms: ${RAG_REDIS_SOCKET_TIMEOUT_MS:60000}
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:9379}
+    password: ${REDIS_PWD:}
+    database: 4
+    connection-timeout-ms: 10000
+    socket-timeout-ms: 60000
     pool:
       max-total: ${RAG_REDIS_POOL_MAX_TOTAL:32}
       max-idle: ${RAG_REDIS_POOL_MAX_IDLE:16}
@@ -39,4 +43,30 @@ rag:
     base-url: ${RERANKER_BASE_URL:https://api.siliconflow.cn}
     model: ${RERANKER_MODEL:BAAI/bge-reranker-v2-m3}
     path: ${RERANKER_PATH:/v1/rerank}
-  definition-prefix: ${RAG_DEFINITION_PREFIX:rag:index-definition:}
+  indexes:
+    novel_passage:
+      physical-index-name: "idx:novel_passage"
+      key-prefix: "rag:novel_passage:"
+      metadata-fields:
+        novel_id: NUMERIC
+        chapter_id: NUMERIC
+        passage_id: NUMERIC
+        passage_sequence: NUMERIC
+        character_names: TAG
+    role_example:
+      physical-index-name: "idx:role_example"
+      key-prefix: "rag:role_example:"
+      metadata-fields:
+        character_id: NUMERIC
+        example_id: NUMERIC
+        passage_id: NUMERIC
+        character_name: TEXT
+        sample_type: TEXT
+    reaction_rule:
+      physical-index-name: "idx:reaction_rule"
+      key-prefix: "rag:reaction_rule:"
+      metadata-fields:
+        character_id: NUMERIC
+        rule_id: NUMERIC
+        character_name: TEXT
+        situation: TEXT
