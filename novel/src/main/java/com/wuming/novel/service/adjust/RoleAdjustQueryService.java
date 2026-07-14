@@ -51,7 +51,7 @@ public class RoleAdjustQueryService {
         for (NovelPassage passage : novelPassageMapper.selectBatchIds(passageIds)) passages.put(passage.getId(), passage);
         return passageIds.stream().map(passages::get).filter(Objects::nonNull)
                 .map(passage -> new RoleAdjustEvidenceResponse(passage.getId(), passage.getChapterId(),
-                        passage.getStartParagraph(), passage.getEndParagraph(), passage.getContent())).toList();
+                        passage.getStart(), passage.getEnd(), passage.getContent())).toList();
     }
 
     /**

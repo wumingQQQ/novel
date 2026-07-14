@@ -68,4 +68,4 @@ export interface RoleAdjustReviewResult {
   itemErrors: Array<{ itemId: number | null; message: string }>
 }
 
-export interface RoleAdjustEvidence { passageId: number; chapterId: number; startParagraph: number | null; endParagraph: number | null; content: string }
+export interface RoleAdjustEvidence { passageId: number; chapterId: number; start: number | null; end: number | null; content: string }
