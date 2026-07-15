@@ -4,9 +4,10 @@ import com.wuming.api.rag.RagFacade;
 import com.wuming.api.rag.dto.SearchHit;
 import com.wuming.api.rag.dto.spec.SearchFilter;
 import com.wuming.api.rag.dto.spec.SearchRequest;
+import com.wuming.chat.config.ChatRagProperties;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,7 +17,10 @@ import java.util.List;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class RoleRuntimeRagService {
+
+    private final ChatRagProperties ragProperties;
 
     @DubboReference(
             url = "${chat.rag.url:tri://127.0.0.1:50053}",
@@ -25,24 +29,6 @@ public class RoleRuntimeRagService {
             mock = "com.wuming.api.rag.RagFacadeMock"
     )
     private RagFacade ragFacade;
-
-    @Value("${chat.rag.role-example-index-name:role_example}")
-    private String roleExampleIndexName;
-
-    @Value("${chat.rag.reaction-rule-index-name:reaction_rule}")
-    private String reactionRuleIndexName;
-
-    @Value("${chat.rag.role-example-top-k:10}")
-    private int roleExampleTopK;
-
-    @Value("${chat.rag.role-example-top-n:3}")
-    private int roleExampleTopN;
-
-    @Value("${chat.rag.reaction-rule-top-k:8}")
-    private int reactionRuleTopK;
-
-    @Value("${chat.rag.reaction-rule-top-n:2}")
-    private int reactionRuleTopN;
 
     /**
      * 召回角色样本和反应规则，并拼接为提示词上下文。
@@ -69,23 +55,23 @@ public class RoleRuntimeRagService {
 
     private List<SearchHit> retrieveRoleExamples(Long characterId, String query) {
         SearchRequest request = new SearchRequest();
-        request.setIndexName(roleExampleIndexName);
+        request.setIndexName(ragProperties.getRoleExampleIndexName());
         request.setQuery(query);
         request.setMultiQuery(true);
         request.setFilters(List.of(SearchFilter.eq("character_id", characterId)));
-        request.setTopK(Math.max(1, roleExampleTopK));
-        request.setTopN(Math.max(1, roleExampleTopN));
+        request.setTopK(ragProperties.roleExampleTopK());
+        request.setTopN(ragProperties.roleExampleTopN());
         return safeSearch(request, "角色样本", characterId);
     }
 
     private List<SearchHit> retrieveReactionRules(Long characterId, String query) {
         SearchRequest request = new SearchRequest();
-        request.setIndexName(reactionRuleIndexName);
+        request.setIndexName(ragProperties.getReactionRuleIndexName());
         request.setQuery(query);
         request.setMultiQuery(true);
         request.setFilters(List.of(SearchFilter.eq("character_id", characterId)));
-        request.setTopK(Math.max(1, reactionRuleTopK));
-        request.setTopN(Math.max(1, reactionRuleTopN));
+        request.setTopK(ragProperties.reactionRuleTopK());
+        request.setTopN(ragProperties.reactionRuleTopN());
         return safeSearch(request, "角色反应规则", characterId);
     }
 
