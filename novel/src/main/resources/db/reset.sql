@@ -1,0 +1,15 @@
+truncate table novel_dev.novels;
+truncate table novel_dev.jobs;
+truncate table novel_dev.chapters;
+truncate table novel_dev.novel_preprocesses;
+truncate table novel_dev.novel_passages;
+truncate table novel_dev.role_characters;
+truncate table novel_dev.role_examples;
+truncate table novel_dev.role_profiles;
+truncate table novel_dev.passage_characters;
+truncate table novel_dev.role_adjust_items;
+truncate table novel_dev.role_reaction_rules;
+truncate table novel_dev.role_adjust_evidences;
+truncate table novel_dev.role_adjust_requests;
+truncate table novel_dev.personal_role_track;
+truncate table novel_dev.personal_role_versions;
