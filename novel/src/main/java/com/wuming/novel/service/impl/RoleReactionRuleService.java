@@ -201,7 +201,7 @@ public class RoleReactionRuleService
      * @return 构建成功的规则；证据不足或构建失败时返回null
      */
     private RoleReactionRule buildOneRule(RoleCharacter character, SituationTask task) {
-        List<SearchHit> examples = retrieveExamples(character.getId(), task.situation());
+        List<SearchHit> examples = retrieveExamples(character.getId(), retrievalQuery(character, task));
         if (examples.isEmpty()) {
             log.debug("情境未召回角色样本，characterId: {}, category: {}, situationKey: {}",
                     character.getId(), task.category(), situationKey(task));
@@ -246,9 +246,13 @@ public class RoleReactionRuleService
      * @return 召回到的角色样本
      */
     private List<SearchHit> retrieveExamples(Long characterId, String query) {
+        if (query == null || query.isBlank()) {
+            log.warn("情境反应规则召回跳过，query为空，characterId: {}", characterId);
+            return List.of();
+        }
         return roleExampleVectorIndexService.search(
                         characterId,
-                        query,
+                        query.trim(),
                         true,
                         exampleTopK,
                         exampleTopN
@@ -258,6 +262,27 @@ public class RoleReactionRuleService
                         && hit.getContent() != null
                         && !hit.getContent().isBlank())
                 .toList();
+    }
+
+    /**
+     * 构造情境样本召回查询。
+     *
+     * <p>优先保留情境名称，再补充配置中的触发模式。这样多路改写前的基础query稳定且非空，
+     * 同时能让召回覆盖更多同义场景。</p>
+     */
+    private String retrievalQuery(RoleCharacter character, SituationTask task) {
+        List<String> parts = new java.util.ArrayList<>();
+        if (task.situation() != null && !task.situation().isBlank()) {
+            parts.add(task.situation().trim());
+        }
+        if (task.scenePatterns() != null) {
+            for (String pattern : task.scenePatterns()) {
+                if (pattern != null && !pattern.isBlank()) {
+                    parts.add(pattern.replace("{characterName}", character.getCharacterName()).trim());
+                }
+            }
+        }
+        return String.join("；", parts);
     }
 
     /**

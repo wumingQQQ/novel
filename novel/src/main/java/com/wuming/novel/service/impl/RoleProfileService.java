@@ -236,25 +236,28 @@ public class RoleProfileService
         boolean profileExists = count(new LambdaQueryWrapper<RoleProfile>()
                 .eq(RoleProfile::getCharacterId, characterId)) > 0;
 
-        List<String> reasons = new ArrayList<>();
+        List<String> blockingReasons = new ArrayList<>();
+        List<String> qualityWarnings = new ArrayList<>();
         if (exampleCount < completedMinExamples) {
-            reasons.add("RoleExample数量不足: " + exampleCount + "/" + completedMinExamples);
+            qualityWarnings.add("RoleExample数量不足: " + exampleCount + "/" + completedMinExamples);
         }
         if (interactionCount < completedMinInteractions) {
-            reasons.add("INTERACTION样本数量不足: " + interactionCount + "/" + completedMinInteractions);
+            qualityWarnings.add("INTERACTION样本数量不足: " + interactionCount + "/" + completedMinInteractions);
         }
         if (ruleCount < completedMinRules) {
-            reasons.add("ReactionRule数量不足: " + ruleCount + "/" + completedMinRules);
+            qualityWarnings.add("ReactionRule数量不足: " + ruleCount + "/" + completedMinRules);
         }
         if (!profileExists) {
-            reasons.add(profileError == null || profileError.isBlank() ? "RoleProfile未构建" : profileError);
+            blockingReasons.add(profileError == null || profileError.isBlank() ? "RoleProfile未构建" : profileError);
         }
 
-        if (reasons.isEmpty()) {
+        if (blockingReasons.isEmpty()) {
             character.setBuildStatus(COMPLETED);
-            character.setBuildError(null);
+            character.setBuildError(qualityWarnings.isEmpty() ? null : String.join("；", qualityWarnings));
         } else {
             character.setBuildStatus(INCOMPLETE);
+            List<String> reasons = new ArrayList<>(blockingReasons);
+            reasons.addAll(qualityWarnings);
             character.setBuildError(String.join("；", reasons));
         }
         character.setCompletedTime(LocalDateTime.now());
