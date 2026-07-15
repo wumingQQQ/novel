@@ -31,26 +31,30 @@ public class RoleRuntimeRagService {
     private RagFacade ragFacade;
 
     /**
-     * 召回角色样本和反应规则，并拼接为提示词上下文。
+     * 召回本轮角色回复需要的反应规则和原作样本。
      *
-     * @param characterId 角色id
-     * @param query 用户输入
-     * @return 可注入聊天提示词的上下文
+     * @param characterId 角色主键
+     * @param query 本轮用户输入
+     * @return 结构化角色参考材料
      */
-    public String buildContextPrompt(Long characterId, String query) {
+    public RoleRetrievalSnapshot retrieve(Long characterId, String query) {
         if (characterId == null || query == null || query.isBlank()) {
-            return "";
+            return new RoleRetrievalSnapshot(List.of(), List.of());
         }
 
         long start = System.currentTimeMillis();
         List<SearchHit> examples = retrieveRoleExamples(characterId, query);
         List<SearchHit> rules = retrieveReactionRules(characterId, query);
-        log.info("角色运行时RAG召回完成，characterId: {}, exampleCount: {}, ruleCount: {}, costMs: {}",
-                characterId, examples.size(), rules.size(), System.currentTimeMillis() - start);
-        if (examples.isEmpty() && rules.isEmpty()) {
-            return "";
-        }
-        return formatPrompt(examples, rules);
+
+        log.info(
+                "角色运行时RAG召回完成，characterId: {}, exampleCount: {}, ruleCount: {}, costMs: {}",
+                characterId,
+                examples.size(),
+                rules.size(),
+                System.currentTimeMillis() - start
+        );
+
+        return new RoleRetrievalSnapshot(rules, examples);
     }
 
     private List<SearchHit> retrieveRoleExamples(Long characterId, String query) {
@@ -85,22 +89,4 @@ public class RoleRuntimeRagService {
         }
     }
 
-    private String formatPrompt(List<SearchHit> examples, List<SearchHit> rules) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("【当前可参考的原作资产】\n");
-        builder.append("以下内容只用于学习角色反应方式和说话节奏，不要复述来源，不要提到检索、样本或规则。\n");
-        if (!rules.isEmpty()) {
-            builder.append("\n情境反应规则：\n");
-            for (int i = 0; i < rules.size(); i++) {
-                builder.append(i + 1).append(". ").append(rules.get(i).getContent()).append('\n');
-            }
-        }
-        if (!examples.isEmpty()) {
-            builder.append("\n原作互动样本：\n");
-            for (int i = 0; i < examples.size(); i++) {
-                builder.append(i + 1).append(". ").append(examples.get(i).getContent()).append('\n');
-            }
-        }
-        return builder.toString();
-    }
 }

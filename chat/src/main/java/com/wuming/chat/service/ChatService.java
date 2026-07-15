@@ -78,8 +78,9 @@ public class ChatService {
             long start = System.currentTimeMillis();
             log.info("开始处理聊天消息");
             try {
-                String userContent = saveUserMessageAndReturnContent(session, content);
-                String assistantContent = assistantReplyService.generateCompleteReply(session, userContent);
+                ChatMessage userMessage = saveUserMessage(session, content);
+                String assistantContent = assistantReplyService.generateCompleteReply(
+                        session, userMessage.getId(), userMessage.getContent());
 
                 ChatMessage assistantMessage = saveMessage(
                         sessionId,
@@ -118,8 +119,9 @@ public class ChatService {
             long start = System.currentTimeMillis();
             log.info("开始处理流式聊天消息");
             try {
-                String userContent = saveUserMessageAndReturnContent(session, content);
-                String assistantContent = assistantReplyService.generateStreamingReply(session, userContent, chunkConsumer);
+                ChatMessage userMessage = saveUserMessage(session, content);
+                String assistantContent = assistantReplyService.generateStreamingReply(
+                        session, userMessage.getId(), userMessage.getContent(), chunkConsumer);
                 ChatMessage assistantMessage = saveMessage(sessionId, ChatRole.ASSISTANT.code(), assistantContent);
                 log.info("流式聊天消息处理完成，assistantMessageId: {}, costMs: {}",
                         assistantMessage.getId(), System.currentTimeMillis() - start);
@@ -227,10 +229,9 @@ public class ChatService {
     /**
      * 校验用户输入后立即保存，使后续记忆构建能够读到本轮消息。
      */
-    private String saveUserMessageAndReturnContent(ChatSession session, String content) {
+    private ChatMessage saveUserMessage(ChatSession session, String content) {
         String userContent = requireContent(content);
-        saveMessage(session.getId(), ChatRole.USER.code(), userContent);
-        return userContent;
+        return saveMessage(session.getId(), ChatRole.USER.code(), userContent);
     }
 
     /**

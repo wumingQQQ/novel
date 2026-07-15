@@ -32,13 +32,14 @@ public class ChatMemoryService {
      * 读取本轮可用记忆；达到阈值时先压缩较早消息，再保留最近原文窗口。
      *
      * @param sessionId 聊天会话主键
+     * @param beforeMessageId 本轮用户消息主键，只读取该消息之前的历史
      * @return 可直接注入角色提示词的记忆快照
      */
-    public ChatMemoryContext prepareContext(Long sessionId) {
+    public ChatMemoryContext prepareContext(Long sessionId, Long beforeMessageId) {
         for (int attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
             // 会话中存在的长期记忆与未被长期记忆覆盖的消息
             ChatSessionMemory existingMemory = memoryMapper.selectById(sessionId);
-            List<ChatMessage> uncoveredMessages = loadUncoveredMessages(sessionId, existingMemory);
+            List<ChatMessage> uncoveredMessages = loadUncoveredMessages(sessionId, existingMemory, beforeMessageId);
             if (uncoveredMessages.size() < properties.summaryTrigger()) {
                 return toContext(existingMemory, uncoveredMessages);
             }
@@ -67,18 +68,21 @@ public class ChatMemoryService {
         }
 
         ChatSessionMemory latestMemory = memoryMapper.selectById(sessionId);
-        List<ChatMessage> uncoveredMessages = loadUncoveredMessages(sessionId, latestMemory);
+        List<ChatMessage> uncoveredMessages = loadUncoveredMessages(sessionId, latestMemory, beforeMessageId);
         log.warn("会话长期记忆更新未完成，使用最近原文降级，sessionId: {}", sessionId);
         return fallbackContext(latestMemory, uncoveredMessages);
     }
 
     /** 查询尚未被当前长期摘要覆盖的原始消息。 */
-    private List<ChatMessage> loadUncoveredMessages(Long sessionId, ChatSessionMemory memory) {
+    private List<ChatMessage> loadUncoveredMessages(Long sessionId, ChatSessionMemory memory, Long beforeMessageId) {
         LambdaQueryWrapper<ChatMessage> query = new LambdaQueryWrapper<ChatMessage>()
                 .eq(ChatMessage::getSessionId, sessionId)
                 .orderByAsc(ChatMessage::getId);
         if (memory != null && memory.getCoveredMessageId() != null) {
             query.gt(ChatMessage::getId, memory.getCoveredMessageId());
+        }
+        if (beforeMessageId != null) {
+            query.lt(ChatMessage::getId, beforeMessageId);
         }
         return chatMessageMapper.selectList(query);
     }
