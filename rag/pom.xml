@@ -34,6 +34,17 @@
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-community-redis</artifactId>
             <version>1.10.0-beta18</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>redis.clients</groupId>
+                    <artifactId>jedis</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>redis.clients</groupId>
+            <artifactId>jedis</artifactId>
+            <version>7.1.0</version>
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>

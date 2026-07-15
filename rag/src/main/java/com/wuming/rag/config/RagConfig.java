@@ -38,10 +38,9 @@ public class RagConfig {
     public EmbeddingModel embeddingModel(RagProperties properties) {
         RagProperties.Embedding embedding = properties.getEmbedding();
         return OpenAiEmbeddingModel.builder()
-                .baseUrl(embedding.getBaseUrl())
+                .baseUrl(openAiCompatibleBaseUrl(embedding.getBaseUrl()))
                 .apiKey(embedding.getApiKey())
                 .modelName(embedding.getModel())
-                .dimensions(embedding.getDimensions())
                 .build();
     }
 
@@ -63,7 +62,7 @@ public class RagConfig {
         }
 
         ChatModel chatModel = OpenAiChatModel.builder()
-                .baseUrl(deepSeek.getBaseUrl())
+                .baseUrl(openAiCompatibleBaseUrl(deepSeek.getBaseUrl()))
                 .apiKey(deepSeek.getApiKey())
                 .modelName(deepSeek.getModel())
                 .temperature(llmProperties.getTemperature())
@@ -160,6 +159,28 @@ public class RagConfig {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String openAiCompatibleBaseUrl(String baseUrl) {
+        if (!hasText(baseUrl)) {
+            return baseUrl;
+        }
+        String normalized = baseUrl.trim();
+        String withoutTrailingSlash = normalized.endsWith("/")
+                ? normalized.substring(0, normalized.length() - 1)
+                : normalized;
+        if (withoutTrailingSlash.endsWith("/embeddings")) {
+            withoutTrailingSlash = withoutTrailingSlash.substring(0,
+                    withoutTrailingSlash.length() - "/embeddings".length());
+        }
+        if (withoutTrailingSlash.endsWith("/chat/completions")) {
+            withoutTrailingSlash = withoutTrailingSlash.substring(0,
+                    withoutTrailingSlash.length() - "/chat/completions".length());
+        }
+        if (withoutTrailingSlash.endsWith("/v1")) {
+            return withoutTrailingSlash;
+        }
+        return withoutTrailingSlash + "/v1";
     }
 
     @Bean

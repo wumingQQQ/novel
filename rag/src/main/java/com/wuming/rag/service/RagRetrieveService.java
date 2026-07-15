@@ -32,6 +32,12 @@ public class RagRetrieveService {
     private final RagQueryTransformer queryTransformer;
 
     public List<SearchHit> retrieve(RagRetrievalCommand command){
+        if (command == null) {
+            throw new IllegalArgumentException("RAG检索命令不能为空");
+        }
+        if (command.query() == null || command.query().isBlank()) {
+            throw new IllegalArgumentException("RAG检索query不能为空");
+        }
         EmbeddingStore<TextSegment> store = registry.getRequired(command.indexName());
 
         ContentRetriever retriever = new RagContentRetriever(
@@ -41,7 +47,9 @@ public class RagRetrieveService {
                 command.topK()
         );
 
-        Collection<Query> queries = resolveQueries(command);
+        ResolvedQueries resolvedQueries = resolveQueries(command);
+        Collection<Query> queries = resolvedQueries.retrievalQueries();
+        Query rerankQuery = resolvedQueries.rerankQuery();
 
         Map<Query, Collection<List<Content>>> queryToContents = new LinkedHashMap<>();
         for (Query query : queries) {
@@ -50,6 +58,7 @@ public class RagRetrieveService {
 
         ContentAggregator aggregator = ReRankingContentAggregator.builder()
                 .scoringModel(scoringModel)
+                .querySelector(ignored -> rerankQuery)
                 .maxResults(command.topN())
                 .minScore(0.6)
                 .build();
@@ -57,19 +66,38 @@ public class RagRetrieveService {
         List<SearchHit> hits = aggregator.aggregate(queryToContents).stream()
                 .map(this::toSearchHit)
                 .toList();
-        log.debug("RAG召回聚合完成，indexName: {}, queryCount: {}, topK: {}, topN: {}, hitCount: {}",
-                command.indexName(), queries.size(), command.topK(), command.topN(), hits.size());
+        log.debug("RAG召回聚合完成，indexName: {}, queryCount: {}, rerankQuery: {}, topK: {}, topN: {}, hitCount: {}",
+                command.indexName(), queries.size(), rerankQuery.text(), command.topK(), command.topN(), hits.size());
         return hits;
     }
 
-    private Collection<Query> resolveQueries(RagRetrievalCommand command) {
+    private ResolvedQueries resolveQueries(RagRetrievalCommand command) {
+        String query = command.query().trim();
         Collection<Query> queries = queryTransformer.transform(new RagQueryTransformCommand(
-                command.query(),
+                query,
                 command.multiQuery()
         ));
-        log.debug("RAG查询重写完成，originalQuery: {}, transformedQueryCount: {}",
-                command.query(), queries.size());
-        return queries;
+
+        Query rerankQuery = resolveRerankQuery(command, queries);
+        log.debug("RAG查询重写完成，originalQuery: {}, transformedQueryCount: {}, rerankQuery: {}",
+                query, queries.size(), rerankQuery.text());
+        return new ResolvedQueries(queries, rerankQuery);
+    }
+
+    private Query resolveRerankQuery(RagRetrievalCommand command, Collection<Query> retrievalQueries) {
+        if (!command.multiQuery() && retrievalQueries.size() == 1) {
+            return retrievalQueries.iterator().next();
+        }
+
+        String query = command.query().trim();
+        List<Query> rewrittenQueries = queryTransformer.transform(new RagQueryTransformCommand(
+                query,
+                false
+        ));
+        if (!rewrittenQueries.isEmpty()) {
+            return rewrittenQueries.getFirst();
+        }
+        return Query.from(query);
     }
 
     private SearchHit toSearchHit(Content content) {
@@ -92,5 +120,8 @@ public class RagRetrieveService {
             hit.setScore(number.doubleValue());
         }
         return hit;
+    }
+
+    private record ResolvedQueries(Collection<Query> retrievalQueries, Query rerankQuery) {
     }
 }

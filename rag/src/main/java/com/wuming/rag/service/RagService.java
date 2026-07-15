@@ -137,8 +137,8 @@ public class RagService implements RagFacade {
     public List<SearchHit> search(SearchRequest request) {
         validateSearchRequest(request);
 
-        String indexName = request.getIndexName().trim();
-        String retrievalQuery = request.getQuery().trim();
+        String indexName = requireText(request.getIndexName(), "RAG索引名称不能为空");
+        String retrievalQuery = requireText(request.getQuery(), "RAG检索query不能为空");
         Filter filter = toFilter(indexName, request.getFilters());
 
         List<SearchHit> hits = retrieveService.retrieve(new RagRetrievalCommand(
@@ -205,14 +205,15 @@ public class RagService implements RagFacade {
 
     private Filter toLangChainFilter(String indexName, SearchFilter filter) {
         validateSearchFilter(indexName, filter);
+        String field = filter.getField().trim();
         return switch (filter.getOperator()) {
-            case EQ -> new IsEqualTo(filter.getField(), filter.getValue());
-            case NE -> new IsNotEqualTo(filter.getField(), filter.getValue());
-            case IN -> new IsIn(filter.getField(), filter.getValues());
-            case NOT_IN -> new IsNotIn(filter.getField(), filter.getValues());
-            case CONTAINS_STRING -> new ContainsString(filter.getField(), String.valueOf(filter.getValue()));
+            case EQ -> new IsEqualTo(field, filter.getValue());
+            case NE -> new IsNotEqualTo(field, filter.getValue());
+            case IN -> new IsIn(field, filter.getValues());
+            case NOT_IN -> new IsNotIn(field, filter.getValues());
+            case CONTAINS_STRING -> new ContainsString(field, requireText(String.valueOf(filter.getValue()), "RAG检索文本过滤值不能为空"));
             // TAG字段由索引schema决定，业务侧只表达“包含该tag”的意图。
-            case TAG_CONTAINS -> new IsEqualTo(filter.getField(), filter.getValue());
+            case TAG_CONTAINS -> new IsEqualTo(field, filter.getValue());
         };
     }
 
@@ -238,8 +239,18 @@ public class RagService implements RagFacade {
                 if (filter.getValues() == null || filter.getValues().isEmpty()) {
                     throw new IllegalArgumentException("RAG检索过滤值列表不能为空: " + filter.getField());
                 }
+                if (filter.getValues().stream().anyMatch(Objects::isNull)) {
+                    throw new IllegalArgumentException("RAG检索过滤值列表不能包含空值: " + filter.getField());
+                }
             }
         }
+    }
+
+    private String requireText(String value, String message) {
+        if (!hasText(value)) {
+            throw new IllegalArgumentException(message);
+        }
+        return value.trim();
     }
 
     private boolean hasText(String value) {

@@ -25,10 +25,14 @@ public class LlmRagQueryTransformer implements RagQueryTransformer {
 
     @Override
     public List<Query> transform(RagQueryTransformCommand command) {
-        if (command.multiQuery()) {
-            return multiQuery(command.query());
+        if (command == null || command.query() == null || command.query().isBlank()) {
+            throw new IllegalArgumentException("RAG查询改写query不能为空");
         }
-        return singleQuery(command.query());
+        String query = command.query().trim();
+        if (command.multiQuery()) {
+            return multiQuery(query);
+        }
+        return singleQuery(query);
     }
 
     private List<Query> singleQuery(String query) {
@@ -72,6 +76,9 @@ public class LlmRagQueryTransformer implements RagQueryTransformer {
     }
 
     private String createPrompt(String template, String query) {
+        if (!hasText(template)) {
+            throw new IllegalStateException("RAG查询改写提示词模板为空");
+        }
         return PromptTemplate.from(template)
                 .apply(Map.of(
                         "query", query,

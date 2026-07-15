@@ -33,7 +33,7 @@ rag:
     host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:9379}
     password: ${REDIS_PWD:}
-    database: 4
+    database: 0
     connection-timeout-ms: 10000
     socket-timeout-ms: 60000
     pool:
