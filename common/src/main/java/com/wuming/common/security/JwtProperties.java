@@ -18,6 +18,11 @@ public class JwtProperties {
     private String issuer;
     private String secret;
     private long expiresMinutes = 120;
+    private long refreshExpiresDays = 30;
+    private String refreshCookieName = "refresh_token";
+    private String refreshCookiePath = "/auth";
+    private String refreshCookieSameSite = "Lax";
+    private boolean refreshCookieSecure = false;
 
     public String requireIssuer() {
         if (issuer == null || issuer.isBlank()) {

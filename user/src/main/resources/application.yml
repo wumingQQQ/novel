@@ -52,7 +52,12 @@ auth:
   jwt:
     enabled: ${AUTH_JWT_ENABLED:true}
     secret: ${JWT_SECRET:}
-    expires-minutes: ${JWT_EXPIRES_MINUTES:120}
+    expires-minutes: ${JWT_EXPIRES_MINUTES:60}
+    refresh-expires-days: ${JWT_REFRESH_EXPIRES_DAYS:7}
+    refresh-cookie-name: ${JWT_REFRESH_COOKIE_NAME:refresh_token}
+    refresh-cookie-path: ${JWT_REFRESH_COOKIE_PATH:/auth}
+    refresh-cookie-same-site: ${JWT_REFRESH_COOKIE_SAME_SITE:Lax}
+    refresh-cookie-secure: ${JWT_REFRESH_COOKIE_SECURE:true}
     issuer: ${JWT_ISSUER:https://novel-latest.local}
 
 user:

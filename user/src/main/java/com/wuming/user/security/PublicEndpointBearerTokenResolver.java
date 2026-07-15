@@ -11,7 +11,7 @@ import java.util.Set;
  */
 public final class PublicEndpointBearerTokenResolver implements BearerTokenResolver {
 
-    private static final Set<String> PUBLIC_PATHS = Set.of("/auth/login", "/auth/register");
+    private static final Set<String> PUBLIC_PATHS = Set.of("/auth/login", "/auth/register", "/auth/refresh", "/auth/logout");
 
     private final BearerTokenResolver delegate = new DefaultBearerTokenResolver();
 

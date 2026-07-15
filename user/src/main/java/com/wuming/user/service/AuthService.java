@@ -12,12 +12,14 @@ import com.wuming.user.domain.entity.User;
 import com.wuming.user.domain.enums.UserStatus;
 import com.wuming.user.infrastructure.mapper.UserMapper;
 import com.wuming.user.security.JwtTokenService;
+import com.wuming.user.security.RefreshTokenIssue;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -27,6 +29,7 @@ public class AuthService {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
+    private final UserRefreshTokenService refreshTokenService;
     private final JwtProperties properties;
 
     /**
@@ -49,12 +52,31 @@ public class AuthService {
         if(!UserStatus.ACTIVE.name().equals(user.getStatus())){
             throw new BusinessException(ErrorCode.USER_DISABLED, "用户不可用");
         }
-        String token = jwtTokenService.createAccessToken(user);
-        return new LoginResponse(
-                token,
-                "Bearer",
-                properties.getExpiresMinutes() * 60
-        );
+        return issueLoginResponse(user);
+    }
+
+    /**
+     * 使用有效刷新令牌换取新的访问令牌和刷新令牌。
+     */
+    @Transactional
+    public LoginResponse refresh(String refreshToken) {
+        Long userId = refreshTokenService.consume(refreshToken);
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND, "用户不存在: " + userId);
+        }
+        if(!UserStatus.ACTIVE.name().equals(user.getStatus())){
+            throw new BusinessException(ErrorCode.USER_DISABLED, "用户不可用");
+        }
+        return issueLoginResponse(user);
+    }
+
+    /**
+     * 吊销当前客户端持有的刷新令牌。
+     */
+    @Transactional
+    public void logout(String refreshToken) {
+        refreshTokenService.revoke(refreshToken);
     }
 
     private User findByAccount(String account){
@@ -81,6 +103,18 @@ public class AuthService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "用户未登录");
         }
         return Long.valueOf(jwt.getSubject());
+    }
+
+    private LoginResponse issueLoginResponse(User user) {
+        String accessToken = jwtTokenService.createAccessToken(user);
+        RefreshTokenIssue refreshToken = refreshTokenService.issue(user.getId());
+        return new LoginResponse(
+                accessToken,
+                refreshToken.token(),
+                "Bearer",
+                properties.getExpiresMinutes() * 60,
+                properties.getRefreshExpiresDays() * 24 * 60 * 60
+        );
     }
 
 }
