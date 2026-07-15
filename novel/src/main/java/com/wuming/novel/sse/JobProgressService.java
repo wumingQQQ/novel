@@ -49,7 +49,10 @@ public class JobProgressService {
      * 初始化任务进度，并立即写入本地缓存、Redis 和当前 SSE 订阅。
      */
     public void initJob(Long jobId) {
-        JobProgress progress = JobProgress.initJob(jobId);
+        JobProgress progress = getProgress(jobId);
+        if (progress == null) {
+            progress = JobProgress.initJob(jobId);
+        }
         jobProgressMap.put(jobId, progress);
         jobProgressStore.save(progress);
         pushUpdateNow(jobId, progress);
@@ -77,14 +80,11 @@ public class JobProgressService {
     }
 
     /**
-     * 标记已跳过阶段完成；计数阶段没有可恢复子项明细时展示为0/0完成。
+     * 标记已跳过阶段完成；重跑任务时保留已完成计数阶段的历史计数展示。
      */
     public void completeSkippedStage(Long jobId, JobStage stage, String message) {
         updateAndPush(jobId, progress -> {
             StageProgress stageProgress = progress.getStage(stage);
-            if (stageProgress.isCounted()) {
-                stageProgress.resetItemCounts(0, 0, 0);
-            }
             stageProgress.complete(message);
             progress.touch();
         });

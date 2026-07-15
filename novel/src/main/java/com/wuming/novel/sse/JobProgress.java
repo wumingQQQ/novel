@@ -48,8 +48,9 @@ public class JobProgress {
      * 将任务从待运行标记为运行中；重复调用不会覆盖已有运行状态。
      */
     public void startJob(){
-        if(state == TaskState.PENDING){
+        if(state == TaskState.PENDING || state == TaskState.FAILED){
             markRunning();
+            endTime = null;
             touch();
         }
     }

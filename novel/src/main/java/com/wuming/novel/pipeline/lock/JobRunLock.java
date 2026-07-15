@@ -43,6 +43,13 @@ public class JobRunLock {
         stringRedisTemplate.execute(RELEASE_SCRIPT, List.of(lockKey(jobId)), runId);
     }
 
+    /**
+     * 服务重启恢复时清理悬挂运行锁；此时原后台线程已经不存在，不需要校验runId。
+     */
+    public void forceRelease(Long jobId) {
+        stringRedisTemplate.delete(lockKey(jobId));
+    }
+
     private String lockKey(Long jobId) {
         return "job:" + jobId + ":running";
     }
