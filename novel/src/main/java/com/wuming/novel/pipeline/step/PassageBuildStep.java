@@ -64,16 +64,13 @@ public class PassageBuildStep implements PipelineStep {
 
         // Passage替换会同时改写多个二级索引，按章节串行执行以避免同一小说内的事务死锁。
         List<ChapterPassages> persistedChapters = persistPassages(jobId, job, chapters);
-        int successCount = asyncStageItemRunner.run(
-                        persistedChapters,
-                        llmExecutor,
-                        chapterPassages -> recognizeCharacters(chapterPassages.passages()),
-                        (chapterPassages, throwable) -> finishOneChapter(
-                                jobId, job, chapterPassages.chapter(), throwable)
-                )
-                .stream()
-                .mapToInt(success -> success ? 1 : 0)
-                .sum();
+        int successCount = persistedChapters.size();
+        asyncStageItemRunner.run(
+                persistedChapters,
+                llmExecutor,
+                chapterPassages -> recognizeCharacters(chapterPassages.passages()),
+                (chapterPassages, throwable) -> finishCharacterRecognition(job, chapterPassages.chapter(), throwable)
+        );
         log.info("小说Passage构建执行完成，jobId: {}, novelId: {}, requestCount: {}, successCount: {}",
                 job.getId(), job.getNovelId(), chapters.size(), successCount);
         if (successCount != chapters.size()) {
@@ -89,8 +86,9 @@ public class PassageBuildStep implements PipelineStep {
         List<ChapterPassages> persistedChapters = new ArrayList<>(chapters.size());
         for (Chapter chapter : chapters) {
             try {
-                persistedChapters.add(new ChapterPassages(chapter,
-                        novelPassageService.splitPassage(job.getId(), chapter.getId())));
+                List<NovelPassage> passages = novelPassageService.splitPassage(job.getId(), chapter.getId());
+                finishOneChapter(jobId, job, chapter, null);
+                persistedChapters.add(new ChapterPassages(chapter, passages));
             } catch (RuntimeException e) {
                 finishOneChapter(jobId, job, chapter, e);
             }
@@ -106,7 +104,23 @@ public class PassageBuildStep implements PipelineStep {
     }
 
     /**
-     * 完成单章Passage构建子任务收尾，统一记录检查点和进度。
+     * 人物识别只是 Passage 构建后的补充标签同步，不参与本阶段进度计数。
+     */
+    private boolean finishCharacterRecognition(Job job, Chapter chapter, Throwable throwable) {
+        if (throwable == null) {
+            return true;
+        }
+        Throwable cause = pipelineJobSupport.rootCause(throwable);
+        log.warn("章节Passage人物识别失败，已忽略进度影响，jobId: {}, novelId: {}, chapterId: {}, errorType: {}, errorMessage: {}",
+                job.getId(), job.getNovelId(), chapter.getId(),
+                cause.getClass().getSimpleName(), cause.getMessage());
+        log.debug("章节Passage人物识别失败堆栈，jobId: {}, novelId: {}, chapterId: {}",
+                job.getId(), job.getNovelId(), chapter.getId(), throwable);
+        return false;
+    }
+
+    /**
+     * 完成单章Passage切分和向量索引收尾，统一记录检查点和进度。
      */
     private boolean finishOneChapter(Long jobId, Job job, Chapter chapter, Throwable throwable) {
         if (throwable == null) {
