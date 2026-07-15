@@ -2,6 +2,7 @@ package com.wuming.chat.service.reply;
 
 import com.wuming.api.role.dto.RoleRuntimeContextDto;
 import com.wuming.chat.domain.entity.ChatSession;
+import com.wuming.chat.domain.enums.ChatRole;
 import com.wuming.chat.domain.model.ChatHistoryMessage;
 import com.wuming.chat.domain.model.ChatMemoryContext;
 import com.wuming.chat.exception.ChatStreamClientClosedException;
@@ -30,8 +31,6 @@ import java.util.stream.Stream;
 @Service
 @RequiredArgsConstructor
 public class ChatAssistantReplyService {
-    private static final String ROLE_USER = "user";
-    private static final String ROLE_ASSISTANT = "assistant";
 
     private final ChatMemoryService chatMemoryService;
     private final RoleRuntimeContextService roleRuntimeContextService;
@@ -164,9 +163,9 @@ public class ChatAssistantReplyService {
         List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(buildSystemContext(request.systemPrompt(), memoryContext.summaryContent(), request.ragPrompt())));
         for (ChatHistoryMessage message : memoryContext.recentMessages()) {
-            if (ROLE_USER.equals(message.role())) {
+            if (ChatRole.USER.matches(message.role())) {
                 messages.add(new UserMessage(message.content()));
-            } else if (ROLE_ASSISTANT.equals(message.role())) {
+            } else if (ChatRole.ASSISTANT.matches(message.role())) {
                 messages.add(new AssistantMessage(message.content()));
             }
         }

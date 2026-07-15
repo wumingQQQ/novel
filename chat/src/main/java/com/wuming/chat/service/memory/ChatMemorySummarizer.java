@@ -1,5 +1,6 @@
 package com.wuming.chat.service.memory;
 
+import com.wuming.chat.domain.enums.ChatRole;
 import com.wuming.chat.domain.model.ChatHistoryMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
@@ -52,7 +53,7 @@ public class ChatMemorySummarizer {
                 .append(existingSummary == null || existingSummary.isBlank() ? "无" : existingSummary)
                 .append("\n\n【待整理的原始对话】\n");
         for (ChatHistoryMessage message : messages) {
-            String speaker = "user".equals(message.role()) ? "用户" : "角色";
+            String speaker = ChatRole.USER.matches(message.role()) ? "用户" : "角色";
             builder.append(speaker).append("：").append(message.content()).append('\n');
         }
         return builder.toString();

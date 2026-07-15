@@ -9,6 +9,8 @@ import com.wuming.chat.domain.dto.SendChatMessageResponse;
 import com.wuming.chat.domain.dto.ChatSessionSummary;
 import com.wuming.chat.domain.entity.ChatMessage;
 import com.wuming.chat.domain.entity.ChatSession;
+import com.wuming.chat.domain.enums.ChatRole;
+import com.wuming.chat.domain.enums.ChatSessionStatus;
 import com.wuming.chat.exception.ChatStreamClientClosedException;
 import com.wuming.chat.integration.rpc.role.RoleRuntimeContextService;
 import com.wuming.chat.infrastructure.mapper.ChatMessageMapper;
@@ -29,10 +31,6 @@ import java.util.function.Predicate;
 @Service
 @RequiredArgsConstructor
 public class ChatService {
-    private static final String ROLE_USER = "user";
-    private static final String ROLE_ASSISTANT = "assistant";
-    private static final String SESSION_ACTIVE = "ACTIVE";
-
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
     private final ChatMessageCacheService chatMessageCacheService;
@@ -85,7 +83,7 @@ public class ChatService {
 
                 ChatMessage assistantMessage = saveMessage(
                         sessionId,
-                        ROLE_ASSISTANT,
+                        ChatRole.ASSISTANT.code(),
                         assistantContent
                 );
                 log.info("聊天消息处理完成，assistantMessageId: {}, costMs: {}",
@@ -122,7 +120,7 @@ public class ChatService {
             try {
                 String userContent = saveUserMessageAndReturnContent(session, content);
                 String assistantContent = assistantReplyService.generateStreamingReply(session, userContent, chunkConsumer);
-                ChatMessage assistantMessage = saveMessage(sessionId, ROLE_ASSISTANT, assistantContent);
+                ChatMessage assistantMessage = saveMessage(sessionId, ChatRole.ASSISTANT.code(), assistantContent);
                 log.info("流式聊天消息处理完成，assistantMessageId: {}, costMs: {}",
                         assistantMessage.getId(), System.currentTimeMillis() - start);
             } catch (ChatStreamClientClosedException e) {
@@ -185,7 +183,7 @@ public class ChatService {
         session.setUserId(userId);
         session.setCharacterId(runtimeContext.getCharacterId());
         session.setUserRoleVersionId(userRoleVersionId);
-        session.setStatus(SESSION_ACTIVE);
+        session.setStatus(ChatSessionStatus.ACTIVE.code());
         chatSessionMapper.insert(session);
         return session.getId();
     }
@@ -231,7 +229,7 @@ public class ChatService {
      */
     private String saveUserMessageAndReturnContent(ChatSession session, String content) {
         String userContent = requireContent(content);
-        saveMessage(session.getId(), ROLE_USER, userContent);
+        saveMessage(session.getId(), ChatRole.USER.code(), userContent);
         return userContent;
     }
 
@@ -246,7 +244,7 @@ public class ChatService {
             throw new IllegalArgumentException("userId不能为空");
         }
         ChatSession session = chatSessionMapper.selectById(sessionId);
-        if (session == null || !SESSION_ACTIVE.equals(session.getStatus())) {
+        if (session == null || !ChatSessionStatus.ACTIVE.matches(session.getStatus())) {
             throw new BusinessException(
                     ErrorCode.CHAT_SESSION_NOT_FOUND,
                     "聊天会话不存在或不可用: " + sessionId
