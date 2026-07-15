@@ -9,13 +9,21 @@ function formatDate(value: string | null) {
   if (!value) return '已完成构建'
   return new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' }).format(new Date(value))
 }
+
+/** 卡片只展示角色侧影摘要，完整介绍留在详情页阅读。 */
+function briefIntroduction(value: string, featured?: boolean) {
+  const text = value?.trim()
+  if (!text) return '公开侧影待完善。'
+  const limit = featured ? 56 : 34
+  return text.length > limit ? `${text.slice(0, limit)}…` : text
+}
 </script>
 
 <template>
   <RouterLink :class="['role-card', { featured }]" :to="`/roles/${role.id}`">
     <div class="card-portrait" aria-hidden="true"><span>{{ role.characterName.slice(0, 1) }}</span></div>
     <div class="card-copy">
-      <p class="novel-name">{{ role.novelName || '未知作品' }}</p><h3>{{ role.characterName }}</h3><p class="introduction">{{ role.introduction }}</p>
+      <p class="novel-name">{{ role.novelName || '未知作品' }}</p><h3>{{ role.characterName }}</h3><p class="introduction">{{ briefIntroduction(role.introduction, featured) }}</p>
       <div class="role-meta"><span>{{ role.exampleCount }} 段互动素材</span><span>{{ role.ruleCount }} 条角色线索</span></div>
       <span class="view-link">查看角色 <el-icon><ArrowRight /></el-icon></span>
     </div>
