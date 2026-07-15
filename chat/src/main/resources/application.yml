@@ -31,7 +31,7 @@ dubbo:
 chat:
   sse:
     timeout: ${CHAT_SSE_TIMEOUT:10m}
-    max-concurrent-streams: ${CHAT_SSE_MAX_CONCURRENT_STREAMS:32}
+    max-concurrent-streams: ${CHAT_SSE_MAX_CONCURRENT_STREAMS:64}
   memory:
     recent-message-limit: ${CHAT_MEMORY_RECENT_MESSAGE_LIMIT:16}
     summary-trigger-message-count: ${CHAT_MEMORY_SUMMARY_TRIGGER_MESSAGE_COUNT:24}

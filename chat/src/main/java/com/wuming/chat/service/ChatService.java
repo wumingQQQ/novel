@@ -2,6 +2,7 @@ package com.wuming.chat.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wuming.api.role.dto.RoleRuntimeContextDto;
+import com.wuming.chat.service.concurrency.ChatSessionExecutionGuard;
 import com.wuming.common.exception.BusinessException;
 import com.wuming.common.exception.ErrorCode;
 import com.wuming.api.user.dto.UserResultDto;
@@ -37,6 +38,7 @@ public class ChatService {
     private final RoleRuntimeContextService roleRuntimeContextService;
     private final UserContextService userContextService;
     private final ChatAssistantReplyService assistantReplyService;
+    private final ChatSessionExecutionGuard sessionExecutionGuard;
 
     /**
      * 创建公共基线或用户个人版本绑定的聊天会话。
@@ -74,7 +76,8 @@ public class ChatService {
     public SendChatMessageResponse sendMessageWithCompleteReply(Long userId, Long sessionId, String content) {
         ChatSession session = requireOwnedSession(sessionId, userId);
         try (TraceContext.MdcScope ignoredSession = TraceContext.putSessionId(sessionId);
-             TraceContext.MdcScope ignoredUser = TraceContext.putUserId(session.getUserId())) {
+             TraceContext.MdcScope ignoredUser = TraceContext.putUserId(session.getUserId());
+             ChatSessionExecutionGuard.Lease ignored = sessionExecutionGuard.acquire(sessionId)) {
             long start = System.currentTimeMillis();
             log.info("开始处理聊天消息");
             try {
@@ -115,7 +118,8 @@ public class ChatService {
                                               Predicate<String> chunkConsumer) {
         ChatSession session = requireOwnedSession(sessionId, userId);
         try (TraceContext.MdcScope ignoredSession = TraceContext.putSessionId(sessionId);
-             TraceContext.MdcScope ignoredUser = TraceContext.putUserId(session.getUserId())) {
+             TraceContext.MdcScope ignoredUser = TraceContext.putUserId(session.getUserId());
+             ChatSessionExecutionGuard.Lease ignored = sessionExecutionGuard.acquire(sessionId)) {
             long start = System.currentTimeMillis();
             log.info("开始处理流式聊天消息");
             try {

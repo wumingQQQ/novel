@@ -1,6 +1,7 @@
 package com.wuming.chat.sse;
 
 import com.wuming.chat.config.ChatSseProperties;
+import com.wuming.chat.exception.ChatSessionBusyException;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -68,6 +69,11 @@ public class ChatSseEmitterService {
         try {
             task.accept(session);
             session.complete();
+        } catch (ChatSessionBusyException e) {
+            if (!session.isClosed()) {
+                session.send("error", e.getMessage());
+                session.complete();
+            }
         } catch (Exception e) {
             if (session.isClosed()) {
                 log.debug("聊天SSE任务结束时连接已关闭，跳过错误事件发送");

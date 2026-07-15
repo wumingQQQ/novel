@@ -12,7 +12,7 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "chat.sse")
 public class ChatSseProperties {
     private Duration timeout = Duration.ofMinutes(10);
-    private int maxConcurrentStreams = 32;
+    private int maxConcurrentStreams = 64;
 
     /** 返回至少一毫秒的 SSE 超时时间。 */
     public long timeoutMillis() {

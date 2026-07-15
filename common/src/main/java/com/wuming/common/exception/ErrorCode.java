@@ -35,6 +35,7 @@ public enum ErrorCode {
     CHAT_SESSION_NOT_FOUND(43000, "聊天会话不存在"),
     CHAT_MESSAGE_EMPTY(43001, "聊天消息不能为空"),
     PROFILE_CONTEXT_NOT_FOUND(43002, "角色画像不存在"),
+    CHAT_SESSION_BUSY(43003, "当前会话正在生成回复，请稍后再试"),
     RAG_RECALL_FAILED(43100, "rag召回失败"),
 
 
