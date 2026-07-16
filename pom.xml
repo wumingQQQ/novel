@@ -31,7 +31,7 @@
         <rocketmq.version>2.3.6</rocketmq.version>
         <spring-ai.version>1.1.7</spring-ai.version>
         <mybatis-plus.version>3.5.10</mybatis-plus.version>
-        <langchain4j.version>1.8.0</langchain4j.version>
+        <langchain4j.version>1.10.0</langchain4j.version>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- 生成报告的编码（如 Javadoc） -->
