@@ -17,9 +17,7 @@ import com.wuming.novel.service.INovelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,37 +37,42 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
     private final INovelService novelService;
     private final NovelPassageVectorIndexService passageVectorIndexService;
     private final PassageSplitStrategyRouter passageSplitStrategyRouter;
+    private final TransactionTemplate transactionTemplate;
 
     /**
-     * 按章节内容切分单章Passage，替换该章节旧Passage，并在事务提交后同步刷新向量索引。
+     * 按章节内容切分单章Passage，替换该章节旧Passage，并在事务外同步刷新向量索引。
      *
      * @param jobId 任务id
      * @param chapterId 章节id
      * @return 本次切分后保存的新Passage列表
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<NovelPassage> splitPassage(Long jobId, Long chapterId) {
         Chapter chapter = chapterService.getById(chapterId);
         if (chapter == null) {
             throw new IllegalArgumentException("章节不存在: " + chapterId);
         }
-        List<Long> oldPassageIds = cleanOldPassages(chapterId);
 
-        List<NovelPassage> passages = splitOneChapter(chapter);
+        PersistedPassages persisted = transactionTemplate.execute(status -> {
+            List<Long> oldIds = cleanOldPassages(chapterId);
+            List<NovelPassage> newPassages = splitOneChapter(chapter);
+            if (!newPassages.isEmpty()) {
+                saveBatch(newPassages);
+            }
+            return new PersistedPassages(oldIds, newPassages);
+        });
+
+        syncPassageIndex(jobId, chapter, persisted.oldPassageIds(),
+                persisted.passages().stream().map(NovelPassage::getId).toList());
+
+        List<NovelPassage> passages = persisted.passages();
         if (passages.isEmpty()) {
-            syncPassageIndexAfterCommit(jobId, chapter, oldPassageIds, List.of());
             log.debug("章节没有可切分的Passage，jobId: {}, novelId: {}, chapterId: {}",
                     jobId, chapter.getNovelId(), chapterId);
-            return List.of();
+        } else {
+            log.debug("章节Passage处理完成，jobId: {}, novelId: {}, chapterId: {}, passageCount: {}",
+                    jobId, chapter.getNovelId(), chapterId, passages.size());
         }
-
-        saveBatch(passages);
-        syncPassageIndexAfterCommit(jobId, chapter, oldPassageIds, passages.stream()
-                .map(NovelPassage::getId)
-                .toList());
-        log.debug("章节Passage处理完成，jobId: {}, novelId: {}, chapterId: {}, passageCount: {}",
-                jobId, chapter.getNovelId(), chapterId, passages.size());
         return passages;
     }
 
@@ -148,30 +151,6 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
     }
 
     /**
-     * 在事务提交后同步刷新Passage向量索引。
-     *
-     * @param jobId 任务id
-     * @param chapter 章节实体
-     * @param oldPassageIds 待删除向量的旧Passage id
-     * @param passageIds 待写入向量的新Passage id
-     */
-    private void syncPassageIndexAfterCommit(Long jobId,
-                                             Chapter chapter,
-                                             List<Long> oldPassageIds,
-                                             List<Long> passageIds) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    syncPassageIndex(jobId, chapter, oldPassageIds, passageIds);
-                }
-            });
-            return;
-        }
-        syncPassageIndex(jobId, chapter, oldPassageIds, passageIds);
-    }
-
-    /**
      * 删除旧Passage向量并写入新Passage向量。
      *
      * @param jobId 任务id
@@ -198,6 +177,12 @@ public class NovelPassageService extends ServiceImpl<NovelPassageMapper, NovelPa
         if (result < 0) {
             throw new IllegalStateException(action + "失败：RAG服务降级");
         }
+    }
+
+    /**
+     * 事务内持久化结果，用于事务外同步向量索引。
+     */
+    private record PersistedPassages(List<Long> oldPassageIds, List<NovelPassage> passages) {
     }
 
 }

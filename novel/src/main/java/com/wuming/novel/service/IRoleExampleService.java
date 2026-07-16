@@ -11,15 +11,6 @@ import java.util.List;
 public interface IRoleExampleService extends IService<RoleExample> {
 
     /**
-     * 为指定小说角色抽取原作样本，替换该角色旧样本，并在事务提交后同步刷新样本向量索引。
-     *
-     * @param novelId 小说id
-     * @param characterName 角色名称
-     * @return 样本抽取结果
-     */
-    ExtractExamplesResult extractExamples(Long novelId, String characterName);
-
-    /**
      * 准备角色样本抽取阶段，确保角色存在并标记为构建中。
      *
      * @param novelId 小说id

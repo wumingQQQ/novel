@@ -1,7 +1,6 @@
 package com.wuming.novel.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.wuming.novel.domain.entity.RoleCharacter;
 import com.wuming.novel.domain.entity.RoleProfile;
 
 /**
@@ -16,13 +15,4 @@ public interface IRoleProfileService extends IService<RoleProfile> {
      * @return 是否成功保存画像
      */
     boolean buildProfile(Long characterId);
-
-    /**
-     * 保存画像构建结果，并刷新角色可用状态。
-     *
-     * @param character 角色
-     * @param profile 画像，为空时只刷新失败状态
-     * @param profileError 画像构建错误
-     */
-    void persistProfileBuildResult(RoleCharacter character, RoleProfile profile, String profileError);
 }

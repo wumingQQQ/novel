@@ -12,9 +12,8 @@ import com.wuming.novel.service.IPassageCharacterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,10 +35,7 @@ public class PassageCharacterService
     private final PromptTemplateRenderer renderer;
     private final LlmConcurrencyLimiter llmConcurrencyLimiter;
     private final NovelPassageVectorIndexService novelPassageVectorIndexService;
-
-    @Lazy
-    @Autowired
-    private PassageCharacterService self;
+    private final TransactionTemplate transactionTemplate;
 
     /**
      * 识别 Passage 中出场人物，并保存 Passage 与人物映射。
@@ -54,11 +50,13 @@ public class PassageCharacterService
         List<PassageCharacter> passageCharacters = new ArrayList<>();
         for (NovelPassage passage : passages) {
             List<String> characterNames = recognizeOnePassage(passage);
-            passageCharacters.addAll(passageCharacter(passage.getId(), characterNames));
+            passageCharacters.addAll(characterNames.stream()
+                    .map(name -> new PassageCharacter(passage.getId(), name))
+                    .toList());
             updatePassageCharacterTag(passage, characterNames);
         }
         if (!passageCharacters.isEmpty()) {
-            self.saveBatch(passageCharacters);
+            transactionTemplate.executeWithoutResult(status -> saveBatch(passageCharacters));
         }
         log.debug("Passage人物识别完成，passageCount: {}, mappingCount: {}",
                 passages.size(), passageCharacters.size());
@@ -98,12 +96,6 @@ public class PassageCharacterService
                 .map(String::trim)
                 .filter(name -> !name.isBlank())
                 .distinct()
-                .toList();
-    }
-
-    private List<PassageCharacter> passageCharacter(Long passageId, List<String> characterName) {
-        return characterName.stream()
-                .map(name -> new PassageCharacter(passageId, name))
                 .toList();
     }
 

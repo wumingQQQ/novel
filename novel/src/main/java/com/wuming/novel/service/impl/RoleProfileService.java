@@ -17,11 +17,9 @@ import com.wuming.novel.service.IRoleReactionRuleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -52,9 +50,7 @@ public class RoleProfileService
     private final ChatClient chatClient;
     private final PromptTemplateRenderer renderer;
     private final LlmConcurrencyLimiter llmConcurrencyLimiter;
-    @Lazy
-    @Autowired
-    private IRoleProfileService self;
+    private final TransactionTemplate transactionTemplate;
 
     @Value("${novel.role-profile.min-example-confidence:0.8}")
     private double minExampleConfidence;
@@ -86,7 +82,7 @@ public class RoleProfileService
 
         List<RoleExample> examples = profileExamples(characterId);
         if (examples.isEmpty()) {
-            self.persistProfileBuildResult(character, null, "没有足够的高置信角色样本用于构建Profile");
+            persistProfileBuildResult(character, null, "没有足够的高置信角色样本用于构建Profile");
             log.debug("角色画像构建跳过，characterId: {}, reason: {}", characterId, "没有足够的高置信角色样本");
             return false;
         }
@@ -96,14 +92,14 @@ public class RoleProfileService
                 characterId, character.getCharacterName(), examples.size(), rules.size());
         RoleProfileBuildResult result = llmConcurrencyLimiter.execute(() -> buildProfileByLlm(character, examples, rules));
         if (!isValidProfileResult(result)) {
-            self.persistProfileBuildResult(character, null, "Profile构建失败或置信度不足");
+            persistProfileBuildResult(character, null, "Profile构建失败或置信度不足");
             log.info("角色画像构建未达标，characterId: {}, confidence: {}",
                     characterId, result == null ? null : result.confidence());
             return false;
         }
 
         RoleProfile profile = toRoleProfile(character, result);
-        self.persistProfileBuildResult(character, profile, null);
+        persistProfileBuildResult(character, profile, null);
         log.debug("角色画像构建完成，characterId: {}, characterName: {}", characterId, character.getCharacterName());
         return true;
     }
@@ -115,15 +111,15 @@ public class RoleProfileService
      * @param profile 画像，为空时只刷新失败状态
      * @param profileError 画像构建错误
      */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void persistProfileBuildResult(RoleCharacter character, RoleProfile profile, String profileError) {
-        if (profile != null) {
-            remove(new LambdaQueryWrapper<RoleProfile>()
-                    .eq(RoleProfile::getCharacterId, character.getId()));
-            save(profile);
-        }
-        refreshCharacterBuildStatus(character.getId(), profileError);
+    private void persistProfileBuildResult(RoleCharacter character, RoleProfile profile, String profileError) {
+        transactionTemplate.executeWithoutResult(status -> {
+            if (profile != null) {
+                remove(new LambdaQueryWrapper<RoleProfile>()
+                        .eq(RoleProfile::getCharacterId, character.getId()));
+                save(profile);
+            }
+            refreshCharacterBuildStatus(character.getId(), profileError);
+        });
     }
 
     private List<RoleExample> profileExamples(Long characterId) {

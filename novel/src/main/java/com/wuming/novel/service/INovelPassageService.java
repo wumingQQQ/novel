@@ -11,7 +11,7 @@ import java.util.List;
 public interface INovelPassageService extends IService<NovelPassage> {
 
     /**
-     * 按章节内容切分Passage，替换该章节旧Passage，并在事务提交后同步刷新向量索引。
+     * 按章节内容切分Passage，替换该章节旧Passage，并在事务外同步刷新向量索引。
      *
      * @param jobId 任务id，用于日志追踪
      * @param chapterId 章节id

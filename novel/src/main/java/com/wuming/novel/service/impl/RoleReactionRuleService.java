@@ -22,12 +22,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -68,58 +65,6 @@ public class RoleReactionRuleService
 
     @Value("${novel.reaction-rule.min-confidence:0.6}")
     private double minConfidence;
-
-    /**
-     * 基于预定义情境为指定角色构建反应规则。
-     *
-     * <p>情境检索、query改写和规则生成不进入事务；只有删除旧规则、保存新规则、
-     * 标记构建状态和注册索引回调在独立事务中执行。</p>
-     *
-     * @param characterId 角色id
-     * @return 本次保存的规则数量
-     */
-    @Override
-    public int buildRules(Long characterId) {
-        if (characterId == null) {
-            throw new IllegalArgumentException("characterId不能为空");
-        }
-        RoleCharacter character = roleCharacterService.getById(characterId);
-        if (character == null) {
-            throw new IllegalArgumentException("角色不存在: " + characterId);
-        }
-
-        List<SituationTask> tasks = situationTasks();
-        if (tasks.isEmpty()) {
-            log.warn("未读取到情境反应规则配置，characterId: {}, config: {}", characterId, situationsConfig);
-            return 0;
-        }
-
-        log.info("开始构建角色情境反应规则，characterId: {}, characterName: {}, situationCount: {}",
-                characterId, character.getCharacterName(), tasks.size());
-        List<RoleReactionRule> rules = new ArrayList<>();
-        for (SituationTask task : tasks) {
-            try {
-                RoleReactionRule rule = buildOneRuleWithLimit(character, task);
-                if (rule != null) {
-                    rules.add(rule);
-                }
-            } catch (RuntimeException e) {
-                log.warn("角色情境反应规则构建任务失败，characterId: {}, situationKey: {}, errorType: {}, errorMessage: {}",
-                        characterId, situationKey(task), e.getClass().getSimpleName(), e.getMessage());
-                log.debug("角色情境反应规则构建异常堆栈，characterId: {}, situationKey: {}",
-                        characterId, situationKey(task), e);
-            }
-        }
-        if (rules.isEmpty()) {
-            markIncomplete(character, "未生成有效ReactionRule");
-            log.info("角色情境反应规则构建完成，characterId: {}, savedCount: 0", characterId);
-            return 0;
-        }
-
-        int savedCount = saveBuiltRulesInTransaction(characterId, rules);
-        log.info("角色情境反应规则构建完成，characterId: {}, savedCount: {}", characterId, savedCount);
-        return savedCount;
-    }
 
     /**
      * 查询预定义情境任务标识，用于Pipeline按情境记录检查点。
@@ -163,8 +108,31 @@ public class RoleReactionRuleService
             throw new IllegalArgumentException("角色不存在: " + characterId);
         }
         SituationTask task = requireSituationTask(situationKey);
-        RoleReactionRule rule = buildOneRuleWithLimit(character, task);
-        return saveOneRuleInTransaction(character, task.situation(), rule);
+        RoleReactionRule rule = llmConcurrencyLimiter.execute(() -> buildOneRule(character, task));
+        PersistedRules persisted = Objects.requireNonNull(transactionTemplate.execute(status -> {
+            List<Long> oldRuleIds = list(new LambdaQueryWrapper<RoleReactionRule>()
+                    .select(RoleReactionRule::getId)
+                    .eq(RoleReactionRule::getCharacterId, character.getId())
+                    .eq(RoleReactionRule::getSituation, task.situation()))
+                    .stream()
+                    .map(RoleReactionRule::getId)
+                    .toList();
+            if (!oldRuleIds.isEmpty()) {
+                remove(new LambdaQueryWrapper<RoleReactionRule>()
+                        .eq(RoleReactionRule::getCharacterId, character.getId())
+                        .eq(RoleReactionRule::getSituation, task.situation()));
+            }
+            if (rule == null) {
+                return new PersistedRules(oldRuleIds, List.of(), 0);
+            }
+            save(rule);
+            List<Long> newRuleIds = rule.getId() == null ? List.of() : List.of(rule.getId());
+            return new PersistedRules(oldRuleIds, newRuleIds, 1);
+        }));
+
+        // 数据库事务完成并释放连接后，再执行可能耗时的远程索引操作。
+        syncRoleReactionRuleIndex(character, persisted.oldRuleIds(), persisted.newRuleIds(), persisted.ruleCount());
+        return persisted.ruleCount();
     }
 
     /**
@@ -225,17 +193,6 @@ public class RoleReactionRuleService
         log.debug("情境反应规则构建成功，characterId: {}, category: {}, situationKey: {}",
                 character.getId(), task.category(), situationKey(task));
         return rule;
-    }
-
-    /**
-     * 受统一LLM并发限流保护的单情境反应规则构建入口。
-     *
-     * @param character 角色
-     * @param task 情境任务
-     * @return 构建成功的规则；证据不足或构建失败时返回null
-     */
-    private RoleReactionRule buildOneRuleWithLimit(RoleCharacter character, SituationTask task) {
-        return llmConcurrencyLimiter.execute(() -> buildOneRule(character, task));
     }
 
     /**
@@ -313,114 +270,9 @@ public class RoleReactionRuleService
     }
 
     /**
-     * 在独立事务中保存构建结果，避免LLM调用进入事务。
-     *
-     * @param characterId 角色id
-     * @param rules 已构建的反应规则
-     * @return 本次保存的规则数量
+     * 事务内持久化结果，用于事务外同步向量索引。
      */
-    private int saveBuiltRulesInTransaction(Long characterId, List<RoleReactionRule> rules) {
-        return Objects.requireNonNull(transactionTemplate.execute(status -> saveBuiltRules(characterId, rules)));
-    }
-
-    /**
-     * 删除旧规则并保存新规则，同时注册事务提交后的同步向量索引动作。
-     *
-     * @param characterId 角色id
-     * @param rules 已构建的反应规则
-     * @return 本次保存的规则数量
-     */
-    private int saveBuiltRules(Long characterId, List<RoleReactionRule> rules) {
-        List<Long> oldRuleIds = list(new LambdaQueryWrapper<RoleReactionRule>()
-                .select(RoleReactionRule::getId)
-                .eq(RoleReactionRule::getCharacterId, characterId))
-                .stream()
-                .map(RoleReactionRule::getId)
-                .toList();
-        remove(new LambdaQueryWrapper<RoleReactionRule>()
-                .eq(RoleReactionRule::getCharacterId, characterId));
-        saveBatch(rules);
-        List<Long> newRuleIds = rules.stream()
-                .map(RoleReactionRule::getId)
-                .filter(Objects::nonNull)
-                .toList();
-        RoleCharacter character = roleCharacterService.getById(characterId);
-        if (character != null) {
-            syncRoleReactionRuleIndexAfterCommit(character, oldRuleIds, newRuleIds, rules.size());
-            markIncomplete(character, "ReactionRule已构建，待构建Profile");
-        }
-        return rules.size();
-    }
-
-    /**
-     * 在独立事务中保存单个情境规则，避免LLM调用进入事务。
-     *
-     * @param character 角色
-     * @param situation 情境描述
-     * @param rule 已构建的规则；为空时代表该情境证据不足，需要清理旧规则
-     * @return 本次保存的规则数量
-     */
-    private int saveOneRuleInTransaction(RoleCharacter character, String situation, RoleReactionRule rule) {
-        return Objects.requireNonNull(transactionTemplate.execute(status -> saveOneRule(character, situation, rule)));
-    }
-
-    /**
-     * 删除当前情境旧规则并保存新规则，同时注册事务提交后的同步向量索引动作。
-     *
-     * @param character 角色
-     * @param situation 情境描述
-     * @param rule 已构建的规则；为空时仅删除旧规则
-     * @return 本次保存的规则数量
-     */
-    private int saveOneRule(RoleCharacter character, String situation, RoleReactionRule rule) {
-        List<Long> oldRuleIds = list(new LambdaQueryWrapper<RoleReactionRule>()
-                .select(RoleReactionRule::getId)
-                .eq(RoleReactionRule::getCharacterId, character.getId())
-                .eq(RoleReactionRule::getSituation, situation))
-                .stream()
-                .map(RoleReactionRule::getId)
-                .toList();
-        if (!oldRuleIds.isEmpty()) {
-            remove(new LambdaQueryWrapper<RoleReactionRule>()
-                    .eq(RoleReactionRule::getCharacterId, character.getId())
-                    .eq(RoleReactionRule::getSituation, situation));
-        }
-        List<Long> newRuleIds;
-        int ruleCount;
-        if (rule == null) {
-            newRuleIds = List.of();
-            ruleCount = 0;
-        } else {
-            save(rule);
-            newRuleIds = rule.getId() == null ? List.of() : List.of(rule.getId());
-            ruleCount = 1;
-        }
-        syncRoleReactionRuleIndexAfterCommit(character, oldRuleIds, newRuleIds, ruleCount);
-        return ruleCount;
-    }
-
-    /**
-     * 在事务提交后同步刷新角色反应规则向量索引。
-     *
-     * @param character 角色
-     * @param oldRuleIds 待删除向量的旧规则id
-     * @param newRuleIds 待写入向量的新规则id
-     * @param ruleCount 本次保存的规则数量
-     */
-    private void syncRoleReactionRuleIndexAfterCommit(RoleCharacter character,
-                                                      List<Long> oldRuleIds,
-                                                      List<Long> newRuleIds,
-                                                      int ruleCount) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    syncRoleReactionRuleIndex(character, oldRuleIds, newRuleIds, ruleCount);
-                }
-            });
-            return;
-        }
-        syncRoleReactionRuleIndex(character, oldRuleIds, newRuleIds, ruleCount);
+    private record PersistedRules(List<Long> oldRuleIds, List<Long> newRuleIds, int ruleCount) {
     }
 
     /**
