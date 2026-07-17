@@ -13,7 +13,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class NovelPreprocessLock {
-    private static final Duration LOCK_TTL = Duration.ofHours(6);
+    private static final Duration LOCK_TTL = Duration.ofMinutes(10);
     private static final DefaultRedisScript<Long> RELEASE_SCRIPT = new DefaultRedisScript<>(
             """
             if redis.call('get', KEYS[1]) == ARGV[1] then

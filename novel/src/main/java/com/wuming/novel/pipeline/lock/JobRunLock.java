@@ -12,7 +12,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class JobRunLock {
-    private static final Duration LOCK_TTL = Duration.ofHours(6);
+    private static final Duration LOCK_TTL = Duration.ofHours(2);
     private static final DefaultRedisScript<Long> RELEASE_SCRIPT =
             new DefaultRedisScript<>(
                     """
