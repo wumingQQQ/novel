@@ -1,6 +1,7 @@
 package com.wuming.novel.service.support;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.wuming.novel.domain.entity.Chapter;
 import com.wuming.novel.domain.entity.NovelPreprocess;
 import com.wuming.novel.domain.entity.NovelPassage;
@@ -10,13 +11,14 @@ import com.wuming.novel.infrastructure.mapper.NovelPreprocessMapper;
 import com.wuming.novel.pipeline.lock.NovelPreprocessLock;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.INovelPassageService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.function.Consumer;
 
 /**
  * 协调同一小说的章节与 Passage 公共预处理。
@@ -25,7 +27,6 @@ import java.time.LocalDateTime;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class NovelPreprocessCoordinator {
     private static final Duration WAIT_TIMEOUT = Duration.ofMinutes(30);
     private static final long WAIT_INTERVAL_MILLIS = 500L;
@@ -34,6 +35,22 @@ public class NovelPreprocessCoordinator {
     private final NovelPreprocessLock preprocessLock;
     private final IChapterService chapterService;
     private final INovelPassageService novelPassageService;
+    private final NovelPreprocessCheckpointStore checkpointStore;
+    private final long maxAttempts;
+
+    public NovelPreprocessCoordinator(NovelPreprocessMapper preprocessMapper,
+                                     NovelPreprocessLock preprocessLock,
+                                     IChapterService chapterService,
+                                     INovelPassageService novelPassageService,
+                                     NovelPreprocessCheckpointStore checkpointStore,
+                                     @Value("${novel.preprocess.max-attempts:3}") long maxAttempts) {
+        this.preprocessMapper = preprocessMapper;
+        this.preprocessLock = preprocessLock;
+        this.chapterService = chapterService;
+        this.novelPassageService = novelPassageService;
+        this.checkpointStore = checkpointStore;
+        this.maxAttempts = maxAttempts;
+    }
 
     /**
      * 在共享预处理已完成时直接复用，否则由唯一持锁者执行该阶段。
@@ -43,7 +60,16 @@ public class NovelPreprocessCoordinator {
      * @param work 真正执行构建的任务
      */
     public void execute(Long novelId, NovelPreprocessStage stage, StageWork work) {
-        Lease lease = acquire(novelId, stage);
+        execute(novelId, stage, work, ignored -> {});
+    }
+
+    /**
+     * 在共享预处理已完成时直接复用，否则由唯一持锁者执行该阶段。
+     * 等待其他生产者时会将共享 checkpoint 快照通知观察者。
+     */
+    public void execute(Long novelId, NovelPreprocessStage stage, StageWork work,
+                        Consumer<NovelPreprocessProgress> progressObserver) {
+        Lease lease = acquire(novelId, stage, progressObserver);
         if (!lease.owner()) {
             log.info("复用小说预处理产物，novelId: {}, stage: {}", novelId, stage);
             return;
@@ -51,6 +77,7 @@ public class NovelPreprocessCoordinator {
         try {
             work.run();
             markSucceeded(lease.preprocess(), stage);
+            clearCheckpoint(novelId, stage);
             log.info("小说预处理阶段完成，novelId: {}, stage: {}", novelId, stage);
         } catch (RuntimeException exception) {
             markFailed(lease.preprocess(), stage, exception);
@@ -61,7 +88,8 @@ public class NovelPreprocessCoordinator {
     }
 
     /** 取得阶段生产权；被其他 job 占用时等待其完成或失败。 */
-    private Lease acquire(Long novelId, NovelPreprocessStage stage) {
+    private Lease acquire(Long novelId, NovelPreprocessStage stage,
+                          Consumer<NovelPreprocessProgress> progressObserver) {
         long deadline = System.nanoTime() + WAIT_TIMEOUT.toNanos();
         while (System.nanoTime() < deadline) {
             NovelPreprocess preprocess = getOrCreate(novelId);
@@ -71,28 +99,44 @@ public class NovelPreprocessCoordinator {
 
             String token = preprocessLock.tryLock(novelId);
             if (token == null) {
-                awaitOtherProducer(novelId, stage);
+                awaitOtherProducer(novelId, stage, progressObserver);
                 continue;
             }
 
-            NovelPreprocess lockedPreprocess = getOrCreate(novelId);
-            if (completed(lockedPreprocess, stage)) {
-                preprocessLock.release(novelId, token);
-                return Lease.reused(lockedPreprocess);
+            boolean owner = false;
+            try {
+                NovelPreprocess lockedPreprocess = getOrCreate(novelId);
+                if (completed(lockedPreprocess, stage)) {
+                    return Lease.reused(lockedPreprocess);
+                }
+                if (canStart(lockedPreprocess, stage)) {
+                    if (!checkpointStore.tryStartAttempt(novelId, stage, maxAttempts)) {
+                        IllegalStateException exception = new IllegalStateException("公共预处理超过共享最大尝试次数");
+                        markFailed(lockedPreprocess, stage, exception);
+                        throw exception;
+                    }
+                    markRunning(lockedPreprocess, stage);
+                    owner = true;
+                    return Lease.owner(lockedPreprocess, token);
+                }
+            } finally {
+                if (!owner) {
+                    preprocessLock.release(novelId, token);
+                }
             }
-            if (!canStart(lockedPreprocess, stage)) {
-                preprocessLock.release(novelId, token);
-                awaitOtherProducer(novelId, stage);
-                continue;
-            }
-            markRunning(lockedPreprocess, stage);
-            return Lease.owner(lockedPreprocess, token);
+            awaitOtherProducer(novelId, stage, progressObserver);
         }
         throw new IllegalStateException("等待小说预处理超时，novelId: " + novelId + ", stage: " + stage);
     }
 
     /** 休眠一个短周期，避免多个 job 在共享锁上自旋。 */
-    private void awaitOtherProducer(Long novelId, NovelPreprocessStage stage) {
+    private void awaitOtherProducer(Long novelId, NovelPreprocessStage stage,
+                                    Consumer<NovelPreprocessProgress> progressObserver) {
+        try {
+            progressObserver.accept(checkpointStore.progress(novelId, stage));
+        } catch (RuntimeException exception) {
+            log.warn("小说预处理进度观察者通知失败，novelId: {}, stage: {}", novelId, stage, exception);
+        }
         try {
             Thread.sleep(WAIT_INTERVAL_MILLIS);
         } catch (InterruptedException exception) {
@@ -148,7 +192,9 @@ public class NovelPreprocessCoordinator {
         update.setCurrentStage(stage);
         update.setFailureReason(null);
         update.setStartedTime(LocalDateTime.now());
-        preprocessMapper.updateById(update);
+        preprocessMapper.update(update, new UpdateWrapper<NovelPreprocess>()
+                .eq("id", preprocess.getId())
+                .set("failure_reason", null));
         preprocess.setStatus(NovelPreprocessStatus.RUNNING);
         preprocess.setCurrentStage(stage);
     }
@@ -171,7 +217,19 @@ public class NovelPreprocessCoordinator {
         } else {
             update.setStatus(NovelPreprocessStatus.PENDING);
         }
-        preprocessMapper.updateById(update);
+        preprocessMapper.update(update, new UpdateWrapper<NovelPreprocess>()
+                .eq("id", preprocess.getId())
+                .set("current_stage", null)
+                .set("failure_reason", null));
+    }
+
+    /** Redis checkpoint 清理失败不应覆盖已持久化的成功状态。 */
+    private void clearCheckpoint(Long novelId, NovelPreprocessStage stage) {
+        try {
+            checkpointStore.clear(novelId, stage);
+        } catch (RuntimeException exception) {
+            log.warn("小说预处理 checkpoint 清理失败，novelId: {}, stage: {}", novelId, stage, exception);
+        }
     }
 
     /** 记录失败阶段，后续 job 会从最后未完成阶段重新尝试。 */

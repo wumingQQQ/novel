@@ -51,6 +51,8 @@ novel:
       socket-timeout-ms: ${TENCENT_COS_SOCKET_TIMEOUT_MS:30000}
   analysis:
     batch-size: 10
+  preprocess:
+    max-attempts: ${NOVEL_PREPROCESS_MAX_ATTEMPTS:3}
   task:
     default-page-size: 5
     max-page-size: 8

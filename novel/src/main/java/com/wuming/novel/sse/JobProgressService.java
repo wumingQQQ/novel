@@ -313,7 +313,6 @@ public class JobProgressService {
             subscribers.remove(jobId, emitter);
             log.debug("SSE进度推送失败，已移除订阅，jobId: {}, errorType: {}, errorMessage: {}",
                     jobId, e.getClass().getSimpleName(), e.getMessage());
-            emitter.complete();
         }
     }
 

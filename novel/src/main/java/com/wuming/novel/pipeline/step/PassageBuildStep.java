@@ -9,18 +9,20 @@ import com.wuming.novel.domain.enums.NovelPreprocessStage;
 import com.wuming.novel.pipeline.PipelineStep;
 import com.wuming.novel.pipeline.support.AsyncStageItemRunner;
 import com.wuming.novel.pipeline.support.PipelineJobSupport;
-import com.wuming.novel.pipeline.support.StageItemRecorder;
-import com.wuming.novel.pipeline.support.StageItemSelector;
 import com.wuming.novel.service.IChapterService;
 import com.wuming.novel.service.INovelPassageService;
 import com.wuming.novel.service.IPassageCharacterService;
+import com.wuming.novel.service.support.NovelPreprocessCheckpointStore;
 import com.wuming.novel.service.support.NovelPreprocessCoordinator;
+import com.wuming.novel.service.support.NovelPreprocessProgress;
+import com.wuming.novel.sse.JobProgressService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -31,13 +33,13 @@ import java.util.concurrent.Executor;
 @RequiredArgsConstructor
 public class PassageBuildStep implements PipelineStep {
     private final PipelineJobSupport pipelineJobSupport;
-    private final StageItemSelector stageItemSelector;
-    private final StageItemRecorder stageItemRecorder;
     private final AsyncStageItemRunner asyncStageItemRunner;
     private final IChapterService chapterService;
     private final INovelPassageService novelPassageService;
     private final IPassageCharacterService passageCharacterService;
     private final NovelPreprocessCoordinator preprocessCoordinator;
+    private final NovelPreprocessCheckpointStore checkpointStore;
+    private final JobProgressService jobProgressService;
     private final Executor llmExecutor;
 
     @Override
@@ -53,17 +55,19 @@ public class PassageBuildStep implements PipelineStep {
     @Override
     public void execute(Long jobId) {
         Job job = pipelineJobSupport.requireJob(jobId);
+        List<Chapter> chapters = chapterService.list(chapterQuery(job));
         preprocessCoordinator.execute(job.getNovelId(), NovelPreprocessStage.PASSAGE_BUILD,
-                () -> buildPassages(jobId, job));
+                () -> buildPassages(jobId, job, chapters),
+                progress -> mirrorProgress(jobId, chapters.size(), progress));
     }
 
     /** 仅由取得小说预处理锁的 job 构建并索引 Passage。 */
-    private void buildPassages(Long jobId, Job job) {
-        List<Chapter> chapters = targetChapters(jobId, job);
-        stageItemRecorder.initLongItemCounts(jobId, stage(), chapters.size());
+    private void buildPassages(Long jobId, Job job, List<Chapter> chapters) {
+        List<Chapter> targetChapters = targetChapters(job, chapters);
+        mirrorProgress(jobId, chapters.size(), checkpointStore.progress(job.getNovelId(), NovelPreprocessStage.PASSAGE_BUILD));
 
         // Passage替换会同时改写多个二级索引，按章节串行执行以避免同一小说内的事务死锁。
-        List<ChapterPassages> persistedChapters = persistPassages(jobId, job, chapters);
+        List<ChapterPassages> persistedChapters = persistPassages(jobId, job, chapters.size(), targetChapters);
         int successCount = persistedChapters.size();
         asyncStageItemRunner.run(
                 persistedChapters,
@@ -72,25 +76,26 @@ public class PassageBuildStep implements PipelineStep {
                 (chapterPassages, throwable) -> finishCharacterRecognition(job, chapterPassages.chapter(), throwable)
         );
         log.info("小说Passage构建执行完成，jobId: {}, novelId: {}, requestCount: {}, successCount: {}",
-                job.getId(), job.getNovelId(), chapters.size(), successCount);
-        if (successCount != chapters.size()) {
+                job.getId(), job.getNovelId(), targetChapters.size(), successCount);
+        if (successCount != targetChapters.size()) {
             throw new IllegalStateException("Passage构建存在失败项，successCount: " + successCount
-                    + ", requestCount: " + chapters.size());
+                    + ", requestCount: " + targetChapters.size());
         }
     }
 
     /**
      * 逐章写入 Passage，避免并发删除和批量插入竞争同一小说的二级索引锁。
      */
-    private List<ChapterPassages> persistPassages(Long jobId, Job job, List<Chapter> chapters) {
+    private List<ChapterPassages> persistPassages(Long jobId, Job job, int totalChapterCount,
+                                                  List<Chapter> chapters) {
         List<ChapterPassages> persistedChapters = new ArrayList<>(chapters.size());
         for (Chapter chapter : chapters) {
             try {
                 List<NovelPassage> passages = novelPassageService.splitPassage(job.getId(), chapter.getId());
-                finishOneChapter(jobId, job, chapter, null);
+                finishOneChapter(jobId, job, totalChapterCount, chapter, null);
                 persistedChapters.add(new ChapterPassages(chapter, passages));
             } catch (RuntimeException e) {
-                finishOneChapter(jobId, job, chapter, e);
+                finishOneChapter(jobId, job, totalChapterCount, chapter, e);
             }
         }
         return persistedChapters;
@@ -122,12 +127,16 @@ public class PassageBuildStep implements PipelineStep {
     /**
      * 完成单章Passage切分和向量索引收尾，统一记录检查点和进度。
      */
-    private boolean finishOneChapter(Long jobId, Job job, Chapter chapter, Throwable throwable) {
+    private boolean finishOneChapter(Long jobId, Job job, int totalChapterCount, Chapter chapter, Throwable throwable) {
         if (throwable == null) {
-            stageItemRecorder.recordLongSuccess(jobId, stage(), chapter.getId());
+            checkpointStore.recordSuccess(job.getNovelId(), NovelPreprocessStage.PASSAGE_BUILD, chapter.getId());
+            mirrorProgress(jobId, totalChapterCount,
+                    checkpointStore.progress(job.getNovelId(), NovelPreprocessStage.PASSAGE_BUILD));
             return true;
         }
-        stageItemRecorder.recordLongFailure(jobId, stage(), chapter.getId());
+        checkpointStore.recordFailure(job.getNovelId(), NovelPreprocessStage.PASSAGE_BUILD, chapter.getId());
+        mirrorProgress(jobId, totalChapterCount,
+                checkpointStore.progress(job.getNovelId(), NovelPreprocessStage.PASSAGE_BUILD));
         Throwable cause = pipelineJobSupport.rootCause(throwable);
         log.warn("章节Passage构建失败，已记录失败项，jobId: {}, novelId: {}, chapterId: {}, errorType: {}, errorMessage: {}",
                 job.getId(), job.getNovelId(), chapter.getId(),
@@ -140,17 +149,27 @@ public class PassageBuildStep implements PipelineStep {
     /**
      * 获取本次需要处理的章节；存在失败项时只重试失败章节，否则跳过已完成章节。
      *
-     * @param jobId 任务id
      * @param job 任务实体
      * @return 本次需要构建Passage的章节列表
      */
-    private List<Chapter> targetChapters(Long jobId, Job job) {
-        return stageItemSelector.selectLongBackedItems(
+    private List<Chapter> targetChapters(Job job, List<Chapter> chapters) {
+        Set<Long> selectedChapterIds = Set.copyOf(checkpointStore.selectItems(
+                job.getNovelId(),
+                NovelPreprocessStage.PASSAGE_BUILD,
+                chapters.stream().map(Chapter::getId).toList()
+        ));
+        return chapters.stream()
+                .filter(chapter -> selectedChapterIds.contains(chapter.getId()))
+                .toList();
+    }
+
+    private void mirrorProgress(Long jobId, int totalChapterCount, NovelPreprocessProgress progress) {
+        jobProgressService.setStageItemCounts(
                 jobId,
                 stage(),
-                failedChapterIds -> chapterService.list(chapterQuery(job).in(Chapter::getId, failedChapterIds)),
-                () -> chapterService.list(chapterQuery(job)),
-                Chapter::getId
+                totalChapterCount,
+                Math.toIntExact(progress.successCount()),
+                Math.toIntExact(progress.failureCount())
         );
     }
 
