@@ -2,7 +2,7 @@
 
 `deploy/` 是服务器部署目录。服务器只接收该目录内容、四个 JAR、前端构建产物和 `.env`，不需要项目源码、Maven 或 Node.js。
 
-Compose 运行 Nginx、user、rag、novel、chat 与 RocketMQ；MySQL、Redis Stack、LLM、Embedding 和 Reranker 为外部服务。`rocketmq-init` 会自动创建 `novel` Topic。
+Compose 运行 Nginx、user、rag、novel、chat、MySQL、Redis Stack 与 RocketMQ；LLM、Embedding 和 Reranker 为外部服务。MySQL 与 Redis Stack 仅在 Compose 内部网络开放，并通过命名卷持久化。`rocketmq-init` 会自动创建 `novel` Topic，应用首次启动会初始化各自的数据库表。
 
 ## 准备产物
 
@@ -23,7 +23,7 @@ Copy-Item dist/* ../deploy/artifacts/web -Recurse -Force
 
 ## 启动
 
-将 `deploy/` 内容上传到服务器后，复制 `.env.example` 为 `.env`，填写外部 MySQL、Redis 和模型密钥：
+将 `deploy/` 内容上传到服务器后，复制 `.env.example` 为 `.env`，填写 JWT、模型 API Key 等必填机密：
 
 ```bash
 cp .env.example .env

@@ -176,150 +176,92 @@ flowchart LR
 
 ## 快速开始
 
-### 1. 环境要求
+### 1. 服务器部署
+
+服务器仅需要 Docker 与 Docker Compose。上传 `deploy/`、四个 JAR 和 `web/dist` 后，`deploy/compose.yaml` 会启动 Nginx、四个应用、MySQL、Redis Stack 和 RocketMQ；MySQL、Redis Stack 不开放宿主机端口，默认使用本地文件存储。
+
+在服务器 `deploy/` 目录复制环境变量模板：
+
+```bash
+cp .env.example .env
+chmod 600 .env
+```
+
+`.env` 必须配置 `JWT_SECRET`、`DS_API_KEY`、`EMBEDDING_API_KEY`；其余服务地址、端口、模型名和 `NOVEL_STORAGE_TYPE=local` 均有默认值。建议设置 `JWT_ISSUER=https://你的域名`。
+
+启动并验证：
+
+```bash
+docker compose --env-file .env config
+docker compose --env-file .env up -d --build
+docker compose ps
+docker compose logs --tail=100 user rag novel chat nginx
+```
+
+首次启动时，`user`、`novel`、`chat` 会自动执行各自 JAR 中的 `db/schema.sql`，创建数据库表。浏览器访问 `http://服务器IP` 或已配置的域名；服务器和云安全组只需开放 TCP `80`。产物准备、单服务更新与 COS 配置见 [`deploy/README.md`](deploy/README.md)。
+
+### 2. Windows 本地源码开发
+
+#### 环境要求
 
 - JDK 21
 - Maven 3.9+
 - Docker 与 Docker Compose
-- MySQL 客户端，或其他可以执行 SQL 文件的工具
-- `curl` 与 `jq`
+- Node.js 20+
 
-本地基础设施由根目录 `compose.yaml` 提供，数据库结构通过各模块的 `schema.sql` 手工初始化。LLM、Embedding、Reranker、COS 和邮件仅在调用对应功能时需要配置真实服务与密钥。
+根目录 `compose.yaml` 会启动 MySQL、Redis Stack 与 RocketMQ。快速启动时无需配置数据库、Redis 或 RocketMQ 地址。
 
-### 2. 启动基础设施
+#### 启动基础设施
 
-```bash
+```powershell
 docker compose -f compose.yaml up -d
-until docker compose -f compose.yaml exec -T mysql mysqladmin ping -h 127.0.0.1 -u root --silent; do sleep 2; done
 docker compose -f compose.yaml ps
 ```
 
 停止：
 
-```bash
+```powershell
 docker compose -f compose.yaml down
 ```
 
 验证 Compose 文件：
 
-```bash
+```powershell
 docker compose -f compose.yaml config
 ```
 
-### 3. 初始化数据库
+#### 启动应用
 
-本地数据库初始化入口是下面三个 `schema.sql`：
+在四个 PowerShell 窗口中依次启动 `user`、`rag`、`novel`、`chat`。每个窗口都执行对应命令；`SPRING_SQL_INIT_MODE=always` 会自动创建该服务所需的表。
 
-```bash
-mysql -h 127.0.0.1 -P 3306 -u root novel_dev < user/src/main/resources/db/schema.sql
-mysql -h 127.0.0.1 -P 3306 -u root novel_dev < novel/src/main/resources/db/schema.sql
-mysql -h 127.0.0.1 -P 3306 -u root novel_dev < chat/src/main/resources/db/schema.sql
+```powershell
+$env:JWT_SECRET = "replace-with-at-least-32-byte-local-secret"; $env:SPRING_SQL_INIT_MODE = "always"; mvn -pl user spring-boot:run
+$env:JWT_SECRET = "replace-with-at-least-32-byte-local-secret"; $env:SPRING_SQL_INIT_MODE = "always"; mvn -pl rag spring-boot:run
+$env:JWT_SECRET = "replace-with-at-least-32-byte-local-secret"; $env:SPRING_SQL_INIT_MODE = "always"; mvn -pl novel spring-boot:run
+$env:JWT_SECRET = "replace-with-at-least-32-byte-local-secret"; $env:SPRING_SQL_INIT_MODE = "always"; mvn -pl chat spring-boot:run
 ```
 
-已有数据库需要变更结构时，先更新对应 `schema.sql`，再在变更说明中给出可手工执行的 `ALTER` SQL。
+执行角色构建或 RAG 查询前，在对应服务窗口额外设置 `DS_API_KEY` 和 `EMBEDDING_API_KEY`。邮件和 COS 均为可选配置；不要将真实密钥写入 README、提交或日志。
 
-### 4. 设置本地环境变量
+#### 启动角色大厅前端
 
-基础配置会自动激活 `dev` profile；本地启动只需设置 JWT 密钥：
-
-```bash
-export JWT_SECRET="replace-with-at-least-32-byte-local-secret"
-```
-
-`user`、`novel` 和 `chat` 必须使用同一个 `JWT_SECRET`，否则 `user` 签发的 token 无法被另外两个服务校验。
-
-常用本地默认值：
-
-```bash
-export MYSQL_HOST="localhost"
-export MYSQL_PORT="3306"
-export MYSQL_DATABASE="novel_dev"
-export MYSQL_USERNAME="root"
-export MYSQL_PASSWORD=""
-export REDIS_HOST="localhost"
-export REDIS_PORT="9379"
-export ROCKETMQ_NAME_SERVER="localhost:9876"
-```
-
-只有调用真实能力时才需要额外配置：
-
-- LLM：`DS_API_KEY`，可选 `DS_BASE_URL`
-- Embedding / Reranker：按 `rag` 模块配置项设置对应 API Key、URL 和模型
-- COS：仅当 `NOVEL_STORAGE_TYPE=cos` 时需要 `TENCENT_COS_SECRET_ID`、`TENCENT_COS_SECRET_KEY`、`TENCENT_COS_REGION`、`TENCENT_COS_BUCKET_NAME`
-- 邮件：仅当 `USER_MAIL_ENABLED=true` 时需要 `RESEND_API_KEY` 和 `RESEND_MAIL_FROM`
-
-不要把真实密钥写入 README、提交、日志或示例命令。
-
-#### 可选：启用任务完成邮件
-
-user 服务会消费任务完成消息，但邮件通知默认关闭。需要真实发送邮件时，在启动 user 服务的终端设置：
-
-```bash
-export USER_MAIL_ENABLED="true"
-export RESEND_API_KEY="replace-with-resend-api-key"
-export RESEND_MAIL_FROM="verified-sender@example.com"
-```
-
-修改环境变量后必须重启 user 服务。任务所属用户必须处于 `ACTIVE` 状态并且已填写邮箱；未启用邮件时，user 日志会记录跳过发送的原因。
-
-### 5. 编译并启动 Java 应用
-
-建议按下面顺序启动：
-
-1. `user`
-2. `rag`
-3. `novel`
-4. `chat`
-
-先编译核心模块：
-
-```bash
-export JWT_SECRET="replace-with-at-least-32-byte-local-secret"
-
-mvn -pl user,novel,chat,rag -am -Dmaven.test.skip=true compile
-```
-
-再在不同终端分别启动：
-
-```bash
-mvn -pl user spring-boot:run
-mvn -pl rag spring-boot:run
-mvn -pl novel spring-boot:run
-mvn -pl chat spring-boot:run
-```
-
-如果在不同终端启动，确保每个终端都设置了相同的 `JWT_SECRET`。
-
-### 6. 启动角色大厅前端
-
-先启动 `novel` 和 `chat` 服务，再在新终端执行：
-
-```bash
+```powershell
 cd web
-npm install
+npm ci
 npm run dev
 ```
 
 浏览器访问 `http://localhost:5173`。Vite 会将 `/api/auth/` 代理到 `user:8082`、`/api/chat/` 代理到 `chat:8081`，其余 `/api/` 请求代理到 `novel:8080`；公共大厅只请求脱敏角色预览数据，不会展示完整画像、反应规则或原作样本。
 
-前端提供登录和注册弹窗。登录后 Access Token 保存在浏览器本地存储，并通过 `Authorization` Header 访问受保护接口。user 服务已提供基于 HttpOnly Cookie 的 Refresh Token 轮换与吊销接口；当前前端尚未接入自动刷新，退出只清理本地 Access Token。
 
-本地生产样式联调时，Nginx 通过 Compose 的 `web` profile 构建并代理宿主机上的 Java 服务：
 
-```bash
-docker compose -f compose.yaml --profile web up -d --build nginx
-docker compose -f compose.yaml --profile web ps
-```
+## 可选：最小链路验证
 
-浏览器访问 `http://localhost:8088`。Compose 已配置 `host.docker.internal:host-gateway`，因此 Docker Desktop 与 Linux Docker 都可访问宿主机上的 `user:8082`、`novel:8080`、`chat:8081`。停止前端代理：
+首次使用可安装依赖：
 
 ```bash
-docker compose -f compose.yaml --profile web stop nginx
+sudo apt-get update && sudo apt-get install -y curl jq
 ```
-
-服务器部署使用 `deploy/` 中的独立运行时 Compose，不依赖源码构建。外部 MySQL、Redis Stack 与模型服务的环境变量、产物上传和单服务更新流程见 [`deploy/README.md`](deploy/README.md)。
-
-### 7. 最小链路验证
 
 注册：
 
@@ -430,6 +372,10 @@ git ls-files -- "*src/test*"
 
 ## 未来方向
 
-当前版本已经完成从小说预处理、角色构建到个性化调整与聊天的核心链路。后续将重点补充“扮演角色”与“目标角色”之间的公共关系画像，让双方在原作中的相处方式、对话习惯和互动边界能够被复用，并在聊天时形成更准确的关系约束。
-
-小说级公共预处理当前使用 Redis 保存章节级检查点，并由小说级锁协调任一角色任务自动接管失败项。后续将把这些检查点迁移为持久化的阶段子项记录：按小说、阶段和章节保存成功状态、失败原因与重试次数，以支持跨进程重启的恢复、历史审计和更精确的公共进度查询。
++ [ ] 依据上传小说内容识别小说名（避免用户恶意重复上传）
++ [ ] 创建任务时对用户传递的目标角色进行归一（避免角色别名也能创建，确保小说+角色唯一）
++ [ ] 并行处理章节切分passage（克服并发写入数据库异常）
++ [ ] 针对小说级公共预处理创建单独数据库表，避免redis的不稳定性
++ [ ] 为已创建角色增加初始角色关系，用户可以选择从目标角色的某个关系开始
++ [ ] 角色质量评测，选取典型场景分割测试集与验证集，在不召回原文的情况下评估角色质量
++ [ ] 提示词质量改善

@@ -1,6 +1,7 @@
 server {
     listen 80;
     server_name _;
+    client_max_body_size 10m;
 
     # Docker 内置 DNS 会在服务容器重建后重新解析其地址。
     resolver 127.0.0.11 valid=10s ipv6=off;
@@ -23,6 +24,9 @@ server {
     location /api/ {
         proxy_pass http://$novel_upstream/;
         proxy_http_version 1.1;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 3m;
+        proxy_read_timeout 3m;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -32,6 +36,9 @@ server {
     location /api/chat/ {
         proxy_pass http://$chat_upstream/chat/;
         proxy_http_version 1.1;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 3m;
+        proxy_read_timeout 3m;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

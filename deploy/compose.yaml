@@ -1,4 +1,33 @@
 services:
+  mysql:
+    image: "mysql:8.4"
+    restart: unless-stopped
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-novel}"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+08:00
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis-stack:
+    image: "redis/redis-stack-server:7.2.0-v10"
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   rocketmq-namesrv:
     image: "apache/rocketmq:5.3.2"
     restart: unless-stopped
@@ -36,18 +65,21 @@ services:
       args: { MODULE: user }
     restart: unless-stopped
     depends_on:
+      mysql:
+        condition: service_healthy
       rocketmq-init:
         condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      MYSQL_HOST: "${MYSQL_HOST}"
-      MYSQL_PORT: "${MYSQL_PORT}"
-      MYSQL_DATABASE: "${MYSQL_DATABASE}"
-      MYSQL_USERNAME: "${MYSQL_USERNAME}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+      SPRING_SQL_INIT_MODE: always
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-novel}"
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: ""
       ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
-      JWT_SECRET: "${JWT_SECRET}"
-      JWT_ISSUER: "${JWT_ISSUER}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set}"
+      JWT_ISSUER: "${JWT_ISSUER:-http://localhost}"
       USER_MAIL_ENABLED: "${USER_MAIL_ENABLED:-false}"
       RESEND_API_KEY: "${RESEND_API_KEY:-}"
       RESEND_MAIL_FROM: "${RESEND_MAIL_FROM:-}"
@@ -58,16 +90,22 @@ services:
       dockerfile: Dockerfile.app
       args: { MODULE: rag }
     restart: unless-stopped
+    depends_on:
+      redis-stack:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      REDIS_HOST: "${REDIS_HOST}"
-      REDIS_PORT: "${REDIS_PORT}"
-      REDIS_PWD: "${REDIS_PWD:-}"
-      EMBEDDING_API_KEY: "${EMBEDDING_API_KEY}"
-      EMBEDDING_BASE_URL: "${EMBEDDING_BASE_URL}"
-      EMBEDDING_MODEL: "${EMBEDDING_MODEL}"
-      RERANKER_BASE_URL: "${RERANKER_BASE_URL}"
-      RERANKER_MODEL: "${RERANKER_MODEL}"
+      REDIS_HOST: redis-stack
+      REDIS_PORT: "6379"
+      REDIS_PWD: ""
+      DS_API_KEY: "${DS_API_KEY:?DS_API_KEY must be set}"
+      DS_BASE_URL: "${DS_BASE_URL:-https://api.deepseek.com}"
+      DS_MODEL: "${DS_MODEL:-deepseek-v4-flash}"
+      EMBEDDING_API_KEY: "${EMBEDDING_API_KEY:?EMBEDDING_API_KEY must be set}"
+      EMBEDDING_BASE_URL: "${EMBEDDING_BASE_URL:-https://api.siliconflow.cn}"
+      EMBEDDING_MODEL: "${EMBEDDING_MODEL:-BAAI/bge-m3}"
+      RERANKER_BASE_URL: "${RERANKER_BASE_URL:-https://api.siliconflow.cn}"
+      RERANKER_MODEL: "${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}"
 
   novel:
     build:
@@ -76,6 +114,10 @@ services:
       args: { MODULE: novel }
     restart: unless-stopped
     depends_on:
+      mysql:
+        condition: service_healthy
+      redis-stack:
+        condition: service_healthy
       rocketmq-init:
         condition: service_completed_successfully
       rag:
@@ -84,23 +126,33 @@ services:
         condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      MYSQL_HOST: "${MYSQL_HOST}"
-      MYSQL_PORT: "${MYSQL_PORT}"
-      MYSQL_DATABASE: "${MYSQL_DATABASE}"
-      MYSQL_USERNAME: "${MYSQL_USERNAME}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
-      REDIS_HOST: "${REDIS_HOST}"
-      REDIS_PORT: "${REDIS_PORT}"
-      REDIS_PWD: "${REDIS_PWD:-}"
+      SPRING_SQL_INIT_MODE: always
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-novel}"
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: ""
+      REDIS_HOST: redis-stack
+      REDIS_PORT: "6379"
+      REDIS_PWD: ""
       ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
       USER_SERVICE_URL: tri://user:50052
       RAG_SERVICE_URL: tri://rag:50053
-      JWT_SECRET: "${JWT_SECRET}"
-      JWT_ISSUER: "${JWT_ISSUER}"
-      DS_API_KEY: "${DS_API_KEY}"
-      DS_BASE_URL: "${DS_BASE_URL}"
-      DS_MODEL: "${DS_MODEL}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set}"
+      JWT_ISSUER: "${JWT_ISSUER:-http://localhost}"
+      DS_API_KEY: "${DS_API_KEY:?DS_API_KEY must be set}"
+      DS_BASE_URL: "${DS_BASE_URL:-https://api.deepseek.com}"
+      DS_MODEL: "${DS_MODEL:-deepseek-v4-flash}"
       NOVEL_LLM_MAX_CONCURRENCY: "${NOVEL_LLM_MAX_CONCURRENCY:-20}"
+      NOVEL_STORAGE_TYPE: "${NOVEL_STORAGE_TYPE:-local}"
+      # 如果storage type填的时cos才需要补充以下配置
+      TENCENT_COS_SECRET_ID: "${TENCENT_COS_SECRET_ID:-}"
+      TENCENT_COS_SECRET_KEY: "${TENCENT_COS_SECRET_KEY:-}"
+      TENCENT_COS_REGION: "${TENCENT_COS_REGION:-}"
+      TENCENT_COS_BUCKET_NAME: "${TENCENT_COS_BUCKET_NAME:-}"
+      TENCENT_COS_KEY_PREFIX: "${TENCENT_COS_KEY_PREFIX:-novels}"
+      TENCENT_COS_CONNECTION_TIMEOUT_MS: "${TENCENT_COS_CONNECTION_TIMEOUT_MS:-120000}"
+      TENCENT_COS_SOCKET_TIMEOUT_MS: "${TENCENT_COS_SOCKET_TIMEOUT_MS:-120000}"
     volumes:
       - novel-data:/app/data/novel
 
@@ -111,6 +163,10 @@ services:
       args: { MODULE: chat }
     restart: unless-stopped
     depends_on:
+      mysql:
+        condition: service_healthy
+      redis-stack:
+        condition: service_healthy
       rocketmq-init:
         condition: service_completed_successfully
       user:
@@ -121,23 +177,24 @@ services:
         condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      MYSQL_HOST: "${MYSQL_HOST}"
-      MYSQL_PORT: "${MYSQL_PORT}"
-      MYSQL_DATABASE: "${MYSQL_DATABASE}"
-      MYSQL_USERNAME: "${MYSQL_USERNAME}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
-      REDIS_HOST: "${REDIS_HOST}"
-      REDIS_PORT: "${REDIS_PORT}"
-      REDIS_PWD: "${REDIS_PWD:-}"
+      SPRING_SQL_INIT_MODE: always
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-novel}"
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: ""
+      REDIS_HOST: redis-stack
+      REDIS_PORT: "6379"
+      REDIS_PWD: ""
       ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
       USER_SERVICE_URL: tri://user:50052
       NOVEL_SERVICE_URL: tri://novel:50051
       RAG_SERVICE_URL: tri://rag:50053
-      JWT_SECRET: "${JWT_SECRET}"
-      JWT_ISSUER: "${JWT_ISSUER}"
-      DS_API_KEY: "${DS_API_KEY}"
-      DS_BASE_URL: "${DS_BASE_URL}"
-      DS_MODEL: "${DS_MODEL}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set}"
+      JWT_ISSUER: "${JWT_ISSUER:-http://localhost}"
+      DS_API_KEY: "${DS_API_KEY:?DS_API_KEY must be set}"
+      DS_BASE_URL: "${DS_BASE_URL:-https://api.deepseek.com}"
+      DS_MODEL: "${DS_MODEL:-deepseek-v4-flash}"
 
   nginx:
     build:
@@ -156,5 +213,7 @@ services:
       - "${HTTP_PORT:-80}:80"
 
 volumes:
+  mysql-data:
+  redis-data:
   rocketmq-store:
   novel-data:
