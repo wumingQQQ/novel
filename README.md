@@ -1,4 +1,4 @@
-# novel-latest
+# novel
 
 <div align="center">
 
